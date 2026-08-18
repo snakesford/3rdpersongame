@@ -118,11 +118,6 @@ canvas {
   max-width: min(660px, 100%);
 }
 
-.mode-buttons {
-  display: flex;
-  gap: 10px;
-}
-
 button {
   border: 1px solid rgba(255, 255, 255, 0.14);
   border-radius: 10px;
@@ -155,12 +150,6 @@ button.hidden {
 .status-panel {
   min-width: min(420px, 100%);
   max-width: 520px;
-}
-
-#modeLabel {
-  color: #fff5d2;
-  font-weight: 600;
-  margin-bottom: 6px;
 }
 
 #statusText {

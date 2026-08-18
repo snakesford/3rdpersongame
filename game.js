@@ -2,11 +2,8 @@ const canvas = document.getElementById("gameCanvas");
 const ctx = canvas.getContext("2d");
 
 const woodCountEl = document.getElementById("woodCount");
-const modeLabelEl = document.getElementById("modeLabel");
 const statusTextEl = document.getElementById("statusText");
 const overlayMessageEl = document.getElementById("overlayMessage");
-const characterModeBtn = document.getElementById("characterModeBtn");
-const commandModeBtn = document.getElementById("commandModeBtn");
 const buildBarracksBtn = document.getElementById("buildBarracksBtn");
 const trainSoldierBtn = document.getElementById("trainSoldierBtn");
 const slashAbilityEl = document.getElementById("slashAbility");
@@ -33,8 +30,7 @@ const COLORS = {
 };
 
 const player = {
-  wood: 0,
-  mode: "character",
+  wood: 1000,
   selectedUnits: [],
   selectedBuildingId: null,
   isPlacingBuilding: false,
@@ -179,32 +175,6 @@ function resizeCanvas() {
 window.addEventListener("resize", resizeCanvas);
 resizeCanvas();
 
-function setMode(mode) {
-  if (player.victory || player.loss) {
-    return;
-  }
-
-  player.mode = mode;
-  player.selectedBuildingId = null;
-  if (mode === "character") {
-    player.selectedUnits = [];
-    clearUnitSelection();
-    player.isPlacingBuilding = false;
-    selectionBox = null;
-    modeLabelEl.textContent = "Mode: Character";
-    statusTextEl.textContent = getCharacterStatus();
-  } else {
-    hero.isHarvesting = false;
-    harvestTreeId = null;
-    modeLabelEl.textContent = "Mode: Command";
-    statusTextEl.textContent = "Drag to select soldiers. Right-click ground to move, or enemies to attack.";
-  }
-
-  characterModeBtn.classList.toggle("active", mode === "character");
-  commandModeBtn.classList.toggle("active", mode === "command");
-  updateTrainButton();
-}
-
 function getCharacterStatus() {
   if (player.isPlacingBuilding) {
     return "Place the Barracks on open ground. Right-click or press Escape to cancel.";
@@ -222,7 +192,7 @@ function getCharacterStatus() {
 
 function updateTrainButton() {
   const selected = buildings.find((b) => b.id === player.selectedBuildingId && b.type === "barracks" && b.isPlayer);
-  const show = player.mode === "command" && Boolean(selected);
+  const show = Boolean(selected);
   trainSoldierBtn.classList.toggle("hidden", !show);
   trainSoldierBtn.disabled = player.wood < 50 || !show;
 }
@@ -363,7 +333,7 @@ function isValidBarracksPlacement(x, y) {
 
 function startHarvest() {
   const tree = getNearbyTree();
-  if (!tree || hero.isHarvesting || player.mode !== "character") {
+  if (!tree || hero.isHarvesting) {
     return;
   }
   hero.isHarvesting = true;
@@ -378,7 +348,7 @@ function cancelHarvest() {
 }
 
 function useSlash() {
-  if (player.mode !== "character" || player.victory || player.loss || hero.slashTimer > 0) {
+  if (player.victory || player.loss || hero.slashTimer > 0) {
     return;
   }
 
@@ -431,37 +401,15 @@ function setSelectedUnitsAttackTarget(target) {
 }
 
 function updateCamera(dt) {
-  if (player.mode === "character") {
-    camera.x = clamp(hero.x - canvas.width / 2, 0, WORLD.width - canvas.width);
-    camera.y = clamp(hero.y - canvas.height / 2, 0, WORLD.height - canvas.height);
-    return;
-  }
-
-  const edge = 32;
-  const speed = 360;
-
-  if (keys.has("ArrowLeft") || mouse.x < edge) {
-    camera.x -= speed * dt;
-  }
-  if (keys.has("ArrowRight") || mouse.x > canvas.width - edge) {
-    camera.x += speed * dt;
-  }
-  if (keys.has("ArrowUp") || mouse.y < edge) {
-    camera.y -= speed * dt;
-  }
-  if (keys.has("ArrowDown") || mouse.y > canvas.height - edge) {
-    camera.y += speed * dt;
-  }
-
-  camera.x = clamp(camera.x, 0, Math.max(0, WORLD.width - canvas.width));
-  camera.y = clamp(camera.y, 0, Math.max(0, WORLD.height - canvas.height));
+  camera.x = clamp(hero.x - canvas.width / 2, 0, WORLD.width - canvas.width);
+  camera.y = clamp(hero.y - canvas.height / 2, 0, WORLD.height - canvas.height);
 }
 
 function updateHero(dt) {
   hero.slashTimer = Math.max(0, hero.slashTimer - dt);
   hero.slashArcTimer = Math.max(0, hero.slashArcTimer - dt);
 
-  if (player.mode !== "character" || player.victory || player.loss) {
+  if (player.victory || player.loss) {
     updateAbilityUI();
     return;
   }
@@ -742,7 +690,7 @@ function drawBuildPreview() {
 
 function drawModeHint() {
   const tree = getNearbyTree();
-  if (player.mode === "character" && tree && !hero.isHarvesting) {
+  if (tree && !hero.isHarvesting) {
     ctx.fillStyle = "rgba(15, 33, 24, 0.82)";
     ctx.fillRect(tree.x - 52, tree.y - 72, 104, 26);
     ctx.fillStyle = "#fff5d2";
@@ -811,19 +759,6 @@ window.addEventListener("keydown", (event) => {
   const key = event.key.length === 1 ? event.key.toLowerCase() : event.key;
   keys.add(key);
 
-  if (event.key === "Tab") {
-    event.preventDefault();
-    setMode(player.mode === "character" ? "command" : "character");
-  }
-
-  if (key === "1") {
-    setMode("character");
-  }
-
-  if (key === "2") {
-    setMode("command");
-  }
-
   if (key === "e") {
     startHarvest();
   }
@@ -870,12 +805,8 @@ canvas.addEventListener("mousedown", (event) => {
         player.hasBuiltBarracks = true;
         player.isPlacingBuilding = false;
         woodCountEl.textContent = String(player.wood);
-        statusTextEl.textContent = "Barracks built. Switch to Command Mode and select it to train soldiers.";
+        statusTextEl.textContent = "Barracks built. Select it to train soldiers.";
       }
-      return;
-    }
-
-    if (player.mode !== "command") {
       return;
     }
 
@@ -918,10 +849,6 @@ canvas.addEventListener("contextmenu", (event) => {
     return;
   }
 
-  if (player.mode !== "command") {
-    return;
-  }
-
   const enemyUnit = getUnitAt(point, enemies);
   if (enemyUnit && player.selectedUnits.length) {
     setSelectedUnitsAttackTarget(enemyUnit);
@@ -940,17 +867,16 @@ canvas.addEventListener("contextmenu", (event) => {
   statusTextEl.textContent = player.selectedUnits.length ? "Move order issued." : "Select soldiers first.";
 });
 
-characterModeBtn.addEventListener("click", () => setMode("character"));
-commandModeBtn.addEventListener("click", () => setMode("command"));
-
 buildBarracksBtn.addEventListener("click", () => {
   if (player.wood < 100) {
     statusTextEl.textContent = "Not enough wood to build a Barracks.";
     return;
   }
   player.isPlacingBuilding = true;
-  setMode("character");
-  player.isPlacingBuilding = true;
+  player.selectedBuildingId = null;
+  clearUnitSelection();
+  player.selectedUnits = [];
+  updateTrainButton();
   statusTextEl.textContent = "Place the Barracks on open ground. Right-click or press Escape to cancel.";
 });
 
@@ -963,9 +889,8 @@ trainSoldierBtn.addEventListener("click", () => {
   woodCountEl.textContent = String(player.wood);
   createUnit("soldier", barracks.x + barracks.w + 24, barracks.y + barracks.h / 2, true);
   trainSoldierBtn.disabled = player.wood < 50;
-  statusTextEl.textContent = "Soldier trained. Select it and issue orders in Command Mode.";
+  statusTextEl.textContent = "Soldier trained. Select it and issue orders with the mouse.";
 });
 
-setMode("character");
 updateAbilityUI();
 requestAnimationFrame(gameLoop);
