@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Timberline Command</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <canvas id="gameCanvas"></canvas>
+
+  <div class="hud">
+    <div class="hud-top">
+      <div class="brand">
+        <span class="brand-kicker">RTS / ACTION PROTOTYPE</span>
+        <h1>Timberline Command</h1>
+      </div>
+      <div class="resource-panel">
+        <span>Wood</span>
+        <strong id="woodCount">0</strong>
+      </div>
+    </div>
+
+    <div class="hud-bottom">
+      <div class="controls-panel">
+        <div class="mode-buttons">
+          <button id="characterModeBtn" class="active">Character Mode</button>
+          <button id="commandModeBtn">Command Mode</button>
+        </div>
+        <button id="buildBarracksBtn">Build Barracks (100 wood)</button>
+        <button id="trainSoldierBtn" class="hidden">Train Soldier (50 wood)</button>
+      </div>
+
+      <div class="status-panel">
+        <div id="modeLabel">Mode: Character</div>
+        <div id="statusText">Walk near a tree and press E to harvest wood.</div>
+      </div>
+    </div>
+
+    <div class="ability-bar">
+      <div id="slashAbility" class="ability-chip ready">
+        <div class="ability-icon">F</div>
+        <div class="ability-copy">
+          <span>Slash</span>
+          <strong id="slashCooldownText">Ready</strong>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="overlayMessage" class="overlay hidden"></div>
+
+  <script src="game.js"></script>
+</body>
+</html>
