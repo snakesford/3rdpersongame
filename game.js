@@ -39,6 +39,8 @@ const soldierShootingImage = new Image();
 soldierShootingImage.src = "./images/soldier-shooting.png";
 const skeletonImage = new Image();
 skeletonImage.src = "./images/skeleton.png";
+const bowImage = new Image();
+bowImage.src = "./images/bow.png";
 
 const WORLD = { width: 2400, height: 1400 };
 const GRID_SIZE = 120;
@@ -205,6 +207,14 @@ const pickups = [
     radius: 18,
     collected: false,
   },
+  {
+    id: nextId(),
+    type: "bow",
+    x: PLAYER_BASE_SPAWN.x + 280,
+    y: PLAYER_BASE_SPAWN.y - 50,
+    radius: 18,
+    collected: false,
+  },
 ];
 
 spawnTrees();
@@ -347,6 +357,9 @@ function getCharacterStatus() {
     if (nearbyPickup.type === "rifle") {
       return "Run over the M4 rifle to equip it. Left-click to fire.";
     }
+    if (nearbyPickup.type === "bow") {
+      return "Run over the bow to equip it. Hold left-click to fire arrows.";
+    }
     return "Run over the helmet to equip it. Armor becomes 60.";
   }
 
@@ -425,14 +438,15 @@ function updateStatsUI() {
 }
 
 function updateWeaponUI() {
-  weaponIconEl.src = "./images/rifle.png";
   if (hero.hasBow) {
+    weaponIconEl.src = "./images/bow.png";
     weaponNameEl.textContent = "Bow";
     weaponHintEl.textContent = "Left-click to fire";
     ammoCountEl.textContent = "Ammo: --/--";
     return;
   }
 
+  weaponIconEl.src = "./images/rifle.png";
   if (hero.hasRifle) {
     weaponNameEl.textContent = "M4 Rifle";
     weaponHintEl.textContent = hero.isReloading
@@ -1103,7 +1117,21 @@ function swapHeroWeaponPickup(nextWeaponType, x, y, radius) {
     hero.reloadTimer = 0;
   }
 
-  if ((nextWeaponType === "axe" || nextWeaponType === "rifle") && hero.hasBow) {
+  if (nextWeaponType === "bow" && hero.hasRifle) {
+    spawnPickupDrop({ type: "rifle", radius }, x + 18, y);
+    hero.hasRifle = false;
+    hero.ammo = 0;
+    hero.isReloading = false;
+    hero.reloadTimer = 0;
+  }
+
+  if (nextWeaponType === "bow" && hero.hasAxe) {
+    spawnPickupDrop({ type: "axe", radius }, x - 18, y);
+    hero.hasAxe = false;
+    hero.axeSwingTimer = 0;
+  }
+
+  if ((nextWeaponType === "axe" || nextWeaponType === "rifle" || nextWeaponType === "bow") && hero.hasBow) {
     hero.hasBow = false;
     hero.bowCooldown = 0;
   }
@@ -1230,8 +1258,12 @@ function updateHero(dt) {
     }
   }
   hero.isMoving = false;
-  if (mouse.leftDown && hero.hasRifle && !player.isPlacingBuilding && !player.shopOpen && !player.traderOpen) {
-    spawnHeroBullet(mouse.worldX, mouse.worldY);
+  if (mouse.leftDown && !player.isPlacingBuilding && !player.shopOpen && !player.traderOpen) {
+    if (hero.hasRifle) {
+      spawnHeroBullet(mouse.worldX, mouse.worldY);
+    } else if (hero.hasBow) {
+      spawnHeroBowShot(mouse.worldX, mouse.worldY);
+    }
   }
   if (hero.abilityEffect?.effect === "burst") {
     const pendingShots = hero.abilityEffect.pendingShots || [];
@@ -1391,6 +1423,17 @@ function updateHero(dt) {
         updateWeaponUI();
         spawnTextPopup(pickup.x, pickup.y - 12, "M4 equipped!", "rgba(196, 234, 255, 1)", 1.8);
         spawnTextPopup(pickup.x, pickup.y + 12, "Left-click to fire", "rgba(196, 234, 255, 1)", 1.8);
+      } else if (pickup.type === "bow") {
+        swapHeroWeaponPickup("bow", pickup.x, pickup.y, pickup.radius);
+        hero.hasBow = true;
+        hero.bowCooldown = 0;
+        hero.latestPickup = {
+          type: "bow",
+          radius: pickup.radius,
+        };
+        updateWeaponUI();
+        spawnTextPopup(pickup.x, pickup.y - 12, "Bow equipped!", "rgba(214, 200, 154, 1)", 1.8);
+        spawnTextPopup(pickup.x, pickup.y + 12, "Hold left-click to fire", "rgba(245, 234, 196, 1)", 1.8);
       }
     }
   }
@@ -1746,6 +1789,27 @@ function drawPickup(pickup) {
     ctx.fillRect(-10, 2, 10, 4);
     ctx.fillRect(-2, 3, 4, 8);
     ctx.restore();
+  } else if (pickup.type === "bow") {
+    if (bowImage.complete && bowImage.naturalWidth > 0) {
+      const size = 34;
+      ctx.drawImage(bowImage, pickup.x - size / 2, pickup.y - size / 2, size, size);
+    } else {
+      ctx.save();
+      ctx.translate(pickup.x, pickup.y);
+      ctx.rotate(-0.2);
+      ctx.strokeStyle = "#8f643c";
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.arc(-2, 0, 10, -Math.PI / 2, Math.PI / 2);
+      ctx.stroke();
+      ctx.strokeStyle = "#d8d0bf";
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.moveTo(-2, -10);
+      ctx.lineTo(-2, 10);
+      ctx.stroke();
+      ctx.restore();
+    }
   }
 }
 
