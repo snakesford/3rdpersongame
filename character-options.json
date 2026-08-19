@@ -53,6 +53,7 @@
     "abilityName": "Pulse Wave",
     "cooldown": 8,
     "agility": 190,
+    "dashCooldown": 4,
     "portrait": "./images/robot.png",
     "stats": {
       "armor": 90,

@@ -6,9 +6,11 @@ const moneyCountEl = document.getElementById("moneyCount");
 const armorValueEl = document.getElementById("armorValue");
 const healthValueEl = document.getElementById("healthValue");
 const weaponValueEl = document.getElementById("weaponValue");
+const speedValueEl = document.getElementById("speedValue");
 const armorFillEl = document.getElementById("armorFill");
 const healthFillEl = document.getElementById("healthFill");
 const weaponFillEl = document.getElementById("weaponFill");
+const speedFillEl = document.getElementById("speedFill");
 const xpLevelEl = document.getElementById("xpLevel");
 const xpFillEl = document.getElementById("xpFill");
 const weaponIconEl = document.getElementById("weaponIcon");
@@ -29,6 +31,9 @@ const traderStatusEl = document.getElementById("traderStatus");
 const slashAbilityEl = document.getElementById("slashAbility");
 const abilityNameEl = document.getElementById("abilityName");
 const slashCooldownTextEl = document.getElementById("slashCooldownText");
+const dashAbilityEl = document.getElementById("dashAbility");
+const dashAbilityNameEl = document.getElementById("dashAbilityName");
+const dashCooldownTextEl = document.getElementById("dashCooldownText");
 const characterSelectEl = document.getElementById("characterSelect");
 const classGridEl = document.querySelector(".class-grid");
 const weaponBuffImage = new Image();
@@ -45,6 +50,12 @@ const bowImage = new Image();
 bowImage.src = "./images/bow.png";
 const archerImage = new Image();
 archerImage.src = "./images/archer.png";
+const archerRunningImage = new Image();
+archerRunningImage.src = "./images/archer-running.png";
+const archerShootingImage = new Image();
+archerShootingImage.src = "./images/archer-shooting.png";
+const archerDeadImage = new Image();
+archerDeadImage.src = "./images/archer-dead.png";
 
 const WORLD = { width: 2400, height: 1400 };
 const GRID_SIZE = 120;
@@ -130,12 +141,18 @@ const hero = {
   hp: 150,
   maxHp: 150,
   facingAngle: 0,
+  lastMoveAngle: null,
   slashCooldown: 8,
   slashTimer: 0,
   slashRadius: 86,
   slashHalfAngle: Math.PI / 2,
   slashDamage: 35,
   slashArcTimer: 0,
+  dashTimer: 0,
+  dashCooldown: 0,
+  dashCooldownRemaining: 0,
+  dashSpeed: 680,
+  dashDuration: 0.18,
   selectedClass: null,
   abilityEffect: null,
   harvestTime: 1.4,
@@ -153,6 +170,9 @@ const hero = {
   hasRifle: false,
   rifleCooldown: 0,
   isMoving: false,
+  isDead: false,
+  deathTimer: 0,
+  deathDuration: 0.7,
   ammo: 0,
   maxAmmo: 30,
   isReloading: false,
@@ -432,6 +452,18 @@ function updateAbilityUI() {
   slashCooldownTextEl.textContent = player.hasSelectedCharacter
     ? (ready ? "Ready" : `${hero.slashTimer.toFixed(1)}s`)
     : "Pick Hero";
+
+  const showDash = hero.selectedClass === "robot";
+  const dashReady = hero.dashCooldownRemaining <= 0;
+  dashAbilityEl.classList.toggle("hidden", !showDash);
+  dashAbilityNameEl.textContent = "Dash";
+  dashAbilityEl.classList.toggle("ready", showDash && dashReady);
+  dashAbilityEl.classList.toggle("cooldown", !showDash || !dashReady);
+  dashCooldownTextEl.textContent = !showDash
+    ? "Unavailable"
+    : dashReady
+      ? "Ready"
+      : `${hero.dashCooldownRemaining.toFixed(1)}s`;
 }
 
 function updateShopUI() {
@@ -451,13 +483,16 @@ function updateStatsUI() {
   const armor = Math.max(stats.armor, hero.equippedArmorValue);
   const damage = (selected?.damage || 0) + player.weaponBonusDamage;
   const health = hero.maxHp || stats.health;
+  const speed = hero.speed || selected?.agility || 0;
 
   armorValueEl.textContent = String(armor);
   healthValueEl.textContent = String(health);
   weaponValueEl.textContent = String(damage);
+  speedValueEl.textContent = String(speed);
   armorFillEl.style.width = `${armor}%`;
   healthFillEl.style.width = `${Math.min(100, (health / 200) * 100)}%`;
   weaponFillEl.style.width = `${Math.min(100, damage * 2)}%`;
+  speedFillEl.style.width = `${Math.min(100, (speed / 300) * 100)}%`;
   updateWeaponUI();
 }
 
@@ -638,6 +673,7 @@ function respawnHero() {
   hero.equippedArmorValue = 0;
   hero.equippedHelmetType = null;
   hero.speed = selectedClass?.agility || 220;
+  hero.lastMoveAngle = null;
   hero.hasAxe = false;
   hero.axeSwingTimer = 0;
   hero.hasBow = hero.selectedClass === "archer";
@@ -648,6 +684,11 @@ function respawnHero() {
   hero.ammo = hero.hasRifle ? hero.maxAmmo : 0;
   hero.isReloading = false;
   hero.reloadTimer = 0;
+  hero.isDead = false;
+  hero.deathTimer = 0;
+  hero.dashTimer = 0;
+  hero.dashCooldown = selectedClass?.dashCooldown || 0;
+  hero.dashCooldownRemaining = 0;
   heroProjectiles.length = 0;
   hero.hp = hero.maxHp;
   hero.x = PLAYER_BASE_SPAWN.x;
@@ -1168,6 +1209,30 @@ function useAxeSwing() {
   damageEnemiesInCone(18 + player.weaponBonusDamage, 64, Math.PI / 3);
 }
 
+function useRobotDash() {
+  if (
+    !player.hasSelectedCharacter ||
+    player.victory ||
+    player.loss ||
+    hero.selectedClass !== "robot" ||
+    hero.lastMoveAngle === null ||
+    hero.dashTimer > 0 ||
+    hero.dashCooldownRemaining > 0
+  ) {
+    return false;
+  }
+
+  hero.dashTimer = hero.dashDuration;
+  hero.dashCooldownRemaining = hero.dashCooldown || 4;
+  hero.facingAngle = hero.lastMoveAngle;
+  hero.isMoving = true;
+  if (hero.isHarvesting) {
+    cancelHarvest();
+  }
+  statusTextEl.textContent = "Dash activated.";
+  return true;
+}
+
 function swapHeroWeaponPickup(nextWeaponType, x, y, radius) {
   if (nextWeaponType === "axe" && hero.hasRifle) {
     spawnPickupDrop({ type: "rifle", radius }, x + 18, y);
@@ -1308,12 +1373,23 @@ function updateCamera(dt) {
 }
 
 function updateHero(dt) {
+  if (hero.isDead) {
+    hero.deathTimer = Math.max(0, hero.deathTimer - dt);
+    hero.isMoving = false;
+    if (hero.deathTimer === 0) {
+      respawnHero();
+    }
+    return;
+  }
+
   hero.slashTimer = Math.max(0, hero.slashTimer - dt);
   hero.slashArcTimer = Math.max(0, hero.slashArcTimer - dt);
   hero.axeSwingTimer = Math.max(0, hero.axeSwingTimer - dt);
   hero.bowCooldown = Math.max(0, hero.bowCooldown - dt);
   hero.weaponPickupCooldown = Math.max(0, hero.weaponPickupCooldown - dt);
   hero.rifleCooldown = Math.max(0, hero.rifleCooldown - dt);
+  hero.dashTimer = Math.max(0, hero.dashTimer - dt);
+  hero.dashCooldownRemaining = Math.max(0, hero.dashCooldownRemaining - dt);
   if (hero.isReloading) {
     hero.reloadTimer = Math.max(0, hero.reloadTimer - dt);
     if (hero.reloadTimer === 0) {
@@ -1386,9 +1462,14 @@ function updateHero(dt) {
   const dx = (keys.has("d") ? 1 : 0) - (keys.has("a") ? 1 : 0);
   const dy = (keys.has("s") ? 1 : 0) - (keys.has("w") ? 1 : 0);
 
-  if (dx || dy) {
+  if (hero.dashTimer > 0) {
+    hero.x = clamp(hero.x + Math.cos(hero.lastMoveAngle) * hero.dashSpeed * dt, hero.radius, WORLD.width - hero.radius);
+    hero.y = clamp(hero.y + Math.sin(hero.lastMoveAngle) * hero.dashSpeed * dt, hero.radius, WORLD.height - hero.radius);
+    hero.isMoving = true;
+  } else if (dx || dy) {
     const mag = Math.hypot(dx, dy);
-    hero.facingAngle = Math.atan2(dy / mag, dx / mag);
+    hero.lastMoveAngle = Math.atan2(dy / mag, dx / mag);
+    hero.facingAngle = hero.lastMoveAngle;
     hero.x = clamp(hero.x + (dx / mag) * hero.speed * dt, hero.radius, WORLD.width - hero.radius);
     hero.y = clamp(hero.y + (dy / mag) * hero.speed * dt, hero.radius, WORLD.height - hero.radius);
     hero.isMoving = true;
@@ -1519,7 +1600,9 @@ function updateHero(dt) {
   }
 
   if (hero.hp <= 0) {
-    respawnHero();
+    hero.hp = 0;
+    hero.isDead = true;
+    hero.deathTimer = hero.deathDuration;
   }
 
   woodCountEl.textContent = String(player.wood);
@@ -2059,7 +2142,8 @@ function drawHeroStickFigure() {
 function drawSoldierHero() {
   const isBurstShooting = hero.abilityEffect?.effect === "burst" &&
     Boolean(hero.abilityEffect?.pendingShots && hero.abilityEffect.pendingShots.length > 0);
-  const image = isBurstShooting
+  const isRifleShooting = hero.hasRifle && mouse.leftDown && !hero.isReloading;
+  const image = (isBurstShooting || isRifleShooting)
     ? soldierShootingImage
     : hero.isMoving
       ? soldierRunningImage
@@ -2072,7 +2156,14 @@ function drawSoldierHero() {
   const size = 54;
   ctx.save();
   ctx.translate(hero.x, hero.y);
-  ctx.rotate(hero.facingAngle);
+  if (image === soldierRunningImage) {
+    const runAngle = hero.lastMoveAngle ?? hero.facingAngle;
+    if (Math.cos(runAngle) < 0) {
+      ctx.scale(-1, 1);
+    }
+  } else {
+    ctx.rotate(hero.facingAngle);
+  }
   ctx.drawImage(image, -size / 2, -size / 2, size, size);
   const helmetStyle = getHeroHelmetStyle();
   if (helmetStyle) {
@@ -2092,16 +2183,37 @@ function drawSoldierHero() {
 }
 
 function drawArcherHero() {
-  if (!archerImage.complete || archerImage.naturalWidth <= 0) {
+  if (hero.isDead) {
+    if (!archerDeadImage.complete || archerDeadImage.naturalWidth <= 0) {
+      drawEntityCircle(hero, COLORS.hero, COLORS.heroAccent);
+      return;
+    }
+
+    const size = 46;
+    ctx.drawImage(archerDeadImage, hero.x - size / 2, hero.y - size / 2, size, size);
+    return;
+  }
+
+  const isShooting = (hero.hasBow && mouse.leftDown) || hero.abilityEffect?.effect === "projectile";
+  const image = isShooting
+    ? archerShootingImage
+    : hero.isMoving
+      ? archerRunningImage
+      : archerImage;
+  if (!image.complete || image.naturalWidth <= 0) {
     drawEntityCircle(hero, COLORS.hero, COLORS.heroAccent);
     return;
   }
 
   const size = 46;
+  const facingAngle = hero.isMoving && hero.lastMoveAngle !== null ? hero.lastMoveAngle : hero.facingAngle;
+  const isFacingLeft = facingAngle !== null && Math.cos(facingAngle) < 0;
   ctx.save();
   ctx.translate(hero.x, hero.y);
-  ctx.rotate(hero.facingAngle + Math.PI / 2);
-  ctx.drawImage(archerImage, -size / 2, -size / 2, size, size);
+  if (isFacingLeft) {
+    ctx.scale(-1, 1);
+  }
+  ctx.drawImage(image, -size / 2, -size / 2, size, size);
   ctx.restore();
 }
 
@@ -2465,6 +2577,10 @@ window.addEventListener("keydown", (event) => {
     useSlash();
   }
 
+  if (event.key === "Shift" && hero.selectedClass === "robot") {
+    useRobotDash();
+  }
+
   if (event.key === "Escape") {
     player.isPlacingBuilding = false;
     statusTextEl.textContent = getCharacterStatus();
@@ -2721,8 +2837,12 @@ function selectCharacter(classId) {
   hero.slashHalfAngle = selectedClass.halfAngle || hero.slashHalfAngle;
   hero.slashDamage = selectedClass.damage;
   hero.speed = selectedClass.agility || hero.speed;
+  hero.lastMoveAngle = null;
   hero.maxHp = selectedClass.stats.health;
   hero.hp = selectedClass.stats.health;
+  hero.dashTimer = 0;
+  hero.dashCooldown = selectedClass.dashCooldown || 0;
+  hero.dashCooldownRemaining = 0;
   hero.hasAxe = false;
   hero.axeSwingTimer = 0;
   hero.hasBow = classId === "archer";

@@ -278,6 +278,10 @@ canvas {
   background: linear-gradient(90deg, #b26e32, #ffd074);
 }
 
+.speed-fill {
+  background: linear-gradient(90deg, #3e8fb0, #8ce3ff);
+}
+
 .controls-panel,
 .status-panel {
   padding: 14px;
@@ -490,6 +494,8 @@ button.hidden {
   left: 50%;
   bottom: 18px;
   transform: translateX(-50%);
+  display: flex;
+  gap: 12px;
   pointer-events: none;
 }
 
@@ -513,6 +519,10 @@ button.hidden {
 
 .ability-chip.cooldown {
   opacity: 0.9;
+}
+
+.ability-chip.hidden {
+  display: none;
 }
 
 .ability-icon {
