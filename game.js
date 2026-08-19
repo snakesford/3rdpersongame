@@ -88,6 +88,7 @@ const COLORS = {
 };
 
 let CHARACTER_OPTIONS = {};
+let ENEMY_OPTIONS = {};
 
 const player = {
   wood: 1000,
@@ -229,15 +230,19 @@ enemyBase.hp = 800;
 enemyBase.maxHp = 800;
 enemyBase.w = 180;
 enemyBase.h = 200;
-createUnit("boss", WORLD.width / 2, WORLD.height / 2, false);
-const enemyHero = createEnemyHero(WORLD.width - 430, WORLD.height / 2 - 10);
-enemyHero.equippedArmorValue = 80;
-enemyHero.latestPickup = {
+let enemyHero = null;
+
+function initializeEnemyForces() {
+  createUnit("boss", WORLD.width / 2, WORLD.height / 2, false);
+  enemyHero = createEnemyHero(WORLD.width - 430, WORLD.height / 2 - 10);
+  enemyHero.equippedArmorValue = 80;
+  enemyHero.latestPickup = {
   type: "enemyHelmet",
   armorValue: 80,
   radius: 18,
-};
-createUnit("enemySoldier", WORLD.width - 470, WORLD.height / 2 + 90, false);
+  };
+  createUnit("enemySoldier", WORLD.width - 470, WORLD.height / 2 + 90, false);
+}
 
 function nextId() {
   return entityId++;
@@ -277,19 +282,24 @@ function createBuilding(type, x, y, isPlayer) {
 }
 
 function createUnit(kind, x, y, isPlayer) {
+  const enemyConfig = !isPlayer ? ENEMY_OPTIONS[kind] : null;
+  if (!isPlayer && !enemyConfig) {
+    throw new Error(`Missing enemy config for unit kind: ${kind}`);
+  }
+
   const unit = {
     id: nextId(),
     kind,
     isPlayer,
     x,
     y,
-    radius: kind === "boss" ? 28 : kind === "skeleton" ? 18 : 14,
-    speed: isPlayer ? 112 : kind === "skeleton" ? 88 : 0,
-    hp: kind === "boss" ? 420 : kind === "skeleton" ? 30 : 100,
-    maxHp: kind === "boss" ? 420 : kind === "skeleton" ? 30 : 100,
-    damage: kind === "boss" ? 0 : kind === "skeleton" ? 7 : (isPlayer ? 10 : 8),
-    attackRange: kind === "skeleton" ? 26 : 34,
-    attackCooldown: kind === "skeleton" ? 0.8 : 1,
+    radius: isPlayer ? 14 : enemyConfig.radius,
+    speed: isPlayer ? 112 : enemyConfig.speed,
+    hp: isPlayer ? 100 : enemyConfig.hp,
+    maxHp: isPlayer ? 100 : enemyConfig.hp,
+    damage: isPlayer ? 10 : enemyConfig.damage,
+    attackRange: isPlayer ? 34 : enemyConfig.attackRange,
+    attackCooldown: isPlayer ? 1 : enemyConfig.attackCooldown,
     attackTimer: 0,
     targetPos: null,
     targetUnitId: null,
@@ -307,19 +317,24 @@ function createUnit(kind, x, y, isPlayer) {
 }
 
 function createEnemyHero(x, y) {
+  const enemyHeroConfig = ENEMY_OPTIONS.enemyHero;
+  if (!enemyHeroConfig) {
+    throw new Error("Missing enemy config for enemyHero");
+  }
+
   return {
     id: nextId(),
     kind: "enemyHero",
     isPlayer: false,
     x,
     y,
-    radius: 18,
-    speed: 0,
-    hp: 150,
-    maxHp: 150,
-    damage: 0,
-    attackRange: 0,
-    attackCooldown: 0,
+    radius: enemyHeroConfig.radius,
+    speed: enemyHeroConfig.speed,
+    hp: enemyHeroConfig.hp,
+    maxHp: enemyHeroConfig.hp,
+    damage: enemyHeroConfig.damage,
+    attackRange: enemyHeroConfig.attackRange,
+    attackCooldown: enemyHeroConfig.attackCooldown,
     attackTimer: 0,
     active: true,
     equippedArmorValue: 0,
@@ -2646,7 +2661,7 @@ function selectCharacter(classId) {
 
 async function loadCharacterOptions() {
   if (window.location.protocol === "file:") {
-    throw new Error("Open the game through the local HTTP server so character-options.json can be fetched.");
+    throw new Error("Open the game through the local HTTP server so character-options.json and enemy-options.json can be fetched.");
   }
 
   const response = await fetch("./character-options.json");
@@ -2654,6 +2669,14 @@ async function loadCharacterOptions() {
     throw new Error(`Failed to load character options: ${response.status}`);
   }
   CHARACTER_OPTIONS = await response.json();
+}
+
+async function loadEnemyOptions() {
+  const response = await fetch("./enemy-options.json");
+  if (!response.ok) {
+    throw new Error(`Failed to load enemy options: ${response.status}`);
+  }
+  ENEMY_OPTIONS = await response.json();
 }
 
 function initializeCharacterCards() {
@@ -2699,6 +2722,8 @@ function initializeCharacterCards() {
 async function initializeGame() {
   try {
     await loadCharacterOptions();
+    await loadEnemyOptions();
+    initializeEnemyForces();
     initializeCharacterCards();
     updateAbilityUI();
     updateStatsUI();
