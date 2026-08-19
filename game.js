@@ -149,6 +149,7 @@ const hero = {
   axeSwingDuration: 0.22,
   hasBow: false,
   bowCooldown: 0,
+  weaponPickupCooldown: 0,
   hasRifle: false,
   rifleCooldown: 0,
   isMoving: false,
@@ -639,6 +640,7 @@ function respawnHero() {
   hero.axeSwingTimer = 0;
   hero.hasBow = hero.selectedClass === "archer";
   hero.bowCooldown = 0;
+  hero.weaponPickupCooldown = 0;
   hero.hasRifle = hero.selectedClass === "soldier";
   hero.rifleCooldown = 0;
   hero.ammo = hero.hasRifle ? hero.maxAmmo : 0;
@@ -1187,6 +1189,10 @@ function swapHeroWeaponPickup(nextWeaponType, x, y, radius) {
     hero.axeSwingTimer = 0;
   }
 
+  if ((nextWeaponType === "axe" || nextWeaponType === "rifle") && hero.hasBow) {
+    spawnPickupDrop({ type: "bow", radius }, x, y + 18);
+  }
+
   if ((nextWeaponType === "axe" || nextWeaponType === "rifle" || nextWeaponType === "bow") && hero.hasBow) {
     hero.hasBow = false;
     hero.bowCooldown = 0;
@@ -1304,6 +1310,7 @@ function updateHero(dt) {
   hero.slashArcTimer = Math.max(0, hero.slashArcTimer - dt);
   hero.axeSwingTimer = Math.max(0, hero.axeSwingTimer - dt);
   hero.bowCooldown = Math.max(0, hero.bowCooldown - dt);
+  hero.weaponPickupCooldown = Math.max(0, hero.weaponPickupCooldown - dt);
   hero.rifleCooldown = Math.max(0, hero.rifleCooldown - dt);
   if (hero.isReloading) {
     hero.reloadTimer = Math.max(0, hero.reloadTimer - dt);
@@ -1457,8 +1464,13 @@ function updateHero(dt) {
         spawnTextPopup(pickup.x, pickup.y - 12, "Weapon Buff!", "rgba(255, 218, 140, 1)", 1.8);
         spawnTextPopup(pickup.x, pickup.y + 12, `Damage +${pickup.damageValue}`, "rgba(255, 238, 196, 1)", 1.8);
       } else if (pickup.type === "axe") {
+        if (hero.weaponPickupCooldown > 0) {
+          pickup.collected = false;
+          continue;
+        }
         swapHeroWeaponPickup("axe", pickup.x, pickup.y, pickup.radius);
         hero.hasAxe = true;
+        hero.weaponPickupCooldown = 0.8;
         hero.latestPickup = {
           type: "axe",
           radius: pickup.radius,
@@ -1467,8 +1479,13 @@ function updateHero(dt) {
         spawnTextPopup(pickup.x, pickup.y - 12, "Axe equipped!", "rgba(255, 214, 164, 1)", 1.8);
         spawnTextPopup(pickup.x, pickup.y + 12, "Click to swing", "rgba(255, 236, 201, 1)", 1.8);
       } else if (pickup.type === "rifle") {
+        if (hero.weaponPickupCooldown > 0) {
+          pickup.collected = false;
+          continue;
+        }
         swapHeroWeaponPickup("rifle", pickup.x, pickup.y, pickup.radius);
         hero.hasRifle = true;
+        hero.weaponPickupCooldown = 0.8;
         hero.ammo = hero.maxAmmo;
         hero.isReloading = false;
         hero.reloadTimer = 0;
@@ -1480,9 +1497,14 @@ function updateHero(dt) {
         spawnTextPopup(pickup.x, pickup.y - 12, "M4 equipped!", "rgba(196, 234, 255, 1)", 1.8);
         spawnTextPopup(pickup.x, pickup.y + 12, "Left-click to fire", "rgba(196, 234, 255, 1)", 1.8);
       } else if (pickup.type === "bow") {
+        if (hero.weaponPickupCooldown > 0) {
+          pickup.collected = false;
+          continue;
+        }
         swapHeroWeaponPickup("bow", pickup.x, pickup.y, pickup.radius);
         hero.hasBow = true;
         hero.bowCooldown = 0;
+        hero.weaponPickupCooldown = 0.8;
         hero.latestPickup = {
           type: "bow",
           radius: pickup.radius,
@@ -2702,6 +2724,7 @@ function selectCharacter(classId) {
   hero.axeSwingTimer = 0;
   hero.hasBow = classId === "archer";
   hero.bowCooldown = 0;
+  hero.weaponPickupCooldown = 0;
   hero.hasRifle = classId === "soldier";
   hero.rifleCooldown = 0;
   hero.ammo = hero.hasRifle ? hero.maxAmmo : 0;
