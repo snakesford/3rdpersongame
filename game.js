@@ -411,10 +411,10 @@ function getCharacterStatus() {
     return "Place the Barracks on open ground. Right-click or press Escape to cancel.";
   }
 
-  const nearbyPickup = pickups.find((pickup) => !pickup.collected && distance(hero, pickup) <= hero.radius + pickup.radius + 16);
+  const nearbyPickup = getNearbyPickup();
   if (nearbyPickup) {
     if (nearbyPickup.type === "rareHelmet") {
-      return "Run over the rare blue helmet to equip it.";
+      return "Press E to equip the rare blue helmet.";
     }
     if (nearbyPickup.type === "healthBuff") {
       return "Run over the health buff to gain +20 HP.";
@@ -423,15 +423,15 @@ function getCharacterStatus() {
       return "Run over the weapon buff to gain +2 damage.";
     }
     if (nearbyPickup.type === "axe") {
-      return "Run over the axe to equip it. Click to swing it.";
+      return "Press E to equip the axe. Click to swing it.";
     }
     if (nearbyPickup.type === "rifle") {
-      return "Run over the M4 rifle to equip it. Left-click to fire.";
+      return "Press E to equip the M4 rifle. Left-click to fire.";
     }
     if (nearbyPickup.type === "bow") {
-      return "Run over the bow to equip it. Hold left-click to fire arrows.";
+      return "Press E to equip the bow. Hold left-click to fire arrows.";
     }
-    return "Run over the helmet to equip it. Armor becomes 60.";
+    return "Press E to equip the helmet.";
   }
 
   if (isHeroNearTrader()) {
@@ -1216,6 +1216,119 @@ function getNearbyTree() {
   return trees.find((tree) => distance(hero, tree) <= hero.radius + tree.radius + 20) || null;
 }
 
+function isManualPickupType(type) {
+  return type === "helmet" ||
+    type === "rareHelmet" ||
+    type === "enemyHelmet" ||
+    type === "axe" ||
+    type === "rifle" ||
+    type === "bow";
+}
+
+function getNearbyPickup() {
+  return pickups.find(
+    (pickup) => !pickup.collected &&
+      !pickup.pickupDelay &&
+      isManualPickupType(pickup.type) &&
+      distance(hero, pickup) <= hero.radius + pickup.radius + 16
+  ) || null;
+}
+
+function equipPickup(pickup) {
+  if (pickup.type === "helmet" || pickup.type === "rareHelmet" || pickup.type === "enemyHelmet") {
+    const baseArmor = hero.selectedClass ? CHARACTER_OPTIONS[hero.selectedClass].stats.armor : 0;
+    const previousArmor = Math.max(baseArmor, hero.equippedArmorValue);
+    const armorDelta = pickup.armorValue - previousArmor;
+    if (hero.equippedHelmetType && hero.equippedArmorValue > 0) {
+      spawnPickupDrop(
+        {
+          type: hero.equippedHelmetType,
+          armorValue: hero.equippedArmorValue,
+          radius: pickup.radius,
+        },
+        pickup.x + 20,
+        pickup.y
+      );
+    }
+    hero.equippedArmorValue = pickup.armorValue;
+    hero.equippedHelmetType = pickup.type;
+    hero.latestPickup = {
+      type: pickup.type,
+      armorValue: pickup.armorValue,
+      radius: pickup.radius,
+    };
+    updateStatsUI();
+    if (pickup.type === "rareHelmet") {
+      spawnTextPopup(pickup.x, pickup.y - 22, "Rare Helmet picked up!", "rgba(120, 196, 255, 1)", 1.8);
+      spawnTextPopup(pickup.x, pickup.y + 4, `Rare Armor ${armorDelta >= 0 ? "+" : ""}${armorDelta}`, "rgba(120, 196, 255, 1)", 1.8);
+    } else if (pickup.type === "enemyHelmet") {
+      spawnTextPopup(pickup.x, pickup.y - 22, "Enemy Helmet picked up!", "rgba(170, 255, 170, 1)", 1.8);
+      spawnTextPopup(pickup.x, pickup.y + 4, `Armor ${armorDelta >= 0 ? "+" : ""}${armorDelta}`, "rgba(170, 255, 170, 1)", 1.8);
+    } else {
+      spawnTextPopup(pickup.x, pickup.y - 22, "Helmet equipped!", "rgba(196, 234, 255, 1)", 1.8);
+      spawnTextPopup(pickup.x, pickup.y + 4, `Armor ${armorDelta >= 0 ? "+" : ""}${armorDelta}`, "rgba(156, 245, 164, 1)", 1.8);
+    }
+    return;
+  }
+
+  if (pickup.type === "axe") {
+    if (hero.weaponPickupCooldown > 0) {
+      pickup.collected = false;
+      return;
+    }
+    swapHeroWeaponPickup("axe", pickup.x, pickup.y, pickup.radius);
+    hero.hasAxe = true;
+    hero.weaponPickupCooldown = 0.8;
+    hero.latestPickup = {
+      type: "axe",
+      radius: pickup.radius,
+    };
+    updateStatsUI();
+    spawnTextPopup(pickup.x, pickup.y - 12, "Axe equipped!", "rgba(255, 214, 164, 1)", 1.8);
+    spawnTextPopup(pickup.x, pickup.y + 12, "Click to swing", "rgba(255, 236, 201, 1)", 1.8);
+    return;
+  }
+
+  if (pickup.type === "rifle") {
+    if (hero.weaponPickupCooldown > 0) {
+      pickup.collected = false;
+      return;
+    }
+    swapHeroWeaponPickup("rifle", pickup.x, pickup.y, pickup.radius);
+    hero.hasRifle = true;
+    hero.weaponPickupCooldown = 0.8;
+    hero.ammo = hero.maxAmmo;
+    hero.isReloading = false;
+    hero.reloadTimer = 0;
+    hero.latestPickup = {
+      type: "rifle",
+      radius: pickup.radius,
+    };
+    updateStatsUI();
+    spawnTextPopup(pickup.x, pickup.y - 12, "M4 equipped!", "rgba(196, 234, 255, 1)", 1.8);
+    spawnTextPopup(pickup.x, pickup.y + 12, "Left-click to fire", "rgba(196, 234, 255, 1)", 1.8);
+    return;
+  }
+
+  if (pickup.type === "bow") {
+    if (hero.weaponPickupCooldown > 0) {
+      pickup.collected = false;
+      return;
+    }
+    swapHeroWeaponPickup("bow", pickup.x, pickup.y, pickup.radius);
+    hero.hasBow = true;
+    hero.bowCooldown = 0;
+    hero.weaponPickupCooldown = 0.8;
+    hero.latestPickup = {
+      type: "bow",
+      radius: pickup.radius,
+    };
+    updateStatsUI();
+    spawnTextPopup(pickup.x, pickup.y - 12, "Bow equipped!", "rgba(214, 200, 154, 1)", 1.8);
+    spawnTextPopup(pickup.x, pickup.y + 12, "Hold left-click to fire", "rgba(245, 234, 196, 1)", 1.8);
+  }
+}
+
 function screenToWorld(x, y) {
   return { x: x + camera.x, y: y + camera.y };
 }
@@ -1662,30 +1775,12 @@ function updateHero(dt) {
     }
 
     if (!pickup.collected && !pickup.pickupDelay && distance(hero, pickup) <= hero.radius + pickup.radius) {
+      if (isManualPickupType(pickup.type)) {
+        continue;
+      }
+
       pickup.collected = true;
-      if (pickup.type === "helmet" || pickup.type === "rareHelmet" || pickup.type === "enemyHelmet") {
-        const baseArmor = hero.selectedClass ? CHARACTER_OPTIONS[hero.selectedClass].stats.armor : 0;
-        const previousArmor = Math.max(baseArmor, hero.equippedArmorValue);
-        const armorGain = Math.max(0, pickup.armorValue - previousArmor);
-        hero.equippedArmorValue = Math.max(hero.equippedArmorValue, pickup.armorValue);
-        hero.equippedHelmetType = pickup.type;
-        hero.latestPickup = {
-          type: pickup.type,
-          armorValue: pickup.armorValue,
-          radius: pickup.radius,
-        };
-        updateStatsUI();
-        if (pickup.type === "rareHelmet") {
-          spawnTextPopup(pickup.x, pickup.y - 22, "Rare Helmet picked up!", "rgba(120, 196, 255, 1)", 1.8);
-          spawnTextPopup(pickup.x, pickup.y + 4, `Rare Armor +${armorGain}`, "rgba(120, 196, 255, 1)", 1.8);
-        } else if (pickup.type === "enemyHelmet") {
-          spawnTextPopup(pickup.x, pickup.y - 22, "Enemy Helmet picked up!", "rgba(170, 255, 170, 1)", 1.8);
-          spawnTextPopup(pickup.x, pickup.y + 4, `Armor +${armorGain}`, "rgba(170, 255, 170, 1)", 1.8);
-        } else {
-          spawnTextPopup(pickup.x, pickup.y - 22, "Helmet equipped!", "rgba(196, 234, 255, 1)", 1.8);
-          spawnTextPopup(pickup.x, pickup.y + 4, `Armor +${armorGain}`, "rgba(156, 245, 164, 1)", 1.8);
-        }
-      } else if (pickup.type === "healthBuff") {
+      if (pickup.type === "healthBuff") {
         hero.maxHp += pickup.healthValue;
         hero.hp = hero.maxHp;
         updateStatsUI();
@@ -1696,55 +1791,6 @@ function updateHero(dt) {
         updateStatsUI();
         spawnTextPopup(pickup.x, pickup.y - 12, "Weapon Buff!", "rgba(255, 218, 140, 1)", 1.8);
         spawnTextPopup(pickup.x, pickup.y + 12, `Damage +${pickup.damageValue}`, "rgba(255, 238, 196, 1)", 1.8);
-      } else if (pickup.type === "axe") {
-        if (hero.weaponPickupCooldown > 0) {
-          pickup.collected = false;
-          continue;
-        }
-        swapHeroWeaponPickup("axe", pickup.x, pickup.y, pickup.radius);
-        hero.hasAxe = true;
-        hero.weaponPickupCooldown = 0.8;
-        hero.latestPickup = {
-          type: "axe",
-          radius: pickup.radius,
-        };
-        updateStatsUI();
-        spawnTextPopup(pickup.x, pickup.y - 12, "Axe equipped!", "rgba(255, 214, 164, 1)", 1.8);
-        spawnTextPopup(pickup.x, pickup.y + 12, "Click to swing", "rgba(255, 236, 201, 1)", 1.8);
-      } else if (pickup.type === "rifle") {
-        if (hero.weaponPickupCooldown > 0) {
-          pickup.collected = false;
-          continue;
-        }
-        swapHeroWeaponPickup("rifle", pickup.x, pickup.y, pickup.radius);
-        hero.hasRifle = true;
-        hero.weaponPickupCooldown = 0.8;
-        hero.ammo = hero.maxAmmo;
-        hero.isReloading = false;
-        hero.reloadTimer = 0;
-        hero.latestPickup = {
-          type: "rifle",
-          radius: pickup.radius,
-        };
-        updateStatsUI();
-        spawnTextPopup(pickup.x, pickup.y - 12, "M4 equipped!", "rgba(196, 234, 255, 1)", 1.8);
-        spawnTextPopup(pickup.x, pickup.y + 12, "Left-click to fire", "rgba(196, 234, 255, 1)", 1.8);
-      } else if (pickup.type === "bow") {
-        if (hero.weaponPickupCooldown > 0) {
-          pickup.collected = false;
-          continue;
-        }
-        swapHeroWeaponPickup("bow", pickup.x, pickup.y, pickup.radius);
-        hero.hasBow = true;
-        hero.bowCooldown = 0;
-        hero.weaponPickupCooldown = 0.8;
-        hero.latestPickup = {
-          type: "bow",
-          radius: pickup.radius,
-        };
-        updateStatsUI();
-        spawnTextPopup(pickup.x, pickup.y - 12, "Bow equipped!", "rgba(214, 200, 154, 1)", 1.8);
-        spawnTextPopup(pickup.x, pickup.y + 12, "Hold left-click to fire", "rgba(245, 234, 196, 1)", 1.8);
       }
     }
   }
@@ -2545,16 +2591,56 @@ function drawArrowProjectile(projectile) {
   ctx.restore();
 }
 
+function drawBulletProjectile(projectile) {
+  const bodyLength = Math.max(14, projectile.radius * 3.8);
+  const bodyRadius = Math.max(3, projectile.radius * 0.72);
+  const noseLength = Math.max(6, projectile.radius * 1.4);
+  const tailInset = Math.max(3, projectile.radius * 0.8);
+
+  ctx.save();
+  ctx.translate(projectile.x, projectile.y);
+  ctx.rotate(projectile.angle);
+
+  ctx.fillStyle = "#7b4d24";
+  ctx.beginPath();
+  ctx.ellipse(-bodyLength * 0.28, 0, bodyRadius * 0.78, bodyRadius * 0.9, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.fillStyle = "#d7a44d";
+  ctx.beginPath();
+  ctx.moveTo(-bodyLength / 2 + tailInset, -bodyRadius);
+  ctx.lineTo(bodyLength / 2 - noseLength, -bodyRadius);
+  ctx.quadraticCurveTo(bodyLength / 2 - noseLength * 0.55, 0, bodyLength / 2 - noseLength, bodyRadius);
+  ctx.lineTo(-bodyLength / 2 + tailInset, bodyRadius);
+  ctx.quadraticCurveTo(-bodyLength / 2 - bodyRadius * 0.45, 0, -bodyLength / 2 + tailInset, -bodyRadius);
+  ctx.closePath();
+  ctx.fill();
+
+  ctx.fillStyle = "#f3dfb2";
+  ctx.beginPath();
+  ctx.moveTo(bodyLength / 2 - noseLength, -bodyRadius);
+  ctx.lineTo(bodyLength / 2 + noseLength, 0);
+  ctx.lineTo(bodyLength / 2 - noseLength, bodyRadius);
+  ctx.closePath();
+  ctx.fill();
+
+  ctx.strokeStyle = "rgba(110, 66, 24, 0.75)";
+  ctx.lineWidth = 1.2;
+  ctx.beginPath();
+  ctx.moveTo(-bodyLength / 2 + tailInset + 1, -bodyRadius * 0.45);
+  ctx.lineTo(bodyLength / 2 - noseLength * 1.05, -bodyRadius * 0.45);
+  ctx.stroke();
+
+  ctx.restore();
+}
+
 function drawHeroProjectiles() {
   for (const projectile of heroProjectiles) {
     if (projectile.style === "arrow") {
       drawArrowProjectile(projectile);
       continue;
     }
-    ctx.fillStyle = "#ffd07a";
-    ctx.beginPath();
-    ctx.arc(projectile.x, projectile.y, projectile.radius, 0, Math.PI * 2);
-    ctx.fill();
+    drawBulletProjectile(projectile);
   }
 }
 
@@ -2599,6 +2685,17 @@ function drawBuildPreview() {
 }
 
 function drawModeHint() {
+  const nearbyPickup = getNearbyPickup();
+  if (nearbyPickup) {
+    ctx.fillStyle = "rgba(15, 33, 24, 0.82)";
+    ctx.fillRect(nearbyPickup.x - 52, nearbyPickup.y - 72, 104, 26);
+    ctx.fillStyle = "#fff5d2";
+    ctx.font = "600 16px Chakra Petch";
+    ctx.textAlign = "center";
+    ctx.fillText("Press E", nearbyPickup.x, nearbyPickup.y - 54);
+    return;
+  }
+
   const tree = getNearbyTree();
   if (tree && !hero.isHarvesting) {
     ctx.fillStyle = "rgba(15, 33, 24, 0.82)";
@@ -2738,7 +2835,13 @@ window.addEventListener("keydown", (event) => {
   }
 
   if (key === "e") {
-    startHarvest();
+    const nearbyPickup = getNearbyPickup();
+    if (nearbyPickup) {
+      nearbyPickup.collected = true;
+      equipPickup(nearbyPickup);
+    } else {
+      startHarvest();
+    }
   }
 
   if (key === "r") {
