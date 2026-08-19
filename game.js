@@ -12,8 +12,14 @@ const weaponFillEl = document.getElementById("weaponFill");
 const statusTextEl = document.getElementById("statusText");
 const overlayMessageEl = document.getElementById("overlayMessage");
 const buildBarracksBtn = document.getElementById("buildBarracksBtn");
-const sellWoodBtn = document.getElementById("sellWoodBtn");
 const trainSoldierBtn = document.getElementById("trainSoldierBtn");
+const shopPanelEl = document.getElementById("shopPanel");
+const shopSellWoodBtn = document.getElementById("shopSellWoodBtn");
+const closeShopBtn = document.getElementById("closeShopBtn");
+const traderPanelEl = document.getElementById("traderPanel");
+const buyWeaponUpgradeBtn = document.getElementById("buyWeaponUpgradeBtn");
+const closeTraderBtn = document.getElementById("closeTraderBtn");
+const traderStatusEl = document.getElementById("traderStatus");
 const slashAbilityEl = document.getElementById("slashAbility");
 const abilityNameEl = document.getElementById("abilityName");
 const slashCooldownTextEl = document.getElementById("slashCooldownText");
@@ -22,6 +28,7 @@ const classCardEls = document.querySelectorAll(".class-card");
 
 const WORLD = { width: 2400, height: 1400 };
 const GRID_SIZE = 120;
+const PLAYER_BASE_SPAWN = { x: 220, y: 700 };
 const COLORS = {
   ground: "#a8cb7a",
   path: "#b6c792",
@@ -32,6 +39,7 @@ const COLORS = {
   soldier: "#315ba8",
   enemy: "#9d3737",
   enemyBase: "#7f2727",
+  playerBase: "#3c6f4c",
   barracks: "#6f4d96",
   shop: "#7a5230",
   selection: "#ffe487",
@@ -57,7 +65,7 @@ const CHARACTER_OPTIONS = {
   soldier: {
     name: "Soldier",
     abilityName: "Burst Shot",
-    cooldown: 8,
+    cooldown: 1,
     portrait: "./images/soldier.png",
     stats: { armor: 45, health: 120, weapon: 78 },
     effect: "burst",
@@ -100,6 +108,10 @@ const player = {
   loss: false,
   hasBuiltBarracks: false,
   hasSelectedCharacter: false,
+  shopOpen: false,
+  traderOpen: false,
+  weaponBonusStat: 0,
+  weaponBonusDamage: 0,
 };
 
 const camera = { x: 0, y: 0 };
@@ -113,8 +125,8 @@ let lastTimestamp = 0;
 
 const hero = {
   id: nextId(),
-  x: 220,
-  y: 700,
+  x: PLAYER_BASE_SPAWN.x,
+  y: PLAYER_BASE_SPAWN.y,
   radius: 18,
   speed: 220,
   hp: 150,
@@ -132,6 +144,7 @@ const hero = {
   harvestProgress: 0,
   isHarvesting: false,
   equippedArmorValue: 0,
+  latestPickup: null,
 };
 
 const trees = [];
@@ -139,6 +152,11 @@ const buildings = [];
 const units = [];
 const enemies = [];
 const damagePopups = [];
+const trader = {
+  x: GRID_SIZE * 6,
+  y: WORLD.height / 2,
+  radius: 22,
+};
 const pickups = [
   {
     id: nextId(),
@@ -149,9 +167,23 @@ const pickups = [
     collected: false,
     armorValue: 60,
   },
+  {
+    id: nextId(),
+    type: "healthBuff",
+    x: GRID_SIZE * 6 + 80,
+    y: WORLD.height / 2 + 20,
+    radius: 18,
+    collected: false,
+    healthValue: 20,
+  },
 ];
 
 spawnTrees();
+const playerBase = createBuilding("playerBase", 60, WORLD.height / 2 - 100, true);
+playerBase.hp = 900;
+playerBase.maxHp = 900;
+playerBase.w = 180;
+playerBase.h = 200;
 createBuilding("shop", 180, WORLD.height / 2 - 220, true);
 const enemyBase = createBuilding("enemyBase", WORLD.width - 270, WORLD.height / 2 - 100, false);
 enemyBase.hp = 800;
@@ -160,6 +192,12 @@ enemyBase.w = 180;
 enemyBase.h = 200;
 createUnit("boss", WORLD.width / 2, WORLD.height / 2, false);
 const enemyHero = createEnemyHero(WORLD.width - 430, WORLD.height / 2 - 10);
+enemyHero.equippedArmorValue = 80;
+enemyHero.latestPickup = {
+  type: "enemyHelmet",
+  armorValue: 80,
+  radius: 18,
+};
 createUnit("enemySoldier", WORLD.width - 470, WORLD.height / 2 + 90, false);
 
 function nextId() {
@@ -191,8 +229,8 @@ function createBuilding(type, x, y, isPlayer) {
     y,
     w: 140,
     h: 140,
-    hp: type === "barracks" ? 400 : type === "shop" ? 300 : 800,
-    maxHp: type === "barracks" ? 400 : type === "shop" ? 300 : 800,
+    hp: type === "barracks" ? 400 : type === "shop" ? 300 : type === "playerBase" ? 900 : 800,
+    maxHp: type === "barracks" ? 400 : type === "shop" ? 300 : type === "playerBase" ? 900 : 800,
     isPlayer,
   };
   buildings.push(building);
@@ -244,6 +282,9 @@ function createEnemyHero(x, y) {
     attackRange: 0,
     attackCooldown: 0,
     attackTimer: 0,
+    active: true,
+    equippedArmorValue: 0,
+    latestPickup: null,
   };
 }
 
@@ -265,11 +306,18 @@ function getCharacterStatus() {
     if (nearbyPickup.type === "rareHelmet") {
       return "Run over the rare blue helmet to equip it.";
     }
+    if (nearbyPickup.type === "healthBuff") {
+      return "Run over the health buff to gain +20 HP.";
+    }
     return "Run over the helmet to equip it. Armor becomes 60.";
   }
 
+  if (isHeroNearTrader()) {
+    return "Near the Trader. Press Space to buy weapon upgrades.";
+  }
+
   if (isHeroNearShop()) {
-    return "Near the Shop. Sell 25 wood for 25 money.";
+    return "Near the Shop. Press Space to trade 25 wood for 25 gold.";
   }
 
   const tree = getNearbyTree();
@@ -300,17 +348,30 @@ function updateAbilityUI() {
     : "Pick Hero";
 }
 
+function updateShopUI() {
+  shopPanelEl.classList.toggle("hidden", !player.shopOpen);
+  shopSellWoodBtn.disabled = player.wood < 25;
+}
+
+function updateTraderUI() {
+  traderPanelEl.classList.toggle("hidden", !player.traderOpen);
+  buyWeaponUpgradeBtn.disabled = player.money < 50;
+  traderStatusEl.textContent = `Current bonus: +${player.weaponBonusStat} weapon`;
+}
+
 function updateStatsUI() {
   const selected = hero.selectedClass ? CHARACTER_OPTIONS[hero.selectedClass] : null;
   const stats = selected?.stats || { armor: 0, health: 0, weapon: 0 };
   const armor = Math.max(stats.armor, hero.equippedArmorValue);
+  const damage = (selected?.damage || 0) + player.weaponBonusDamage;
+  const health = hero.maxHp || stats.health;
 
   armorValueEl.textContent = String(armor);
-  healthValueEl.textContent = String(stats.health);
-  weaponValueEl.textContent = String(stats.weapon);
+  healthValueEl.textContent = String(health);
+  weaponValueEl.textContent = String(damage);
   armorFillEl.style.width = `${armor}%`;
-  healthFillEl.style.width = `${stats.health}%`;
-  weaponFillEl.style.width = `${stats.weapon}%`;
+  healthFillEl.style.width = `${Math.min(100, (health / 200) * 100)}%`;
+  weaponFillEl.style.width = `${Math.min(100, damage * 2)}%`;
 }
 
 function getShopBuilding() {
@@ -327,6 +388,10 @@ function isHeroNearShop() {
   return distance(hero, shopCenter) <= 280;
 }
 
+function isHeroNearTrader() {
+  return distance(hero, trader) <= 190;
+}
+
 function spawnRareHelmetDrop(x, y) {
   pickups.push({
     id: nextId(),
@@ -337,6 +402,79 @@ function spawnRareHelmetDrop(x, y) {
     collected: false,
     armorValue: 85,
   });
+}
+
+function spawnPickupDrop(pickup, x, y) {
+  pickups.push({
+    id: nextId(),
+    type: pickup.type,
+    x,
+    y,
+    radius: pickup.radius ?? 18,
+    collected: false,
+    armorValue: pickup.armorValue,
+  });
+}
+
+function dropLatestPickupFromHero() {
+  if (!hero.latestPickup) {
+    return;
+  }
+
+  spawnPickupDrop(hero.latestPickup, hero.x, hero.y);
+  hero.latestPickup = null;
+}
+
+function dropLatestPickupFromEnemyHero() {
+  if (!enemyHero.latestPickup) {
+    return;
+  }
+
+  spawnPickupDrop(enemyHero.latestPickup, enemyHero.x, enemyHero.y);
+  enemyHero.latestPickup = null;
+}
+
+function respawnHero() {
+  dropLatestPickupFromHero();
+  hero.equippedArmorValue = 0;
+  hero.hp = hero.maxHp;
+  hero.x = PLAYER_BASE_SPAWN.x;
+  hero.y = PLAYER_BASE_SPAWN.y;
+  hero.targetPos = null;
+  cancelHarvest();
+  closeShop();
+  closeTrader();
+  updateStatsUI();
+  statusTextEl.textContent = "You respawned at base.";
+  spawnTextPopup(hero.x, hero.y - 30, "Respawned!", "rgba(196, 234, 255, 1)", 1.4);
+}
+
+function openShop() {
+  if (!isHeroNearShop()) {
+    statusTextEl.textContent = "Move closer to the Shop first.";
+    return;
+  }
+  player.shopOpen = true;
+  updateShopUI();
+}
+
+function closeShop() {
+  player.shopOpen = false;
+  updateShopUI();
+}
+
+function openTrader() {
+  if (!isHeroNearTrader()) {
+    statusTextEl.textContent = "Move closer to the Trader first.";
+    return;
+  }
+  player.traderOpen = true;
+  updateTraderUI();
+}
+
+function closeTrader() {
+  player.traderOpen = false;
+  updateTraderUI();
 }
 
 function normalizeAngle(angle) {
@@ -592,9 +730,9 @@ function selectBuilding(building) {
   player.selectedBuildingId = building.id;
   updateTrainButton();
   if (building.type === "barracks") {
-    statusTextEl.textContent = "Barracks selected. Train a soldier for 50 money.";
+    statusTextEl.textContent = "Barracks selected. Train a soldier for 50 gold.";
   } else if (building.type === "shop") {
-    statusTextEl.textContent = "Shop selected. Sell 25 wood for 25 money.";
+    statusTextEl.textContent = "Shop selected. Sell 25 wood for 25 gold.";
   }
 }
 
@@ -681,6 +819,7 @@ function useSlash() {
   }
 
   const selectedClass = CHARACTER_OPTIONS[hero.selectedClass];
+  const bonusDamage = player.weaponBonusDamage;
   hero.slashCooldown = selectedClass.cooldown;
   hero.slashTimer = hero.slashCooldown;
   hero.slashArcTimer = selectedClass.effect === "burst" ? 0.42 : 0.22;
@@ -689,9 +828,9 @@ function useSlash() {
   if (selectedClass.effect === "cone") {
     hero.slashRadius = selectedClass.radius;
     hero.slashHalfAngle = selectedClass.halfAngle;
-    damageEnemiesInCone(selectedClass.damage, selectedClass.radius, selectedClass.halfAngle);
+    damageEnemiesInCone(selectedClass.damage + bonusDamage, selectedClass.radius, selectedClass.halfAngle);
   } else if (selectedClass.effect === "line") {
-    damageEnemiesInLine(selectedClass.damage, selectedClass.range, selectedClass.width);
+    damageEnemiesInLine(selectedClass.damage + bonusDamage, selectedClass.range, selectedClass.width);
   } else if (selectedClass.effect === "burst") {
     const shots = buildBurstShots(
       selectedClass.range,
@@ -701,13 +840,13 @@ function useSlash() {
     );
     hero.abilityEffect.pendingShots = shots.map((shot, index) => ({
       ...shot,
-      damage: selectedClass.damage,
+      damage: selectedClass.damage + bonusDamage,
       width: selectedClass.width,
       delay: index * 0.045,
     }));
     hero.abilityEffect.projectiles = [];
   } else if (selectedClass.effect === "nova") {
-    damageEnemiesInRadius(selectedClass.damage, selectedClass.radius);
+    damageEnemiesInRadius(selectedClass.damage + bonusDamage, selectedClass.radius);
   }
 
   updateAbilityUI();
@@ -785,6 +924,13 @@ function updateHero(dt) {
     return;
   }
 
+  if (player.shopOpen || player.traderOpen) {
+    woodCountEl.textContent = String(player.wood);
+    moneyCountEl.textContent = String(player.money);
+    updateAbilityUI();
+    return;
+  }
+
   const dx = (keys.has("d") ? 1 : 0) - (keys.has("a") ? 1 : 0);
   const dy = (keys.has("s") ? 1 : 0) - (keys.has("w") ? 1 : 0);
 
@@ -815,25 +961,39 @@ function updateHero(dt) {
   for (const pickup of pickups) {
     if (!pickup.collected && distance(hero, pickup) <= hero.radius + pickup.radius) {
       pickup.collected = true;
-      if (pickup.type === "helmet" || pickup.type === "rareHelmet") {
+      if (pickup.type === "helmet" || pickup.type === "rareHelmet" || pickup.type === "enemyHelmet") {
         const baseArmor = hero.selectedClass ? CHARACTER_OPTIONS[hero.selectedClass].stats.armor : 0;
         const previousArmor = Math.max(baseArmor, hero.equippedArmorValue);
         const armorGain = Math.max(0, pickup.armorValue - previousArmor);
         hero.equippedArmorValue = Math.max(hero.equippedArmorValue, pickup.armorValue);
+        hero.latestPickup = {
+          type: pickup.type,
+          armorValue: pickup.armorValue,
+          radius: pickup.radius,
+        };
         updateStatsUI();
         if (pickup.type === "rareHelmet") {
           spawnTextPopup(pickup.x, pickup.y - 22, "Rare Helmet picked up!", "rgba(120, 196, 255, 1)", 1.8);
           spawnTextPopup(pickup.x, pickup.y + 4, `Rare Armor +${armorGain}`, "rgba(120, 196, 255, 1)", 1.8);
+        } else if (pickup.type === "enemyHelmet") {
+          spawnTextPopup(pickup.x, pickup.y - 22, "Enemy Helmet picked up!", "rgba(170, 255, 170, 1)", 1.8);
+          spawnTextPopup(pickup.x, pickup.y + 4, `Armor +${armorGain}`, "rgba(170, 255, 170, 1)", 1.8);
         } else {
           spawnTextPopup(pickup.x, pickup.y - 22, "Helmet equipped!", "rgba(196, 234, 255, 1)", 1.8);
           spawnTextPopup(pickup.x, pickup.y + 4, `Armor +${armorGain}`, "rgba(156, 245, 164, 1)", 1.8);
         }
+      } else if (pickup.type === "healthBuff") {
+        hero.maxHp += pickup.healthValue;
+        hero.hp = hero.maxHp;
+        updateStatsUI();
+        spawnTextPopup(pickup.x, pickup.y - 12, "Health Buff!", "rgba(255, 172, 172, 1)", 1.8);
+        spawnTextPopup(pickup.x, pickup.y + 12, `Max HP +${pickup.healthValue}`, "rgba(255, 210, 210, 1)", 1.8);
       }
     }
   }
 
   if (hero.hp <= 0) {
-    triggerLoss();
+    respawnHero();
   }
 
   woodCountEl.textContent = String(player.wood);
@@ -938,17 +1098,17 @@ function cleanupDestroyedBuildings() {
     }
     if (building.type === "enemyBase") {
       triggerVictory();
+    } else if (building.type === "playerBase") {
+      triggerLoss();
     }
   }
 
-  if (enemyHero.hp <= 0) {
+  if (enemyHero.active && enemyHero.hp <= 0) {
     enemyHero.hp = 0;
+    dropLatestPickupFromEnemyHero();
+    enemyHero.active = false;
   }
 
-  const hasPlayerBarracks = buildings.some((building) => building.isPlayer && building.type === "barracks");
-  if (player.hasBuiltBarracks && !hasPlayerBarracks && player.wood < 100 && units.length === 0 && !player.victory) {
-    triggerLoss();
-  }
 }
 
 function cleanupDefeatedEnemies() {
@@ -989,7 +1149,14 @@ function update(dt) {
   cleanupDefeatedEnemies();
   cleanupDestroyedBuildings();
   trainSoldierBtn.disabled = player.money < 50 || player.selectedBuildingId === null;
-  sellWoodBtn.disabled = player.wood < 25 || !isHeroNearShop();
+  if (player.shopOpen && !isHeroNearShop()) {
+    closeShop();
+  }
+  if (player.traderOpen && !isHeroNearTrader()) {
+    closeTrader();
+  }
+  updateShopUI();
+  updateTraderUI();
 }
 
 function drawBackground() {
@@ -1022,9 +1189,9 @@ function drawPickup(pickup) {
     return;
   }
 
-  if (pickup.type === "helmet" || pickup.type === "rareHelmet") {
-    const fill = pickup.type === "rareHelmet" ? "#3f89d8" : "#8795a8";
-    const stroke = pickup.type === "rareHelmet" ? "#b8e1ff" : "#dce5ef";
+  if (pickup.type === "helmet" || pickup.type === "rareHelmet" || pickup.type === "enemyHelmet") {
+    const fill = pickup.type === "rareHelmet" ? "#3f89d8" : pickup.type === "enemyHelmet" ? "#4f9e58" : "#8795a8";
+    const stroke = pickup.type === "rareHelmet" ? "#b8e1ff" : pickup.type === "enemyHelmet" ? "#d3ffb5" : "#dce5ef";
     ctx.fillStyle = fill;
     ctx.beginPath();
     ctx.arc(pickup.x, pickup.y, pickup.radius, Math.PI, 0);
@@ -1037,7 +1204,31 @@ function drawPickup(pickup) {
     ctx.beginPath();
     ctx.arc(pickup.x, pickup.y, pickup.radius, Math.PI, 0);
     ctx.stroke();
+  } else if (pickup.type === "healthBuff") {
+    ctx.strokeStyle = "#ffe0e0";
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.arc(pickup.x, pickup.y, pickup.radius, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.fillStyle = "#ff7b7b";
+    ctx.fillRect(pickup.x - 4, pickup.y - 12, 8, 24);
+    ctx.fillRect(pickup.x - 12, pickup.y - 4, 24, 8);
   }
+}
+
+function drawTrader() {
+  ctx.beginPath();
+  ctx.fillStyle = "#c8a15e";
+  ctx.arc(trader.x, trader.y, trader.radius, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.fillStyle = "#5c3416";
+  ctx.arc(trader.x, trader.y - 6, trader.radius * 0.42, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = "#fff1cf";
+  ctx.font = "700 14px Chakra Petch";
+  ctx.textAlign = "center";
+  ctx.fillText("TRADER", trader.x, trader.y - 34);
 }
 
 function drawEntityCircle(entity, fill, accent) {
@@ -1055,6 +1246,8 @@ function drawEntityCircle(entity, fill, accent) {
 function drawBuilding(building) {
   ctx.fillStyle = building.type === "enemyBase"
     ? COLORS.enemyBase
+    : building.type === "playerBase"
+      ? COLORS.playerBase
     : building.type === "shop"
       ? COLORS.shop
       : COLORS.barracks;
@@ -1071,6 +1264,8 @@ function drawBuilding(building) {
   ctx.textAlign = "center";
   const label = building.type === "enemyBase"
     ? "ENEMY BASE"
+    : building.type === "playerBase"
+      ? "PLAYER BASE"
     : building.type === "shop"
       ? "SHOP"
       : "BARRACKS";
@@ -1233,6 +1428,8 @@ function render() {
     drawPickup(pickup);
   }
 
+  drawTrader();
+
   for (const building of buildings) {
     drawBuilding(building);
   }
@@ -1266,8 +1463,10 @@ function render() {
     }
   }
 
-  drawEntityCircle(enemyHero, COLORS.enemy, "#f2b0b0");
-  drawHealthBar(enemyHero.x, enemyHero.y - 34, 60, enemyHero.hp / enemyHero.maxHp);
+  if (enemyHero.active) {
+    drawEntityCircle(enemyHero, COLORS.enemy, enemyHero.equippedArmorValue >= 80 ? "#86db7e" : "#f2b0b0");
+    drawHealthBar(enemyHero.x, enemyHero.y - 34, 60, enemyHero.hp / enemyHero.maxHp);
+  }
 
   drawDamagePopups();
   drawBuildPreview();
@@ -1290,6 +1489,36 @@ window.addEventListener("keydown", (event) => {
   keys.add(key);
 
   if (!player.hasSelectedCharacter) {
+    return;
+  }
+
+  if (event.code === "Space") {
+    event.preventDefault();
+    if (isHeroNearTrader()) {
+      if (player.traderOpen) {
+        closeTrader();
+      } else {
+        closeShop();
+        openTrader();
+      }
+      return;
+    }
+    if (isHeroNearShop()) {
+      if (player.shopOpen) {
+        closeShop();
+      } else {
+        closeTrader();
+        openShop();
+      }
+      return;
+    }
+  }
+
+  if (player.shopOpen || player.traderOpen) {
+    if (event.key === "Escape") {
+      closeShop();
+      closeTrader();
+    }
     return;
   }
 
@@ -1328,6 +1557,9 @@ canvas.addEventListener("mousemove", (event) => {
 
 canvas.addEventListener("mousedown", (event) => {
   if (!player.hasSelectedCharacter) {
+    return;
+  }
+  if (player.shopOpen || player.traderOpen) {
     return;
   }
   const point = screenToWorld(event.offsetX, event.offsetY);
@@ -1370,6 +1602,9 @@ canvas.addEventListener("mouseup", (event) => {
   if (!player.hasSelectedCharacter) {
     return;
   }
+  if (player.shopOpen || player.traderOpen) {
+    return;
+  }
   if (event.button === 0 && selectionBox) {
     selectUnitsInBox(selectionBox);
     selectionBox = null;
@@ -1382,6 +1617,9 @@ canvas.addEventListener("mouseup", (event) => {
 canvas.addEventListener("contextmenu", (event) => {
   event.preventDefault();
   if (!player.hasSelectedCharacter) {
+    return;
+  }
+  if (player.shopOpen || player.traderOpen) {
     return;
   }
   const point = screenToWorld(event.offsetX, event.offsetY);
@@ -1414,6 +1652,9 @@ buildBarracksBtn.addEventListener("click", () => {
   if (!player.hasSelectedCharacter) {
     return;
   }
+  if (player.shopOpen || player.traderOpen) {
+    return;
+  }
   if (player.wood < 100) {
     statusTextEl.textContent = "Not enough wood to build a Barracks.";
     return;
@@ -1426,12 +1667,13 @@ buildBarracksBtn.addEventListener("click", () => {
   statusTextEl.textContent = "Place the Barracks on open ground. Right-click or press Escape to cancel.";
 });
 
-sellWoodBtn.addEventListener("click", () => {
+shopSellWoodBtn.addEventListener("click", () => {
   if (!player.hasSelectedCharacter) {
     return;
   }
   if (!isHeroNearShop()) {
     statusTextEl.textContent = "Move closer to the Shop to sell wood.";
+    closeShop();
     return;
   }
   if (player.wood < 25) {
@@ -1443,11 +1685,15 @@ sellWoodBtn.addEventListener("click", () => {
   woodCountEl.textContent = String(player.wood);
   moneyCountEl.textContent = String(player.money);
   updateTrainButton();
-  statusTextEl.textContent = "Sold 25 wood for 25 money.";
+  statusTextEl.textContent = "Sold 25 wood for 25 gold.";
+  updateShopUI();
 });
 
 trainSoldierBtn.addEventListener("click", () => {
   if (!player.hasSelectedCharacter) {
+    return;
+  }
+  if (player.shopOpen || player.traderOpen) {
     return;
   }
   const barracks = buildings.find((building) => building.id === player.selectedBuildingId && building.isPlayer);
@@ -1459,6 +1705,36 @@ trainSoldierBtn.addEventListener("click", () => {
   createUnit("soldier", barracks.x + barracks.w + 24, barracks.y + barracks.h / 2, true);
   trainSoldierBtn.disabled = player.money < 50;
   statusTextEl.textContent = "Soldier trained. Select it and issue orders with the mouse.";
+});
+
+closeShopBtn.addEventListener("click", () => {
+  closeShop();
+});
+
+buyWeaponUpgradeBtn.addEventListener("click", () => {
+  if (!player.hasSelectedCharacter) {
+    return;
+  }
+  if (!isHeroNearTrader()) {
+    closeTrader();
+    statusTextEl.textContent = "Move closer to the Trader first.";
+    return;
+  }
+  if (player.money < 50) {
+    statusTextEl.textContent = "You need 50 gold for a weapon enhancement.";
+    return;
+  }
+  player.money -= 50;
+  player.weaponBonusStat += 10;
+  player.weaponBonusDamage += 5;
+  moneyCountEl.textContent = String(player.money);
+  updateStatsUI();
+  updateTraderUI();
+  statusTextEl.textContent = "Weapon enhanced. +10 weapon, +5 ability damage.";
+});
+
+closeTraderBtn.addEventListener("click", () => {
+  closeTrader();
 });
 
 function selectCharacter(classId) {
@@ -1502,4 +1778,6 @@ for (const classCardEl of classCardEls) {
 
 updateAbilityUI();
 updateStatsUI();
+updateShopUI();
+updateTraderUI();
 requestAnimationFrame(gameLoop);

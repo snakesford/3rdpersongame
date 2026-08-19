@@ -248,6 +248,64 @@ button.hidden {
   display: none;
 }
 
+.shop-panel {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgba(10, 24, 18, 0.58);
+  backdrop-filter: blur(6px);
+  z-index: 18;
+}
+
+.shop-panel.hidden {
+  display: none;
+}
+
+.shop-card {
+  width: min(420px, 100%);
+  padding: 24px;
+  border-radius: 20px;
+  background: rgba(15, 33, 24, 0.94);
+  border: 1px solid rgba(224, 236, 207, 0.18);
+  box-shadow: 0 18px 50px var(--shadow);
+}
+
+.shop-kicker {
+  display: block;
+  font-size: 12px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.shop-card h3 {
+  margin: 10px 0 8px;
+  font-size: 30px;
+  color: #fff5d2;
+}
+
+.shop-card p {
+  margin: 0 0 18px;
+  color: var(--muted);
+  line-height: 1.35;
+}
+
+.trader-status {
+  margin-top: 12px;
+  color: #fff5d2;
+  text-align: center;
+}
+
+.shop-card button {
+  width: 100%;
+}
+
+.shop-close {
+  margin-top: 10px;
+}
+
 .start-screen {
   position: fixed;
   inset: 0;

@@ -24,7 +24,7 @@
           <strong id="woodCount">0</strong>
         </div>
         <div class="resource-row">
-          <span>Money</span>
+          <span>Gold</span>
           <strong id="moneyCount">0</strong>
         </div>
       </div>
@@ -47,7 +47,7 @@
           </div>
           <div class="stat-row">
             <div class="stat-head">
-              <span>Weapon</span>
+              <span>Damage</span>
               <strong id="weaponValue">0</strong>
             </div>
             <div class="stat-bar"><div id="weaponFill" class="stat-fill weapon-fill"></div></div>
@@ -59,8 +59,7 @@
     <div class="hud-bottom">
       <div class="controls-panel">
         <button id="buildBarracksBtn">Build Barracks (100 wood)</button>
-        <button id="sellWoodBtn">Sell 25 Wood (+25 money)</button>
-        <button id="trainSoldierBtn" class="hidden">Train Soldier (50 money)</button>
+        <button id="trainSoldierBtn" class="hidden">Train Soldier (50 gold)</button>
       </div>
 
       <div class="status-panel">
@@ -76,6 +75,27 @@
           <strong id="slashCooldownText">Ready</strong>
         </div>
       </div>
+    </div>
+  </div>
+
+  <div id="shopPanel" class="shop-panel hidden">
+    <div class="shop-card">
+      <span class="shop-kicker">Shop</span>
+      <h3>Trade Counter</h3>
+      <p>Convert gathered wood into gold.</p>
+      <button id="shopSellWoodBtn">Sell 25 Wood (+25 gold)</button>
+      <button id="closeShopBtn" class="shop-close">Close</button>
+    </div>
+  </div>
+
+  <div id="traderPanel" class="shop-panel hidden">
+    <div class="shop-card trader-card">
+      <span class="shop-kicker">Trader</span>
+      <h3>Weapon Broker</h3>
+      <p>Trade gold for stronger weapon output.</p>
+      <button id="buyWeaponUpgradeBtn">Buy Weapon Enhancement (50 gold)</button>
+      <div id="traderStatus" class="trader-status">Current bonus: +0 weapon</div>
+      <button id="closeTraderBtn" class="shop-close">Close</button>
     </div>
   </div>
 
