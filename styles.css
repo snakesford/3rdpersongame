@@ -58,6 +58,7 @@ canvas {
 .brand,
 .resource-panel,
 .stats-panel,
+.weapon-panel,
 .controls-panel,
 .status-panel {
   pointer-events: auto;
@@ -113,6 +114,51 @@ canvas {
 .stats-panel {
   min-width: 240px;
   padding: 14px 16px;
+}
+
+.weapon-panel {
+  min-width: 220px;
+  padding: 14px 16px;
+}
+
+.weapon-ui {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.weapon-icon {
+  width: 54px;
+  height: 54px;
+  object-fit: contain;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  padding: 8px;
+}
+
+.weapon-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.weapon-copy strong {
+  color: #fff5d2;
+  font-size: 18px;
+}
+
+.weapon-copy span {
+  color: var(--muted);
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.ammo-count {
+  color: #ffd98b;
+  font-size: 13px;
+  letter-spacing: 0.1em;
 }
 
 .stats-kicker {

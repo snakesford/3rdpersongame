@@ -9,6 +9,10 @@ const weaponValueEl = document.getElementById("weaponValue");
 const armorFillEl = document.getElementById("armorFill");
 const healthFillEl = document.getElementById("healthFill");
 const weaponFillEl = document.getElementById("weaponFill");
+const weaponIconEl = document.getElementById("weaponIcon");
+const weaponNameEl = document.getElementById("weaponName");
+const weaponHintEl = document.getElementById("weaponHint");
+const ammoCountEl = document.getElementById("ammoCount");
 const statusTextEl = document.getElementById("statusText");
 const overlayMessageEl = document.getElementById("overlayMessage");
 const buildBarracksBtn = document.getElementById("buildBarracksBtn");
@@ -139,7 +143,7 @@ const player = {
 };
 
 const camera = { x: 0, y: 0 };
-const mouse = { x: 0, y: 0, worldX: 0, worldY: 0 };
+const mouse = { x: 0, y: 0, worldX: 0, worldY: 0, leftDown: false };
 const keys = new Set();
 
 let entityId = 1;
@@ -176,6 +180,11 @@ const hero = {
   hasRifle: false,
   rifleCooldown: 0,
   isMoving: false,
+  ammo: 0,
+  maxAmmo: 30,
+  isReloading: false,
+  reloadTimer: 0,
+  reloadDuration: 1.2,
 };
 
 const trees = [];
@@ -441,6 +450,34 @@ function updateStatsUI() {
   armorFillEl.style.width = `${armor}%`;
   healthFillEl.style.width = `${Math.min(100, (health / 200) * 100)}%`;
   weaponFillEl.style.width = `${Math.min(100, damage * 2)}%`;
+  updateWeaponUI();
+}
+
+function updateWeaponUI() {
+  weaponIconEl.src = "./images/rifle.png";
+  if (hero.hasRifle) {
+    weaponNameEl.textContent = "M4 Rifle";
+    weaponHintEl.textContent = hero.isReloading
+      ? "Reloading..."
+      : hero.selectedClass === "soldier"
+        ? "Hold mouse to fire"
+        : "Left-click to fire";
+    ammoCountEl.textContent = hero.isReloading
+      ? `Ammo: Reloading... (${hero.ammo}/${hero.maxAmmo})`
+      : `Ammo: ${hero.ammo}/${hero.maxAmmo}`;
+    return;
+  }
+
+  if (hero.hasAxe) {
+    weaponNameEl.textContent = "Axe";
+    weaponHintEl.textContent = "Left-click to swing";
+    ammoCountEl.textContent = "Ammo: --/--";
+    return;
+  }
+
+  weaponNameEl.textContent = "None";
+  weaponHintEl.textContent = "No weapon equipped";
+  ammoCountEl.textContent = "Ammo: --/--";
 }
 
 function getShopBuilding() {
@@ -512,8 +549,11 @@ function respawnHero() {
   hero.equippedHelmetType = null;
   hero.hasAxe = false;
   hero.axeSwingTimer = 0;
-  hero.hasRifle = false;
+  hero.hasRifle = hero.selectedClass === "soldier";
   hero.rifleCooldown = 0;
+  hero.ammo = hero.hasRifle ? hero.maxAmmo : 0;
+  hero.isReloading = false;
+  hero.reloadTimer = 0;
   heroProjectiles.length = 0;
   hero.hp = hero.maxHp;
   hero.x = PLAYER_BASE_SPAWN.x;
@@ -772,42 +812,8 @@ function updateBurstProjectile(projectile, dt) {
 
 function updateHeroProjectiles(dt) {
   for (let i = heroProjectiles.length - 1; i >= 0; i -= 1) {
-    const projectile = heroProjectiles[i];
-    const step = projectile.speed * dt;
-    projectile.x += Math.cos(projectile.angle) * step;
-    projectile.y += Math.sin(projectile.angle) * step;
-
-    for (let enemyIndex = enemies.length - 1; enemyIndex >= 0; enemyIndex -= 1) {
-      const enemy = enemies[enemyIndex];
-      if (!projectile.hitIds.has(enemy.id) && distance(projectile, enemy) <= projectile.radius + enemy.radius) {
-        dealDamage(enemy, projectile.damage, true);
-        projectile.active = false;
-        break;
-      }
-    }
-
-    if (projectile.active && enemyHero.active && !projectile.hitIds.has(enemyHero.id) && distance(projectile, enemyHero) <= projectile.radius + enemyHero.radius) {
-      dealDamage(enemyHero, projectile.damage, true);
-      projectile.active = false;
-    }
-
-    if (projectile.active) {
-      for (const building of buildings) {
-        if (!building.isPlayer && intersectsBuilding(projectile, projectile.radius, building)) {
-          dealDamage(building, projectile.damage, true);
-          projectile.active = false;
-          break;
-        }
-      }
-    }
-
-    if (
-      !projectile.active ||
-      projectile.x < 0 ||
-      projectile.y < 0 ||
-      projectile.x > WORLD.width ||
-      projectile.y > WORLD.height
-    ) {
+    updateBurstProjectile(heroProjectiles[i], dt);
+    if (!heroProjectiles[i].active) {
       heroProjectiles.splice(i, 1);
     }
   }
@@ -986,6 +992,9 @@ function swapHeroWeaponPickup(nextWeaponType, x, y, radius) {
   if (nextWeaponType === "axe" && hero.hasRifle) {
     spawnPickupDrop({ type: "rifle", radius }, x + 18, y);
     hero.hasRifle = false;
+    hero.ammo = 0;
+    hero.isReloading = false;
+    hero.reloadTimer = 0;
   }
 
   if (nextWeaponType === "rifle" && hero.hasAxe) {
@@ -995,8 +1004,25 @@ function swapHeroWeaponPickup(nextWeaponType, x, y, radius) {
   }
 }
 
+function startReload(force = false) {
+  if (!hero.hasRifle || hero.isReloading) {
+    return false;
+  }
+  if (!force && hero.ammo > 0) {
+    return false;
+  }
+  if (hero.ammo >= hero.maxAmmo) {
+    return false;
+  }
+
+  hero.isReloading = true;
+  hero.reloadTimer = hero.reloadDuration;
+  updateWeaponUI();
+  return true;
+}
+
 function spawnHeroBullet(targetX, targetY) {
-  if (!hero.hasRifle || hero.rifleCooldown > 0) {
+  if (!hero.hasRifle || hero.isReloading || hero.rifleCooldown > 0 || hero.ammo <= 0) {
     return false;
   }
 
@@ -1009,17 +1035,18 @@ function spawnHeroBullet(targetX, targetY) {
 
   const angle = Math.atan2(dy, dx);
   hero.facingAngle = angle;
-  hero.rifleCooldown = 0.18;
+  hero.rifleCooldown = 0.08;
+  hero.ammo -= 1;
   heroProjectiles.push({
-    x: hero.x + Math.cos(angle) * 18,
-    y: hero.y + Math.sin(angle) * 18,
+    ...spawnBurstProjectile({ angleOffset: 0, range: GRID_SIZE * 5 }, 16 + player.weaponBonusDamage, 18),
+    x: hero.x,
+    y: hero.y,
     angle,
-    speed: 980,
-    radius: 4,
-    damage: 16 + player.weaponBonusDamage,
-    active: true,
-    hitIds: new Set(),
   });
+  if (hero.ammo === 0) {
+    startReload();
+  }
+  updateWeaponUI();
   return true;
 }
 
@@ -1059,7 +1086,18 @@ function updateHero(dt) {
   hero.slashArcTimer = Math.max(0, hero.slashArcTimer - dt);
   hero.axeSwingTimer = Math.max(0, hero.axeSwingTimer - dt);
   hero.rifleCooldown = Math.max(0, hero.rifleCooldown - dt);
+  if (hero.isReloading) {
+    hero.reloadTimer = Math.max(0, hero.reloadTimer - dt);
+    if (hero.reloadTimer === 0) {
+      hero.isReloading = false;
+      hero.ammo = hero.maxAmmo;
+      updateWeaponUI();
+    }
+  }
   hero.isMoving = false;
+  if (mouse.leftDown && hero.hasRifle && !player.isPlacingBuilding && !player.shopOpen && !player.traderOpen) {
+    spawnHeroBullet(mouse.worldX, mouse.worldY);
+  }
   if (hero.abilityEffect?.effect === "burst") {
     const pendingShots = hero.abilityEffect.pendingShots || [];
     const projectiles = hero.abilityEffect.projectiles || [];
@@ -1180,15 +1218,20 @@ function updateHero(dt) {
           type: "axe",
           radius: pickup.radius,
         };
+        updateWeaponUI();
         spawnTextPopup(pickup.x, pickup.y - 12, "Axe equipped!", "rgba(255, 214, 164, 1)", 1.8);
         spawnTextPopup(pickup.x, pickup.y + 12, "Click to swing", "rgba(255, 236, 201, 1)", 1.8);
       } else if (pickup.type === "rifle") {
         swapHeroWeaponPickup("rifle", pickup.x, pickup.y, pickup.radius);
         hero.hasRifle = true;
+        hero.ammo = hero.maxAmmo;
+        hero.isReloading = false;
+        hero.reloadTimer = 0;
         hero.latestPickup = {
           type: "rifle",
           radius: pickup.radius,
         };
+        updateWeaponUI();
         spawnTextPopup(pickup.x, pickup.y - 12, "M4 equipped!", "rgba(196, 234, 255, 1)", 1.8);
         spawnTextPopup(pickup.x, pickup.y + 12, "Left-click to fire", "rgba(196, 234, 255, 1)", 1.8);
       }
@@ -1988,6 +2031,12 @@ window.addEventListener("keydown", (event) => {
     startHarvest();
   }
 
+  if (key === "r") {
+    if (startReload(true)) {
+      statusTextEl.textContent = "Reloading rifle.";
+    }
+  }
+
   if (key === "f") {
     useSlash();
   }
@@ -2029,6 +2078,7 @@ canvas.addEventListener("mousedown", (event) => {
   mouse.worldY = point.y;
 
   if (event.button === 0) {
+    mouse.leftDown = true;
     if (player.isPlacingBuilding) {
       if (player.wood >= 100 && isValidBarracksPlacement(point.x, point.y)) {
         player.wood -= 100;
@@ -2073,6 +2123,9 @@ canvas.addEventListener("mouseup", (event) => {
   if (!player.hasSelectedCharacter) {
     return;
   }
+  if (event.button === 0) {
+    mouse.leftDown = false;
+  }
   if (player.shopOpen || player.traderOpen) {
     return;
   }
@@ -2091,6 +2144,12 @@ canvas.addEventListener("mouseup", (event) => {
     statusTextEl.textContent = player.selectedUnits.length
       ? "Units selected. Right-click ground to move, or enemies to attack."
       : "No soldiers selected.";
+  }
+});
+
+window.addEventListener("mouseup", (event) => {
+  if (event.button === 0) {
+    mouse.leftDown = false;
   }
 });
 
@@ -2230,6 +2289,13 @@ function selectCharacter(classId) {
   hero.slashDamage = selectedClass.damage;
   hero.maxHp = selectedClass.stats.health;
   hero.hp = selectedClass.stats.health;
+  hero.hasAxe = false;
+  hero.axeSwingTimer = 0;
+  hero.hasRifle = classId === "soldier";
+  hero.rifleCooldown = 0;
+  hero.ammo = hero.hasRifle ? hero.maxAmmo : 0;
+  hero.isReloading = false;
+  hero.reloadTimer = 0;
   player.hasSelectedCharacter = true;
   characterSelectEl.classList.add("hidden");
   statusTextEl.textContent = `${selectedClass.name} selected. Walk near a tree and press E to harvest wood.`;
