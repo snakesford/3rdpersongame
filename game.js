@@ -196,6 +196,7 @@ const units = [];
 const enemies = [];
 const heroProjectiles = [];
 const damagePopups = [];
+const sparkEffects = [];
 const trader = {
   x: GRID_SIZE * 6,
   y: WORLD.height / 2,
@@ -984,6 +985,8 @@ function spawnBurstProjectile(shot, damage, width) {
     maxDistance: shot.range,
     active: true,
     hitIds: new Set(),
+    ricochetCount: 0,
+    ricochetTimer: 0,
   };
 }
 
@@ -1013,6 +1016,22 @@ function buildArcherArrowProjectile(damageOverride = null) {
     style: "arrow",
     speed: 820,
   });
+}
+
+function spawnRicochetSparks(x, y, angle) {
+  for (let index = 0; index < 7; index += 1) {
+    const spread = (Math.random() - 0.5) * 1.5;
+    sparkEffects.push({
+      x,
+      y,
+      angle: angle + Math.PI + spread,
+      speed: 130 + Math.random() * 110,
+      length: 7 + Math.random() * 8,
+      ttl: 0.12 + Math.random() * 0.12,
+      maxTtl: 0.24,
+      color: Math.random() > 0.35 ? "#ffd98f" : "#fff8d6",
+    });
+  }
 }
 
 function intersectsBuilding(point, radius, building) {
@@ -1056,6 +1075,14 @@ function updateBurstProjectile(projectile, dt) {
   projectile.y += Math.sin(projectile.angle) * step;
   projectile.traveled += step;
 
+  if (projectile.ricochetTimer > 0) {
+    projectile.ricochetTimer = Math.max(0, projectile.ricochetTimer - dt);
+    if (projectile.ricochetTimer === 0) {
+      projectile.active = false;
+      return;
+    }
+  }
+
   for (const tree of trees) {
     if (intersectsTree(projectile, projectile.radius, tree)) {
       projectile.active = false;
@@ -1065,7 +1092,29 @@ function updateBurstProjectile(projectile, dt) {
 
   for (const stone of stones) {
     if (intersectsStone(projectile, projectile.radius, stone)) {
-      projectile.active = false;
+      if (projectile.ricochetCount > 0) {
+        projectile.active = false;
+        return;
+      }
+
+      const normalX = projectile.x - stone.x;
+      const normalY = projectile.y - stone.y;
+      const normalLength = Math.hypot(normalX, normalY) || 1;
+      const nx = normalX / normalLength;
+      const ny = normalY / normalLength;
+      const inX = Math.cos(projectile.angle);
+      const inY = Math.sin(projectile.angle);
+      const dot = inX * nx + inY * ny;
+      const reflectedX = inX - 2 * dot * nx;
+      const reflectedY = inY - 2 * dot * ny;
+
+      projectile.angle = Math.atan2(reflectedY, reflectedX);
+      projectile.x = stone.x + nx * (stone.radius + projectile.radius + 2);
+      projectile.y = stone.y + ny * (stone.radius + projectile.radius + 2);
+      projectile.ricochetCount = 1;
+      projectile.ricochetTimer = 0.09;
+      projectile.maxDistance = Math.min(projectile.maxDistance, projectile.traveled + 90);
+      spawnRicochetSparks(projectile.x, projectile.y, projectile.angle);
       return;
     }
   }
@@ -1817,6 +1866,19 @@ function updateDamagePopups(dt) {
   }
 }
 
+function updateSparkEffects(dt) {
+  for (let index = sparkEffects.length - 1; index >= 0; index -= 1) {
+    const spark = sparkEffects[index];
+    spark.ttl -= dt;
+    spark.x += Math.cos(spark.angle) * spark.speed * dt;
+    spark.y += Math.sin(spark.angle) * spark.speed * dt;
+    spark.speed = Math.max(0, spark.speed - 420 * dt);
+    if (spark.ttl <= 0) {
+      sparkEffects.splice(index, 1);
+    }
+  }
+}
+
 function getEntityTargetPoint(target) {
   if (typeof target.w === "number" && typeof target.h === "number") {
     return { x: target.x + target.w / 2, y: target.y + target.h / 2 };
@@ -2011,6 +2073,7 @@ function update(dt) {
   updateUnits(dt, enemies, [hero, ...units], buildings.filter((b) => b.isPlayer));
   cleanupDeathZoneEntities();
   updateDamagePopups(dt);
+  updateSparkEffects(dt);
   cleanupDefeatedEnemies();
   cleanupDestroyedBuildings();
   trainSoldierBtn.disabled = player.money < 50 || player.selectedBuildingId === null;
@@ -2657,6 +2720,22 @@ function drawDamagePopups() {
   }
 }
 
+function drawSparkEffects() {
+  for (const spark of sparkEffects) {
+    const alpha = clamp(spark.ttl / spark.maxTtl, 0, 1);
+    const tailX = spark.x - Math.cos(spark.angle) * spark.length;
+    const tailY = spark.y - Math.sin(spark.angle) * spark.length;
+    ctx.strokeStyle = spark.color === "#fff8d6"
+      ? `rgba(255, 248, 214, ${alpha})`
+      : `rgba(255, 217, 143, ${alpha})`;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(tailX, tailY);
+    ctx.lineTo(spark.x, spark.y);
+    ctx.stroke();
+  }
+}
+
 function drawSelectionBox() {
   if (!selectionBox) {
     return;
@@ -2745,6 +2824,7 @@ function render() {
   drawHarvestProgress();
   drawSlashArc();
   drawHeroProjectiles();
+  drawSparkEffects();
 
   for (const unit of units) {
     drawEntityCircle(unit, COLORS.soldier, "#8fb7ff");
