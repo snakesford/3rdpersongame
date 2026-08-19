@@ -25,6 +25,8 @@ const abilityNameEl = document.getElementById("abilityName");
 const slashCooldownTextEl = document.getElementById("slashCooldownText");
 const characterSelectEl = document.getElementById("characterSelect");
 const classCardEls = document.querySelectorAll(".class-card");
+const weaponBuffImage = new Image();
+weaponBuffImage.src = "./images/sword.jpg";
 
 const WORLD = { width: 2400, height: 1400 };
 const GRID_SIZE = 120;
@@ -176,6 +178,15 @@ const pickups = [
     collected: false,
     healthValue: 20,
   },
+  {
+    id: nextId(),
+    type: "weaponBuff",
+    x: GRID_SIZE * 6 - 80,
+    y: WORLD.height / 2 + 20,
+    radius: 18,
+    collected: false,
+    damageValue: 2,
+  },
 ];
 
 spawnTrees();
@@ -308,6 +319,9 @@ function getCharacterStatus() {
     }
     if (nearbyPickup.type === "healthBuff") {
       return "Run over the health buff to gain +20 HP.";
+    }
+    if (nearbyPickup.type === "weaponBuff") {
+      return "Run over the weapon buff to gain +2 damage.";
     }
     return "Run over the helmet to equip it. Armor becomes 60.";
   }
@@ -988,6 +1002,11 @@ function updateHero(dt) {
         updateStatsUI();
         spawnTextPopup(pickup.x, pickup.y - 12, "Health Buff!", "rgba(255, 172, 172, 1)", 1.8);
         spawnTextPopup(pickup.x, pickup.y + 12, `Max HP +${pickup.healthValue}`, "rgba(255, 210, 210, 1)", 1.8);
+      } else if (pickup.type === "weaponBuff") {
+        player.weaponBonusDamage += pickup.damageValue;
+        updateStatsUI();
+        spawnTextPopup(pickup.x, pickup.y - 12, "Weapon Buff!", "rgba(255, 218, 140, 1)", 1.8);
+        spawnTextPopup(pickup.x, pickup.y + 12, `Damage +${pickup.damageValue}`, "rgba(255, 238, 196, 1)", 1.8);
       }
     }
   }
@@ -1213,6 +1232,22 @@ function drawPickup(pickup) {
     ctx.fillStyle = "#ff7b7b";
     ctx.fillRect(pickup.x - 4, pickup.y - 12, 8, 24);
     ctx.fillRect(pickup.x - 12, pickup.y - 4, 24, 8);
+  } else if (pickup.type === "weaponBuff") {
+    if (weaponBuffImage.complete && weaponBuffImage.naturalWidth > 0) {
+      const size = pickup.radius * 2.3;
+      ctx.drawImage(weaponBuffImage, pickup.x - size / 2, pickup.y - size / 2, size, size);
+    } else {
+      ctx.strokeStyle = "#ffe5a6";
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.moveTo(pickup.x - 6, pickup.y + 10);
+      ctx.lineTo(pickup.x + 8, pickup.y - 10);
+      ctx.stroke();
+      ctx.fillStyle = "#ffe18c";
+      ctx.fillRect(pickup.x - 2, pickup.y - 2, 10, 4);
+      ctx.fillRect(pickup.x - 12, pickup.y - 14, 8, 3);
+      ctx.fillRect(pickup.x - 9.5, pickup.y - 16.5, 3, 8);
+    }
   }
 }
 
