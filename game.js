@@ -395,13 +395,13 @@ function spawnDamagePopup(target, amount) {
   });
 }
 
-function spawnTextPopup(x, y, text, color = "rgba(255, 230, 140, 1)") {
+function spawnTextPopup(x, y, text, color = "rgba(255, 230, 140, 1)", ttl = 0.9) {
   damagePopups.push({
     x,
     y,
     amount: text,
-    ttl: 0.9,
-    maxTtl: 0.9,
+    ttl,
+    maxTtl: ttl,
     color,
     outline: "rgba(35, 20, 10, 1)",
   });
@@ -822,11 +822,11 @@ function updateHero(dt) {
         hero.equippedArmorValue = Math.max(hero.equippedArmorValue, pickup.armorValue);
         updateStatsUI();
         if (pickup.type === "rareHelmet") {
-          spawnTextPopup(pickup.x, pickup.y - 22, "Rare Helmet picked up!", "rgba(120, 196, 255, 1)");
-          spawnTextPopup(pickup.x, pickup.y + 4, `Rare Armor +${armorGain}`, "rgba(120, 196, 255, 1)");
+          spawnTextPopup(pickup.x, pickup.y - 22, "Rare Helmet picked up!", "rgba(120, 196, 255, 1)", 1.8);
+          spawnTextPopup(pickup.x, pickup.y + 4, `Rare Armor +${armorGain}`, "rgba(120, 196, 255, 1)", 1.8);
         } else {
-          spawnTextPopup(pickup.x, pickup.y - 22, "Helmet equipped!", "rgba(196, 234, 255, 1)");
-          spawnTextPopup(pickup.x, pickup.y + 4, `Armor +${armorGain}`, "rgba(156, 245, 164, 1)");
+          spawnTextPopup(pickup.x, pickup.y - 22, "Helmet equipped!", "rgba(196, 234, 255, 1)", 1.8);
+          spawnTextPopup(pickup.x, pickup.y + 4, `Armor +${armorGain}`, "rgba(156, 245, 164, 1)", 1.8);
         }
       }
     }
