@@ -37,14 +37,29 @@ const soldierIdleImage = new Image();
 soldierIdleImage.src = "./images/soldier-stationary.png";
 const soldierShootingImage = new Image();
 soldierShootingImage.src = "./images/soldier-shooting.png";
+const skeletonImage = new Image();
+skeletonImage.src = "./images/skeleton.png";
 
 const WORLD = { width: 2400, height: 1400 };
 const GRID_SIZE = 120;
-const PLAYER_BASE_SPAWN = { x: 220, y: 700 };
+const PLAYER_BASE_SPAWN = { x: 250, y: 740 };
 const DEATH_ZONE = {
   x: WORLD.width / 2 - 110,
   y: WORLD.height - 300,
   size: 220,
+};
+const SPAWN_WAVE_TILE = {
+  x: PLAYER_BASE_SPAWN.x + 120,
+  y: PLAYER_BASE_SPAWN.y + 110,
+  size: 90,
+  triggered: false,
+};
+const SPAWN_STREAM_TILE = {
+  x: PLAYER_BASE_SPAWN.x + 220,
+  y: PLAYER_BASE_SPAWN.y + 110,
+  size: 90,
+  interval: 0.5,
+  timer: 0,
 };
 const COLORS = {
   ground: "#a8cb7a",
@@ -56,6 +71,8 @@ const COLORS = {
   heroAccent: "#93b4ff",
   soldier: "#315ba8",
   enemy: "#9d3737",
+  spawnWave: "#7a5a32",
+  spawnStream: "#5d6f2e",
   enemyBase: "#7f2727",
   playerBase: "#3c6f4c",
   barracks: "#6f4d96",
@@ -310,13 +327,13 @@ function createUnit(kind, x, y, isPlayer) {
     isPlayer,
     x,
     y,
-    radius: kind === "boss" ? 28 : 14,
-    speed: isPlayer ? 112 : 0,
-    hp: kind === "boss" ? 420 : 100,
-    maxHp: kind === "boss" ? 420 : 100,
-    damage: kind === "boss" ? 0 : (isPlayer ? 10 : 8),
-    attackRange: 34,
-    attackCooldown: 1,
+    radius: kind === "boss" ? 28 : kind === "skeleton" ? 18 : 14,
+    speed: isPlayer ? 112 : kind === "skeleton" ? 88 : 0,
+    hp: kind === "boss" ? 420 : kind === "skeleton" ? 30 : 100,
+    maxHp: kind === "boss" ? 420 : kind === "skeleton" ? 30 : 100,
+    damage: kind === "boss" ? 0 : kind === "skeleton" ? 7 : (isPlayer ? 10 : 8),
+    attackRange: kind === "skeleton" ? 26 : 34,
+    attackCooldown: kind === "skeleton" ? 0.8 : 1,
     attackTimer: 0,
     targetPos: null,
     targetUnitId: null,
@@ -393,6 +410,14 @@ function getCharacterStatus() {
 
   if (isHeroNearShop()) {
     return "Near the Shop. Press Space to trade 25 wood for 25 gold.";
+  }
+
+  if (!SPAWN_WAVE_TILE.triggered && isHeroOnSpawnWaveTile()) {
+    return "Spawn Wave triggered.";
+  }
+
+  if (isHeroOnSpawnStreamTile()) {
+    return "Standing on Spawn Stream.";
   }
 
   const tree = getNearbyTree();
@@ -496,6 +521,46 @@ function isHeroNearShop() {
 
 function isHeroNearTrader() {
   return distance(hero, trader) <= 190;
+}
+
+function isHeroOnSpawnWaveTile() {
+  return (
+    hero.x >= SPAWN_WAVE_TILE.x &&
+    hero.x <= SPAWN_WAVE_TILE.x + SPAWN_WAVE_TILE.size &&
+    hero.y >= SPAWN_WAVE_TILE.y &&
+    hero.y <= SPAWN_WAVE_TILE.y + SPAWN_WAVE_TILE.size
+  );
+}
+
+function isHeroOnSpawnStreamTile() {
+  return (
+    hero.x >= SPAWN_STREAM_TILE.x &&
+    hero.x <= SPAWN_STREAM_TILE.x + SPAWN_STREAM_TILE.size &&
+    hero.y >= SPAWN_STREAM_TILE.y &&
+    hero.y <= SPAWN_STREAM_TILE.y + SPAWN_STREAM_TILE.size
+  );
+}
+
+function spawnSingleSkeleton(x = 200 + Math.random() * 650, y = 90 + Math.random() * 30) {
+  createUnit("skeleton", x, y, false);
+}
+
+function spawnSkeletonWave() {
+  const positions = [
+    [200, 90],
+    [320, 110],
+    [440, 95],
+    [560, 120],
+    [680, 100],
+    [800, 115],
+  ];
+
+  for (const [x, y] of positions) {
+    spawnSingleSkeleton(x, y);
+  }
+
+  SPAWN_WAVE_TILE.triggered = true;
+  spawnTextPopup(SPAWN_WAVE_TILE.x + SPAWN_WAVE_TILE.size / 2, SPAWN_WAVE_TILE.y - 10, "Skeleton wave spawned!", "rgba(245, 240, 220, 1)", 1.8);
 }
 
 function spawnRareHelmetDrop(x, y) {
@@ -1157,6 +1222,20 @@ function updateHero(dt) {
     }
   }
 
+  if (!SPAWN_WAVE_TILE.triggered && isHeroOnSpawnWaveTile()) {
+    spawnSkeletonWave();
+  }
+
+  if (isHeroOnSpawnStreamTile()) {
+    SPAWN_STREAM_TILE.timer += dt;
+    while (SPAWN_STREAM_TILE.timer >= SPAWN_STREAM_TILE.interval) {
+      spawnSingleSkeleton();
+      SPAWN_STREAM_TILE.timer -= SPAWN_STREAM_TILE.interval;
+    }
+  } else {
+    SPAWN_STREAM_TILE.timer = 0;
+  }
+
   if (hero.isHarvesting) {
     const tree = trees.find((t) => t.id === harvestTreeId);
     if (!tree || distance(hero, tree) > hero.radius + tree.radius + 26) {
@@ -1269,6 +1348,29 @@ function isBuildingTarget(target) {
   return typeof target.w === "number" && typeof target.h === "number";
 }
 
+function getClosestTarget(unit, unitsList, buildingsList) {
+  let closest = null;
+  let closestDistance = Infinity;
+
+  for (const otherUnit of unitsList) {
+    const dist = distance(unit, otherUnit);
+    if (dist < closestDistance) {
+      closest = otherUnit;
+      closestDistance = dist;
+    }
+  }
+
+  for (const building of buildingsList) {
+    const dist = distance(unit, getEntityTargetPoint(building));
+    if (dist < closestDistance) {
+      closest = building;
+      closestDistance = dist;
+    }
+  }
+
+  return closest;
+}
+
 function updateUnits(dt, list, enemiesList, enemyBuildings) {
   for (let i = list.length - 1; i >= 0; i -= 1) {
     const unit = list[i];
@@ -1282,9 +1384,11 @@ function updateUnits(dt, list, enemiesList, enemyBuildings) {
     }
 
     if (!target) {
-      const nearbyUnit = enemiesList.find((enemy) => distance(unit, enemy) <= 150);
-      const nearbyBuilding = enemyBuildings.find((building) => distance(unit, { x: building.x + building.w / 2, y: building.y + building.h / 2 }) <= 180);
-      target = nearbyUnit || nearbyBuilding || null;
+      target = unit.isPlayer
+        ? (enemiesList.find((enemy) => distance(unit, enemy) <= 150) ||
+          enemyBuildings.find((building) => distance(unit, { x: building.x + building.w / 2, y: building.y + building.h / 2 }) <= 180) ||
+          null)
+        : getClosestTarget(unit, enemiesList, enemyBuildings);
       if (target) {
         unit.targetUnitId = isBuildingTarget(target) ? null : target.id;
         unit.targetBuildingId = isBuildingTarget(target) ? target.id : null;
@@ -1427,6 +1531,7 @@ function update(dt) {
   updateHero(dt);
   updateHeroProjectiles(dt);
   updateUnits(dt, units, enemies, buildings.filter((b) => !b.isPlayer));
+  updateUnits(dt, enemies, [hero, ...units], buildings.filter((b) => b.isPlayer));
   cleanupDeathZoneEntities();
   updateDamagePopups(dt);
   cleanupDefeatedEnemies();
@@ -1462,6 +1567,26 @@ function drawBackground() {
   ctx.strokeStyle = "rgba(255, 220, 220, 0.45)";
   ctx.lineWidth = 3;
   ctx.strokeRect(DEATH_ZONE.x, DEATH_ZONE.y, DEATH_ZONE.size, DEATH_ZONE.size);
+
+  ctx.fillStyle = COLORS.spawnWave;
+  ctx.fillRect(SPAWN_WAVE_TILE.x, SPAWN_WAVE_TILE.y, SPAWN_WAVE_TILE.size, SPAWN_WAVE_TILE.size);
+  ctx.strokeStyle = "rgba(255, 237, 196, 0.55)";
+  ctx.lineWidth = 3;
+  ctx.strokeRect(SPAWN_WAVE_TILE.x, SPAWN_WAVE_TILE.y, SPAWN_WAVE_TILE.size, SPAWN_WAVE_TILE.size);
+  ctx.fillStyle = "#fff1cf";
+  ctx.font = "700 14px Chakra Petch";
+  ctx.textAlign = "center";
+  ctx.fillText("SPAWN", SPAWN_WAVE_TILE.x + SPAWN_WAVE_TILE.size / 2, SPAWN_WAVE_TILE.y + 36);
+  ctx.fillText("WAVE", SPAWN_WAVE_TILE.x + SPAWN_WAVE_TILE.size / 2, SPAWN_WAVE_TILE.y + 56);
+
+  ctx.fillStyle = COLORS.spawnStream;
+  ctx.fillRect(SPAWN_STREAM_TILE.x, SPAWN_STREAM_TILE.y, SPAWN_STREAM_TILE.size, SPAWN_STREAM_TILE.size);
+  ctx.strokeStyle = "rgba(220, 255, 180, 0.55)";
+  ctx.lineWidth = 3;
+  ctx.strokeRect(SPAWN_STREAM_TILE.x, SPAWN_STREAM_TILE.y, SPAWN_STREAM_TILE.size, SPAWN_STREAM_TILE.size);
+  ctx.fillStyle = "#f1ffd2";
+  ctx.fillText("SPAWN", SPAWN_STREAM_TILE.x + SPAWN_STREAM_TILE.size / 2, SPAWN_STREAM_TILE.y + 36);
+  ctx.fillText("FLOW", SPAWN_STREAM_TILE.x + SPAWN_STREAM_TILE.size / 2, SPAWN_STREAM_TILE.y + 56);
 }
 
 function drawTree(tree) {
@@ -1972,7 +2097,12 @@ function render() {
 
   for (const unit of enemies) {
     const isBoss = unit.kind === "boss";
-    drawEntityCircle(unit, isBoss ? "#5b2a2a" : COLORS.enemy, isBoss ? "#ff9f7b" : "#ef9494");
+    if (unit.kind === "skeleton" && skeletonImage.complete && skeletonImage.naturalWidth > 0) {
+      const size = 42;
+      ctx.drawImage(skeletonImage, unit.x - size / 2, unit.y - size / 2, size, size);
+    } else {
+      drawEntityCircle(unit, isBoss ? "#5b2a2a" : COLORS.enemy, isBoss ? "#ff9f7b" : "#ef9494");
+    }
     drawHealthBar(unit.x, unit.y - (isBoss ? 36 : 28), isBoss ? 70 : 44, unit.hp / unit.maxHp);
     if (isBoss) {
       ctx.fillStyle = "#ffe0b0";
