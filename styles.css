@@ -90,6 +90,10 @@ canvas {
   text-align: right;
 }
 
+.resource-row + .resource-row {
+  margin-top: 10px;
+}
+
 .resource-panel span {
   display: block;
   font-size: 12px;

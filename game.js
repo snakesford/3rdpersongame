@@ -2,9 +2,11 @@ const canvas = document.getElementById("gameCanvas");
 const ctx = canvas.getContext("2d");
 
 const woodCountEl = document.getElementById("woodCount");
+const moneyCountEl = document.getElementById("moneyCount");
 const statusTextEl = document.getElementById("statusText");
 const overlayMessageEl = document.getElementById("overlayMessage");
 const buildBarracksBtn = document.getElementById("buildBarracksBtn");
+const sellWoodBtn = document.getElementById("sellWoodBtn");
 const trainSoldierBtn = document.getElementById("trainSoldierBtn");
 const slashAbilityEl = document.getElementById("slashAbility");
 const abilityNameEl = document.getElementById("abilityName");
@@ -13,6 +15,7 @@ const characterSelectEl = document.getElementById("characterSelect");
 const classCardEls = document.querySelectorAll(".class-card");
 
 const WORLD = { width: 2400, height: 1400 };
+const GRID_SIZE = 120;
 const COLORS = {
   ground: "#a8cb7a",
   path: "#b6c792",
@@ -24,6 +27,7 @@ const COLORS = {
   enemy: "#9d3737",
   enemyBase: "#7f2727",
   barracks: "#6f4d96",
+  shop: "#7a5230",
   selection: "#ffe487",
   previewValid: "rgba(111, 77, 150, 0.45)",
   previewInvalid: "rgba(198, 81, 81, 0.45)",
@@ -50,7 +54,7 @@ const CHARACTER_OPTIONS = {
     portrait: "./images/soldier.png",
     effect: "burst",
     damage: 8,
-    range: 220,
+    range: GRID_SIZE * 5,
     width: 18,
     rounds: 7,
     shotAnglesDegrees: [0, 24, -10, -18, 8, 16, -26],
@@ -78,6 +82,7 @@ const CHARACTER_OPTIONS = {
 
 const player = {
   wood: 1000,
+  money: 0,
   selectedUnits: [],
   selectedBuildingId: null,
   isPlacingBuilding: false,
@@ -124,6 +129,7 @@ const units = [];
 const enemies = [];
 
 spawnTrees();
+createBuilding("shop", 180, WORLD.height / 2 - 220, true);
 const enemyBase = createBuilding("enemyBase", WORLD.width - 270, WORLD.height / 2 - 100, false);
 enemyBase.hp = 800;
 enemyBase.maxHp = 800;
@@ -161,8 +167,8 @@ function createBuilding(type, x, y, isPlayer) {
     y,
     w: 140,
     h: 140,
-    hp: type === "barracks" ? 400 : 800,
-    maxHp: type === "barracks" ? 400 : 800,
+    hp: type === "barracks" ? 400 : type === "shop" ? 300 : 800,
+    maxHp: type === "barracks" ? 400 : type === "shop" ? 300 : 800,
     isPlayer,
   };
   buildings.push(building);
@@ -230,6 +236,10 @@ function getCharacterStatus() {
     return "Place the Barracks on open ground. Right-click or press Escape to cancel.";
   }
 
+  if (isHeroNearShop()) {
+    return "Near the Shop. Sell 25 wood for 25 money.";
+  }
+
   const tree = getNearbyTree();
   if (hero.isHarvesting) {
     return "Harvesting tree...";
@@ -244,7 +254,7 @@ function updateTrainButton() {
   const selected = buildings.find((b) => b.id === player.selectedBuildingId && b.type === "barracks" && b.isPlayer);
   const show = Boolean(selected);
   trainSoldierBtn.classList.toggle("hidden", !show);
-  trainSoldierBtn.disabled = player.wood < 50 || !show;
+  trainSoldierBtn.disabled = player.money < 50 || !show;
 }
 
 function updateAbilityUI() {
@@ -256,6 +266,20 @@ function updateAbilityUI() {
   slashCooldownTextEl.textContent = player.hasSelectedCharacter
     ? (ready ? "Ready" : `${hero.slashTimer.toFixed(1)}s`)
     : "Pick Hero";
+}
+
+function getShopBuilding() {
+  return buildings.find((building) => building.type === "shop" && building.isPlayer) || null;
+}
+
+function isHeroNearShop() {
+  const shop = getShopBuilding();
+  if (!shop) {
+    return false;
+  }
+
+  const shopCenter = { x: shop.x + shop.w / 2, y: shop.y + shop.h / 2 };
+  return distance(hero, shopCenter) <= 280;
 }
 
 function normalizeAngle(angle) {
@@ -392,6 +416,7 @@ function spawnBurstProjectile(shot, damage, width) {
     traveled: 0,
     maxDistance: shot.range,
     active: true,
+    hitIds: new Set(),
   };
 }
 
@@ -408,24 +433,21 @@ function updateBurstProjectile(projectile, dt) {
   projectile.traveled += step;
 
   for (let i = enemies.length - 1; i >= 0; i -= 1) {
-    if (distance(projectile, enemies[i]) <= projectile.radius + enemies[i].radius) {
+    if (!projectile.hitIds.has(enemies[i].id) && distance(projectile, enemies[i]) <= projectile.radius + enemies[i].radius) {
       enemies[i].hp -= projectile.damage;
-      projectile.active = false;
-      return;
+      projectile.hitIds.add(enemies[i].id);
     }
   }
 
-  if (distance(projectile, enemyHero) <= projectile.radius + enemyHero.radius) {
+  if (!projectile.hitIds.has(enemyHero.id) && distance(projectile, enemyHero) <= projectile.radius + enemyHero.radius) {
     enemyHero.hp -= projectile.damage;
-    projectile.active = false;
-    return;
+    projectile.hitIds.add(enemyHero.id);
   }
 
   for (const building of buildings) {
-    if (!building.isPlayer && intersectsBuilding(projectile, projectile.radius, building)) {
+    if (!building.isPlayer && !projectile.hitIds.has(building.id) && intersectsBuilding(projectile, projectile.radius, building)) {
       building.hp -= projectile.damage;
-      projectile.active = false;
-      return;
+      projectile.hitIds.add(building.id);
     }
   }
 
@@ -478,7 +500,9 @@ function selectBuilding(building) {
   player.selectedBuildingId = building.id;
   updateTrainButton();
   if (building.type === "barracks") {
-    statusTextEl.textContent = "Barracks selected. Train a soldier for 50 wood.";
+    statusTextEl.textContent = "Barracks selected. Train a soldier for 50 money.";
+  } else if (building.type === "shop") {
+    statusTextEl.textContent = "Shop selected. Sell 25 wood for 25 money.";
   }
 }
 
@@ -701,6 +725,7 @@ function updateHero(dt) {
   }
 
   woodCountEl.textContent = String(player.wood);
+  moneyCountEl.textContent = String(player.money);
   statusTextEl.textContent = getCharacterStatus();
   updateAbilityUI();
 }
@@ -821,7 +846,8 @@ function update(dt) {
   updateHero(dt);
   updateUnits(dt, units, enemies, buildings.filter((b) => !b.isPlayer));
   cleanupDestroyedBuildings();
-  trainSoldierBtn.disabled = player.wood < 50 || player.selectedBuildingId === null;
+  trainSoldierBtn.disabled = player.money < 50 || player.selectedBuildingId === null;
+  sellWoodBtn.disabled = player.wood < 25 || !isHeroNearShop();
 }
 
 function drawBackground() {
@@ -862,7 +888,11 @@ function drawEntityCircle(entity, fill, accent) {
 }
 
 function drawBuilding(building) {
-  ctx.fillStyle = building.type === "enemyBase" ? COLORS.enemyBase : COLORS.barracks;
+  ctx.fillStyle = building.type === "enemyBase"
+    ? COLORS.enemyBase
+    : building.type === "shop"
+      ? COLORS.shop
+      : COLORS.barracks;
   ctx.fillRect(building.x, building.y, building.w, building.h);
 
   if (player.selectedBuildingId === building.id) {
@@ -874,7 +904,12 @@ function drawBuilding(building) {
   ctx.fillStyle = "#f6eed3";
   ctx.font = "600 20px Chakra Petch";
   ctx.textAlign = "center";
-  ctx.fillText(building.type === "enemyBase" ? "ENEMY BASE" : "BARRACKS", building.x + building.w / 2, building.y + building.h / 2 + 6);
+  const label = building.type === "enemyBase"
+    ? "ENEMY BASE"
+    : building.type === "shop"
+      ? "SHOP"
+      : "BARRACKS";
+  ctx.fillText(label, building.x + building.w / 2, building.y + building.h / 2 + 6);
   drawHealthBar(building.x + building.w / 2, building.y - 14, 120, building.hp / building.maxHp);
 }
 
@@ -1192,18 +1227,38 @@ buildBarracksBtn.addEventListener("click", () => {
   statusTextEl.textContent = "Place the Barracks on open ground. Right-click or press Escape to cancel.";
 });
 
+sellWoodBtn.addEventListener("click", () => {
+  if (!player.hasSelectedCharacter) {
+    return;
+  }
+  if (!isHeroNearShop()) {
+    statusTextEl.textContent = "Move closer to the Shop to sell wood.";
+    return;
+  }
+  if (player.wood < 25) {
+    statusTextEl.textContent = "You need at least 25 wood to sell.";
+    return;
+  }
+  player.wood -= 25;
+  player.money += 25;
+  woodCountEl.textContent = String(player.wood);
+  moneyCountEl.textContent = String(player.money);
+  updateTrainButton();
+  statusTextEl.textContent = "Sold 25 wood for 25 money.";
+});
+
 trainSoldierBtn.addEventListener("click", () => {
   if (!player.hasSelectedCharacter) {
     return;
   }
   const barracks = buildings.find((building) => building.id === player.selectedBuildingId && building.isPlayer);
-  if (!barracks || player.wood < 50) {
+  if (!barracks || player.money < 50) {
     return;
   }
-  player.wood -= 50;
-  woodCountEl.textContent = String(player.wood);
+  player.money -= 50;
+  moneyCountEl.textContent = String(player.money);
   createUnit("soldier", barracks.x + barracks.w + 24, barracks.y + barracks.h / 2, true);
-  trainSoldierBtn.disabled = player.wood < 50;
+  trainSoldierBtn.disabled = player.money < 50;
   statusTextEl.textContent = "Soldier trained. Select it and issue orders with the mouse.";
 });
 
