@@ -9,6 +9,8 @@ const weaponValueEl = document.getElementById("weaponValue");
 const armorFillEl = document.getElementById("armorFill");
 const healthFillEl = document.getElementById("healthFill");
 const weaponFillEl = document.getElementById("weaponFill");
+const xpLevelEl = document.getElementById("xpLevel");
+const xpFillEl = document.getElementById("xpFill");
 const weaponIconEl = document.getElementById("weaponIcon");
 const weaponNameEl = document.getElementById("weaponName");
 const weaponHintEl = document.getElementById("weaponHint");
@@ -41,6 +43,8 @@ const skeletonImage = new Image();
 skeletonImage.src = "./images/skeleton.png";
 const bowImage = new Image();
 bowImage.src = "./images/bow.png";
+const archerImage = new Image();
+archerImage.src = "./images/archer.png";
 
 const WORLD = { width: 2400, height: 1400 };
 const GRID_SIZE = 120;
@@ -93,6 +97,8 @@ let ENEMY_OPTIONS = {};
 const player = {
   wood: 1000,
   money: 0,
+  level: 1,
+  xp: 0,
   selectedUnits: [],
   selectedBuildingId: null,
   isPlacingBuilding: false,
@@ -298,6 +304,7 @@ function createUnit(kind, x, y, isPlayer) {
     hp: isPlayer ? 100 : enemyConfig.hp,
     maxHp: isPlayer ? 100 : enemyConfig.hp,
     damage: isPlayer ? 10 : enemyConfig.damage,
+    xpReward: isPlayer ? 0 : enemyConfig.xp,
     attackRange: isPlayer ? 34 : enemyConfig.attackRange,
     attackCooldown: isPlayer ? 1 : enemyConfig.attackCooldown,
     attackTimer: 0,
@@ -333,6 +340,7 @@ function createEnemyHero(x, y) {
     hp: enemyHeroConfig.hp,
     maxHp: enemyHeroConfig.hp,
     damage: enemyHeroConfig.damage,
+    xpReward: enemyHeroConfig.xp,
     attackRange: enemyHeroConfig.attackRange,
     attackCooldown: enemyHeroConfig.attackCooldown,
     attackTimer: 0,
@@ -450,6 +458,39 @@ function updateStatsUI() {
   healthFillEl.style.width = `${Math.min(100, (health / 200) * 100)}%`;
   weaponFillEl.style.width = `${Math.min(100, damage * 2)}%`;
   updateWeaponUI();
+}
+
+function getXpRequiredForLevel(level) {
+  return 50 + (level - 1) * 25;
+}
+
+function updateXpUI() {
+  const xpRequired = getXpRequiredForLevel(player.level);
+  xpLevelEl.textContent = `Level ${player.level} • ${player.xp}/${xpRequired} XP`;
+  xpFillEl.style.width = `${Math.min(100, (player.xp / xpRequired) * 100)}%`;
+}
+
+function awardPlayerXp(amount, sourceX = hero.x, sourceY = hero.y) {
+  if (amount <= 0) {
+    return;
+  }
+
+  player.xp += amount;
+  spawnTextPopup(sourceX, sourceY - 24, `+${amount} XP`, "rgba(150, 219, 255, 1)", 1.2);
+
+  let leveledUp = false;
+  while (player.xp >= getXpRequiredForLevel(player.level)) {
+    player.xp -= getXpRequiredForLevel(player.level);
+    player.level += 1;
+    leveledUp = true;
+  }
+
+  if (leveledUp) {
+    spawnTextPopup(hero.x, hero.y - 42, `Level ${player.level}!`, "rgba(255, 235, 150, 1)", 1.6);
+    statusTextEl.textContent = `Level up! You are now level ${player.level}.`;
+  }
+
+  updateXpUI();
 }
 
 function updateWeaponUI() {
@@ -1548,14 +1589,9 @@ function updateUnits(dt, list, enemiesList, enemyBuildings) {
       }
     }
 
-    if (unit.hp <= 0) {
-      if (!unit.isPlayer && unit.kind === "boss") {
-        spawnRareHelmetDrop(unit.x, unit.y);
-      }
+    if (unit.hp <= 0 && unit.isPlayer) {
       list.splice(i, 1);
-      if (unit.isPlayer) {
-        player.selectedUnits = player.selectedUnits.filter((id) => id !== unit.id);
-      }
+      player.selectedUnits = player.selectedUnits.filter((id) => id !== unit.id);
     }
   }
 }
@@ -1626,6 +1662,7 @@ function cleanupDestroyedBuildings() {
 
   if (enemyHero.active && enemyHero.hp <= 0) {
     enemyHero.hp = 0;
+    awardPlayerXp(enemyHero.xpReward || 0, enemyHero.x, enemyHero.y);
     dropLatestPickupFromEnemyHero();
     enemyHero.active = false;
   }
@@ -1643,6 +1680,7 @@ function cleanupDefeatedEnemies() {
       spawnRareHelmetDrop(enemy.x, enemy.y);
     }
 
+    awardPlayerXp(enemy.xpReward || 0, enemy.x, enemy.y);
     enemies.splice(i, 1);
   }
 }
@@ -1679,6 +1717,7 @@ function update(dt) {
   if (player.traderOpen && !isHeroNearTrader()) {
     closeTrader();
   }
+  updateXpUI();
   updateShopUI();
   updateTraderUI();
 }
@@ -2028,6 +2067,20 @@ function drawSoldierHero() {
   ctx.restore();
 }
 
+function drawArcherHero() {
+  if (!archerImage.complete || archerImage.naturalWidth <= 0) {
+    drawEntityCircle(hero, COLORS.hero, COLORS.heroAccent);
+    return;
+  }
+
+  const size = 46;
+  ctx.save();
+  ctx.translate(hero.x, hero.y);
+  ctx.rotate(hero.facingAngle + Math.PI / 2);
+  ctx.drawImage(archerImage, -size / 2, -size / 2, size, size);
+  ctx.restore();
+}
+
 function drawBuilding(building) {
   ctx.fillStyle = building.type === "enemyBase"
     ? COLORS.enemyBase
@@ -2276,6 +2329,8 @@ function render() {
     drawHeroStickFigure();
   } else if (hero.selectedClass === "soldier") {
     drawSoldierHero();
+  } else if (hero.selectedClass === "archer") {
+    drawArcherHero();
   } else {
     drawEntityCircle(hero, COLORS.hero, COLORS.heroAccent);
   }
@@ -2727,6 +2782,7 @@ async function initializeGame() {
     initializeCharacterCards();
     updateAbilityUI();
     updateStatsUI();
+    updateXpUI();
     updateShopUI();
     updateTraderUI();
     requestAnimationFrame(gameLoop);
