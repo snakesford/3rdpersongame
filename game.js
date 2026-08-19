@@ -131,6 +131,7 @@ const hero = {
   harvestTime: 1.4,
   harvestProgress: 0,
   isHarvesting: false,
+  equippedArmorValue: 0,
 };
 
 const trees = [];
@@ -138,6 +139,17 @@ const buildings = [];
 const units = [];
 const enemies = [];
 const damagePopups = [];
+const pickups = [
+  {
+    id: nextId(),
+    type: "helmet",
+    x: 540,
+    y: 650,
+    radius: 18,
+    collected: false,
+    armorValue: 60,
+  },
+];
 
 spawnTrees();
 createBuilding("shop", 180, WORLD.height / 2 - 220, true);
@@ -146,6 +158,7 @@ enemyBase.hp = 800;
 enemyBase.maxHp = 800;
 enemyBase.w = 180;
 enemyBase.h = 200;
+createUnit("boss", WORLD.width / 2, WORLD.height / 2, false);
 const enemyHero = createEnemyHero(WORLD.width - 430, WORLD.height / 2 - 10);
 createUnit("enemySoldier", WORLD.width - 470, WORLD.height / 2 + 90, false);
 
@@ -193,11 +206,11 @@ function createUnit(kind, x, y, isPlayer) {
     isPlayer,
     x,
     y,
-    radius: 14,
+    radius: kind === "boss" ? 28 : 14,
     speed: isPlayer ? 112 : 0,
-    hp: 100,
-    maxHp: 100,
-    damage: isPlayer ? 10 : 8,
+    hp: kind === "boss" ? 420 : 100,
+    maxHp: kind === "boss" ? 420 : 100,
+    damage: kind === "boss" ? 0 : (isPlayer ? 10 : 8),
     attackRange: 34,
     attackCooldown: 1,
     attackTimer: 0,
@@ -247,6 +260,14 @@ function getCharacterStatus() {
     return "Place the Barracks on open ground. Right-click or press Escape to cancel.";
   }
 
+  const nearbyPickup = pickups.find((pickup) => !pickup.collected && distance(hero, pickup) <= hero.radius + pickup.radius + 16);
+  if (nearbyPickup) {
+    if (nearbyPickup.type === "rareHelmet") {
+      return "Run over the rare blue helmet to equip it.";
+    }
+    return "Run over the helmet to equip it. Armor becomes 60.";
+  }
+
   if (isHeroNearShop()) {
     return "Near the Shop. Sell 25 wood for 25 money.";
   }
@@ -282,11 +303,12 @@ function updateAbilityUI() {
 function updateStatsUI() {
   const selected = hero.selectedClass ? CHARACTER_OPTIONS[hero.selectedClass] : null;
   const stats = selected?.stats || { armor: 0, health: 0, weapon: 0 };
+  const armor = Math.max(stats.armor, hero.equippedArmorValue);
 
-  armorValueEl.textContent = String(stats.armor);
+  armorValueEl.textContent = String(armor);
   healthValueEl.textContent = String(stats.health);
   weaponValueEl.textContent = String(stats.weapon);
-  armorFillEl.style.width = `${stats.armor}%`;
+  armorFillEl.style.width = `${armor}%`;
   healthFillEl.style.width = `${stats.health}%`;
   weaponFillEl.style.width = `${stats.weapon}%`;
 }
@@ -303,6 +325,18 @@ function isHeroNearShop() {
 
   const shopCenter = { x: shop.x + shop.w / 2, y: shop.y + shop.h / 2 };
   return distance(hero, shopCenter) <= 280;
+}
+
+function spawnRareHelmetDrop(x, y) {
+  pickups.push({
+    id: nextId(),
+    type: "rareHelmet",
+    x,
+    y,
+    radius: 18,
+    collected: false,
+    armorValue: 85,
+  });
 }
 
 function normalizeAngle(angle) {
@@ -356,6 +390,20 @@ function spawnDamagePopup(target, amount) {
     amount,
     ttl: 0.6,
     maxTtl: 0.6,
+    color: "rgba(255, 230, 140, 1)",
+    outline: "rgba(35, 20, 10, 1)",
+  });
+}
+
+function spawnTextPopup(x, y, text, color = "rgba(255, 230, 140, 1)") {
+  damagePopups.push({
+    x,
+    y,
+    amount: text,
+    ttl: 0.9,
+    maxTtl: 0.9,
+    color,
+    outline: "rgba(35, 20, 10, 1)",
   });
 }
 
@@ -764,6 +812,26 @@ function updateHero(dt) {
     }
   }
 
+  for (const pickup of pickups) {
+    if (!pickup.collected && distance(hero, pickup) <= hero.radius + pickup.radius) {
+      pickup.collected = true;
+      if (pickup.type === "helmet" || pickup.type === "rareHelmet") {
+        const baseArmor = hero.selectedClass ? CHARACTER_OPTIONS[hero.selectedClass].stats.armor : 0;
+        const previousArmor = Math.max(baseArmor, hero.equippedArmorValue);
+        const armorGain = Math.max(0, pickup.armorValue - previousArmor);
+        hero.equippedArmorValue = Math.max(hero.equippedArmorValue, pickup.armorValue);
+        updateStatsUI();
+        if (pickup.type === "rareHelmet") {
+          spawnTextPopup(pickup.x, pickup.y - 22, "Rare Helmet picked up!", "rgba(120, 196, 255, 1)");
+          spawnTextPopup(pickup.x, pickup.y + 4, `Rare Armor +${armorGain}`, "rgba(120, 196, 255, 1)");
+        } else {
+          spawnTextPopup(pickup.x, pickup.y - 22, "Helmet equipped!", "rgba(196, 234, 255, 1)");
+          spawnTextPopup(pickup.x, pickup.y + 4, `Armor +${armorGain}`, "rgba(156, 245, 164, 1)");
+        }
+      }
+    }
+  }
+
   if (hero.hp <= 0) {
     triggerLoss();
   }
@@ -835,6 +903,9 @@ function updateUnits(dt, list, enemiesList, enemyBuildings) {
     }
 
     if (unit.hp <= 0) {
+      if (!unit.isPlayer && unit.kind === "boss") {
+        spawnRareHelmetDrop(unit.x, unit.y);
+      }
       list.splice(i, 1);
       if (unit.isPlayer) {
         player.selectedUnits = player.selectedUnits.filter((id) => id !== unit.id);
@@ -880,6 +951,21 @@ function cleanupDestroyedBuildings() {
   }
 }
 
+function cleanupDefeatedEnemies() {
+  for (let i = enemies.length - 1; i >= 0; i -= 1) {
+    const enemy = enemies[i];
+    if (enemy.hp > 0) {
+      continue;
+    }
+
+    if (enemy.kind === "boss") {
+      spawnRareHelmetDrop(enemy.x, enemy.y);
+    }
+
+    enemies.splice(i, 1);
+  }
+}
+
 function triggerVictory() {
   player.victory = true;
   overlayMessageEl.textContent = "VICTORY";
@@ -900,6 +986,7 @@ function update(dt) {
   updateHero(dt);
   updateUnits(dt, units, enemies, buildings.filter((b) => !b.isPlayer));
   updateDamagePopups(dt);
+  cleanupDefeatedEnemies();
   cleanupDestroyedBuildings();
   trainSoldierBtn.disabled = player.money < 50 || player.selectedBuildingId === null;
   sellWoodBtn.disabled = player.wood < 25 || !isHeroNearShop();
@@ -928,6 +1015,29 @@ function drawTree(tree) {
   ctx.fillStyle = COLORS.tree;
   ctx.arc(tree.x, tree.y, tree.radius, 0, Math.PI * 2);
   ctx.fill();
+}
+
+function drawPickup(pickup) {
+  if (pickup.collected) {
+    return;
+  }
+
+  if (pickup.type === "helmet" || pickup.type === "rareHelmet") {
+    const fill = pickup.type === "rareHelmet" ? "#3f89d8" : "#8795a8";
+    const stroke = pickup.type === "rareHelmet" ? "#b8e1ff" : "#dce5ef";
+    ctx.fillStyle = fill;
+    ctx.beginPath();
+    ctx.arc(pickup.x, pickup.y, pickup.radius, Math.PI, 0);
+    ctx.fill();
+    ctx.fillRect(pickup.x - 16, pickup.y - 2, 32, 12);
+    ctx.clearRect(pickup.x - 8, pickup.y + 2, 16, 8);
+    ctx.strokeStyle = stroke;
+    ctx.lineWidth = 2;
+    ctx.strokeRect(pickup.x - 16, pickup.y - 2, 32, 12);
+    ctx.beginPath();
+    ctx.arc(pickup.x, pickup.y, pickup.radius, Math.PI, 0);
+    ctx.stroke();
+  }
 }
 
 function drawEntityCircle(entity, fill, accent) {
@@ -1061,8 +1171,8 @@ function drawDamagePopups() {
   ctx.font = "700 22px Chakra Petch";
   for (const popup of damagePopups) {
     const alpha = popup.ttl / popup.maxTtl;
-    ctx.fillStyle = `rgba(255, 230, 140, ${alpha})`;
-    ctx.strokeStyle = `rgba(35, 20, 10, ${alpha})`;
+    ctx.fillStyle = popup.color.replace(", 1)", `, ${alpha})`);
+    ctx.strokeStyle = popup.outline.replace(", 1)", `, ${alpha})`);
     ctx.lineWidth = 3;
     ctx.strokeText(String(popup.amount), popup.x, popup.y);
     ctx.fillText(String(popup.amount), popup.x, popup.y);
@@ -1119,6 +1229,10 @@ function render() {
     drawTree(tree);
   }
 
+  for (const pickup of pickups) {
+    drawPickup(pickup);
+  }
+
   for (const building of buildings) {
     drawBuilding(building);
   }
@@ -1141,8 +1255,15 @@ function render() {
   }
 
   for (const unit of enemies) {
-    drawEntityCircle(unit, COLORS.enemy, "#ef9494");
-    drawHealthBar(unit.x, unit.y - 28, 44, unit.hp / unit.maxHp);
+    const isBoss = unit.kind === "boss";
+    drawEntityCircle(unit, isBoss ? "#5b2a2a" : COLORS.enemy, isBoss ? "#ff9f7b" : "#ef9494");
+    drawHealthBar(unit.x, unit.y - (isBoss ? 36 : 28), isBoss ? 70 : 44, unit.hp / unit.maxHp);
+    if (isBoss) {
+      ctx.fillStyle = "#ffe0b0";
+      ctx.font = "700 16px Chakra Petch";
+      ctx.textAlign = "center";
+      ctx.fillText("BOSS", unit.x, unit.y - 44);
+    }
   }
 
   drawEntityCircle(enemyHero, COLORS.enemy, "#f2b0b0");
