@@ -13,55 +13,68 @@
   <canvas id="gameCanvas"></canvas>
 
   <div class="hud">
+    <div class="xp-shell">
+      <span class="xp-level">Level 1</span>
+      <div class="xp-bar">
+        <div class="xp-fill"></div>
+      </div>
+    </div>
+
     <div class="hud-top">
-      <div class="brand">
-        <span class="brand-kicker">RTS / ACTION PROTOTYPE</span>
-        <h1>Timberline Command</h1>
-      </div>
-      <div class="resource-panel">
-        <div class="resource-row">
-          <span>Wood</span>
-          <strong id="woodCount">0</strong>
+      <div class="hud-left">
+        <div class="brand">
+          <span class="brand-kicker">RTS / ACTION PROTOTYPE</span>
+          <h1>Timberline Command</h1>
         </div>
-        <div class="resource-row">
-          <span>Gold</span>
-          <strong id="moneyCount">0</strong>
-        </div>
-      </div>
-      <div class="stats-panel">
-        <span class="stats-kicker">Player Stats</span>
-        <div class="stats-grid">
-          <div class="stat-row">
-            <div class="stat-head">
-              <span>Armor</span>
-              <strong id="armorValue">0</strong>
-            </div>
-            <div class="stat-bar"><div id="armorFill" class="stat-fill armor-fill"></div></div>
+        <div class="resource-panel">
+          <div class="resource-row">
+            <span>Wood</span>
+            <strong id="woodCount">0</strong>
           </div>
-          <div class="stat-row">
-            <div class="stat-head">
-              <span>Health</span>
-              <strong id="healthValue">0</strong>
-            </div>
-            <div class="stat-bar"><div id="healthFill" class="stat-fill health-fill"></div></div>
-          </div>
-          <div class="stat-row">
-            <div class="stat-head">
-              <span>Damage</span>
-              <strong id="weaponValue">0</strong>
-            </div>
-            <div class="stat-bar"><div id="weaponFill" class="stat-fill weapon-fill"></div></div>
+          <div class="resource-row">
+            <span>Gold</span>
+            <strong id="moneyCount">0</strong>
           </div>
         </div>
       </div>
-      <div class="weapon-panel">
-        <span class="stats-kicker">Weapon</span>
-        <div class="weapon-ui">
-          <img id="weaponIcon" class="weapon-icon" src="./images/rifle.png" alt="Current weapon">
-          <div class="weapon-copy">
-            <strong id="weaponName">None</strong>
-            <span id="weaponHint">No weapon equipped</span>
-            <span id="ammoCount" class="ammo-count">Ammo: --/--</span>
+
+      <div class="hud-right">
+        <div class="stats-panel">
+          <span class="stats-kicker">Player Stats</span>
+          <div class="stats-grid">
+            <div class="stat-row">
+              <div class="stat-head">
+                <span>Armor</span>
+                <strong id="armorValue">0</strong>
+              </div>
+              <div class="stat-bar"><div id="armorFill" class="stat-fill armor-fill"></div></div>
+            </div>
+            <div class="stat-row">
+              <div class="stat-head">
+                <span>Health</span>
+                <strong id="healthValue">0</strong>
+              </div>
+              <div class="stat-bar"><div id="healthFill" class="stat-fill health-fill"></div></div>
+            </div>
+            <div class="stat-row">
+              <div class="stat-head">
+                <span>Damage</span>
+                <strong id="weaponValue">0</strong>
+              </div>
+              <div class="stat-bar"><div id="weaponFill" class="stat-fill weapon-fill"></div></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="weapon-panel">
+          <span class="stats-kicker">Weapon</span>
+          <div class="weapon-ui">
+            <img id="weaponIcon" class="weapon-icon" src="./images/rifle.png" alt="Current weapon">
+            <div class="weapon-copy">
+              <strong id="weaponName">None</strong>
+              <span id="weaponHint">No weapon equipped</span>
+              <span id="ammoCount" class="ammo-count">Ammo: --/--</span>
+            </div>
           </div>
         </div>
       </div>

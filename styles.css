@@ -43,8 +43,46 @@ canvas {
   pointer-events: none;
   display: flex;
   flex-direction: column;
-  justify-content: space-between;
+  justify-content: flex-start;
   padding: 18px;
+}
+
+.xp-shell {
+  align-self: center;
+  width: min(860px, calc(100vw - 320px));
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+  margin-bottom: 8px;
+}
+
+.xp-level {
+  pointer-events: auto;
+  color: #fff5d2;
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  text-shadow: 0 4px 14px rgba(0, 0, 0, 0.35);
+}
+
+.xp-bar {
+  pointer-events: auto;
+  width: 100%;
+  height: 16px;
+  border-radius: 999px;
+  overflow: hidden;
+  background: rgba(15, 33, 24, 0.88);
+  border: 1px solid rgba(224, 236, 207, 0.2);
+  box-shadow: 0 10px 30px var(--shadow);
+}
+
+.xp-fill {
+  width: 32%;
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #6aa8ff, #9de0ff);
 }
 
 .hud-top,
@@ -53,6 +91,21 @@ canvas {
   justify-content: space-between;
   align-items: flex-start;
   gap: 16px;
+}
+
+.hud-bottom {
+  margin-top: auto;
+}
+
+.hud-left,
+.hud-right {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.hud-right {
+  align-items: flex-end;
 }
 
 .brand,
@@ -89,7 +142,7 @@ canvas {
 .resource-panel {
   min-width: 120px;
   padding: 14px 18px;
-  text-align: right;
+  text-align: left;
 }
 
 .resource-row + .resource-row {
