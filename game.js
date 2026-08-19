@@ -1729,6 +1729,20 @@ function drawSoldierHero() {
   ctx.translate(hero.x, hero.y);
   ctx.rotate(hero.facingAngle);
   ctx.drawImage(image, -size / 2, -size / 2, size, size);
+  const helmetStyle = getHeroHelmetStyle();
+  if (helmetStyle) {
+    ctx.fillStyle = helmetStyle.fill;
+    ctx.beginPath();
+    ctx.arc(0, -13, 10, Math.PI, 0);
+    ctx.fill();
+    ctx.fillRect(-10, -13, 20, 6);
+    ctx.strokeStyle = helmetStyle.stroke;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(0, -13, 10, Math.PI, 0);
+    ctx.stroke();
+    ctx.strokeRect(-10, -13, 20, 6);
+  }
   ctx.restore();
 }
 
