@@ -31,11 +31,17 @@ weaponBuffImage.src = "./images/sword.jpg";
 const WORLD = { width: 2400, height: 1400 };
 const GRID_SIZE = 120;
 const PLAYER_BASE_SPAWN = { x: 220, y: 700 };
+const DEATH_ZONE = {
+  x: WORLD.width / 2 - 110,
+  y: WORLD.height - 300,
+  size: 220,
+};
 const COLORS = {
   ground: "#a8cb7a",
   path: "#b6c792",
   tree: "#2f6b33",
   trunk: "#5f4023",
+  deathZone: "#6c2030",
   hero: "#2546b8",
   heroAccent: "#93b4ff",
   soldier: "#315ba8",
@@ -146,13 +152,20 @@ const hero = {
   harvestProgress: 0,
   isHarvesting: false,
   equippedArmorValue: 0,
+  equippedHelmetType: null,
   latestPickup: null,
+  hasAxe: false,
+  axeSwingTimer: 0,
+  axeSwingDuration: 0.22,
+  hasRifle: false,
+  rifleCooldown: 0,
 };
 
 const trees = [];
 const buildings = [];
 const units = [];
 const enemies = [];
+const heroProjectiles = [];
 const damagePopups = [];
 const trader = {
   x: GRID_SIZE * 6,
@@ -186,6 +199,22 @@ const pickups = [
     radius: 18,
     collected: false,
     damageValue: 2,
+  },
+  {
+    id: nextId(),
+    type: "axe",
+    x: PLAYER_BASE_SPAWN.x + 140,
+    y: PLAYER_BASE_SPAWN.y - 50,
+    radius: 18,
+    collected: false,
+  },
+  {
+    id: nextId(),
+    type: "rifle",
+    x: PLAYER_BASE_SPAWN.x + 210,
+    y: PLAYER_BASE_SPAWN.y - 50,
+    radius: 18,
+    collected: false,
   },
 ];
 
@@ -323,6 +352,12 @@ function getCharacterStatus() {
     if (nearbyPickup.type === "weaponBuff") {
       return "Run over the weapon buff to gain +2 damage.";
     }
+    if (nearbyPickup.type === "axe") {
+      return "Run over the axe to equip it. Click to swing it.";
+    }
+    if (nearbyPickup.type === "rifle") {
+      return "Run over the M4 rifle to equip it. Left-click to fire.";
+    }
     return "Run over the helmet to equip it. Armor becomes 60.";
   }
 
@@ -340,6 +375,9 @@ function getCharacterStatus() {
   }
   if (tree) {
     return "Press E to harvest this tree for 25 wood.";
+  }
+  if (hero.hasRifle) {
+    return "Left-click to fire the M4 rifle.";
   }
   return "Walk near a tree and press E to harvest wood.";
 }
@@ -426,7 +464,10 @@ function spawnPickupDrop(pickup, x, y) {
     y,
     radius: pickup.radius ?? 18,
     collected: false,
+    pickupDelay: 0.3,
     armorValue: pickup.armorValue,
+    healthValue: pickup.healthValue,
+    damageValue: pickup.damageValue,
   });
 }
 
@@ -451,6 +492,12 @@ function dropLatestPickupFromEnemyHero() {
 function respawnHero() {
   dropLatestPickupFromHero();
   hero.equippedArmorValue = 0;
+  hero.equippedHelmetType = null;
+  hero.hasAxe = false;
+  hero.axeSwingTimer = 0;
+  hero.hasRifle = false;
+  hero.rifleCooldown = 0;
+  heroProjectiles.length = 0;
   hero.hp = hero.maxHp;
   hero.x = PLAYER_BASE_SPAWN.x;
   hero.y = PLAYER_BASE_SPAWN.y;
@@ -706,6 +753,49 @@ function updateBurstProjectile(projectile, dt) {
   }
 }
 
+function updateHeroProjectiles(dt) {
+  for (let i = heroProjectiles.length - 1; i >= 0; i -= 1) {
+    const projectile = heroProjectiles[i];
+    const step = projectile.speed * dt;
+    projectile.x += Math.cos(projectile.angle) * step;
+    projectile.y += Math.sin(projectile.angle) * step;
+
+    for (let enemyIndex = enemies.length - 1; enemyIndex >= 0; enemyIndex -= 1) {
+      const enemy = enemies[enemyIndex];
+      if (!projectile.hitIds.has(enemy.id) && distance(projectile, enemy) <= projectile.radius + enemy.radius) {
+        dealDamage(enemy, projectile.damage, true);
+        projectile.active = false;
+        break;
+      }
+    }
+
+    if (projectile.active && enemyHero.active && !projectile.hitIds.has(enemyHero.id) && distance(projectile, enemyHero) <= projectile.radius + enemyHero.radius) {
+      dealDamage(enemyHero, projectile.damage, true);
+      projectile.active = false;
+    }
+
+    if (projectile.active) {
+      for (const building of buildings) {
+        if (!building.isPlayer && intersectsBuilding(projectile, projectile.radius, building)) {
+          dealDamage(building, projectile.damage, true);
+          projectile.active = false;
+          break;
+        }
+      }
+    }
+
+    if (
+      !projectile.active ||
+      projectile.x < 0 ||
+      projectile.y < 0 ||
+      projectile.x > WORLD.width ||
+      projectile.y > WORLD.height
+    ) {
+      heroProjectiles.splice(i, 1);
+    }
+  }
+}
+
 function clearUnitSelection() {
   for (const unit of units) {
     unit.selected = false;
@@ -866,6 +956,56 @@ function useSlash() {
   updateAbilityUI();
 }
 
+function useAxeSwing() {
+  if (!player.hasSelectedCharacter || player.victory || player.loss || !hero.hasAxe) {
+    return;
+  }
+
+  hero.axeSwingTimer = hero.axeSwingDuration;
+  damageEnemiesInCone(18 + player.weaponBonusDamage, 64, Math.PI / 3);
+}
+
+function swapHeroWeaponPickup(nextWeaponType, x, y, radius) {
+  if (nextWeaponType === "axe" && hero.hasRifle) {
+    spawnPickupDrop({ type: "rifle", radius }, x + 18, y);
+    hero.hasRifle = false;
+  }
+
+  if (nextWeaponType === "rifle" && hero.hasAxe) {
+    spawnPickupDrop({ type: "axe", radius }, x - 18, y);
+    hero.hasAxe = false;
+    hero.axeSwingTimer = 0;
+  }
+}
+
+function spawnHeroBullet(targetX, targetY) {
+  if (!hero.hasRifle || hero.rifleCooldown > 0) {
+    return false;
+  }
+
+  const dx = targetX - hero.x;
+  const dy = targetY - hero.y;
+  const distanceToTarget = Math.hypot(dx, dy);
+  if (distanceToTarget < 1) {
+    return false;
+  }
+
+  const angle = Math.atan2(dy, dx);
+  hero.facingAngle = angle;
+  hero.rifleCooldown = 0.18;
+  heroProjectiles.push({
+    x: hero.x + Math.cos(angle) * 18,
+    y: hero.y + Math.sin(angle) * 18,
+    angle,
+    speed: 980,
+    radius: 4,
+    damage: 16 + player.weaponBonusDamage,
+    active: true,
+    hitIds: new Set(),
+  });
+  return true;
+}
+
 function setSelectedUnitsMoveTarget(x, y) {
   const selectedUnits = units.filter((unit) => player.selectedUnits.includes(unit.id));
   if (!selectedUnits.length) {
@@ -900,6 +1040,8 @@ function updateCamera(dt) {
 function updateHero(dt) {
   hero.slashTimer = Math.max(0, hero.slashTimer - dt);
   hero.slashArcTimer = Math.max(0, hero.slashArcTimer - dt);
+  hero.axeSwingTimer = Math.max(0, hero.axeSwingTimer - dt);
+  hero.rifleCooldown = Math.max(0, hero.rifleCooldown - dt);
   if (hero.abilityEffect?.effect === "burst") {
     const pendingShots = hero.abilityEffect.pendingShots || [];
     const projectiles = hero.abilityEffect.projectiles || [];
@@ -973,13 +1115,18 @@ function updateHero(dt) {
   }
 
   for (const pickup of pickups) {
-    if (!pickup.collected && distance(hero, pickup) <= hero.radius + pickup.radius) {
+    if (pickup.pickupDelay) {
+      pickup.pickupDelay = Math.max(0, pickup.pickupDelay - dt);
+    }
+
+    if (!pickup.collected && !pickup.pickupDelay && distance(hero, pickup) <= hero.radius + pickup.radius) {
       pickup.collected = true;
       if (pickup.type === "helmet" || pickup.type === "rareHelmet" || pickup.type === "enemyHelmet") {
         const baseArmor = hero.selectedClass ? CHARACTER_OPTIONS[hero.selectedClass].stats.armor : 0;
         const previousArmor = Math.max(baseArmor, hero.equippedArmorValue);
         const armorGain = Math.max(0, pickup.armorValue - previousArmor);
         hero.equippedArmorValue = Math.max(hero.equippedArmorValue, pickup.armorValue);
+        hero.equippedHelmetType = pickup.type;
         hero.latestPickup = {
           type: pickup.type,
           armorValue: pickup.armorValue,
@@ -1007,6 +1154,24 @@ function updateHero(dt) {
         updateStatsUI();
         spawnTextPopup(pickup.x, pickup.y - 12, "Weapon Buff!", "rgba(255, 218, 140, 1)", 1.8);
         spawnTextPopup(pickup.x, pickup.y + 12, `Damage +${pickup.damageValue}`, "rgba(255, 238, 196, 1)", 1.8);
+      } else if (pickup.type === "axe") {
+        swapHeroWeaponPickup("axe", pickup.x, pickup.y, pickup.radius);
+        hero.hasAxe = true;
+        hero.latestPickup = {
+          type: "axe",
+          radius: pickup.radius,
+        };
+        spawnTextPopup(pickup.x, pickup.y - 12, "Axe equipped!", "rgba(255, 214, 164, 1)", 1.8);
+        spawnTextPopup(pickup.x, pickup.y + 12, "Click to swing", "rgba(255, 236, 201, 1)", 1.8);
+      } else if (pickup.type === "rifle") {
+        swapHeroWeaponPickup("rifle", pickup.x, pickup.y, pickup.radius);
+        hero.hasRifle = true;
+        hero.latestPickup = {
+          type: "rifle",
+          radius: pickup.radius,
+        };
+        spawnTextPopup(pickup.x, pickup.y - 12, "M4 equipped!", "rgba(196, 234, 255, 1)", 1.8);
+        spawnTextPopup(pickup.x, pickup.y + 12, "Left-click to fire", "rgba(196, 234, 255, 1)", 1.8);
       }
     }
   }
@@ -1104,6 +1269,41 @@ function moveTowards(unit, x, y, dt) {
   unit.y += (dy / dist) * unit.speed * dt;
 }
 
+function isInsideDeathZone(entity) {
+  return (
+    entity.x >= DEATH_ZONE.x &&
+    entity.x <= DEATH_ZONE.x + DEATH_ZONE.size &&
+    entity.y >= DEATH_ZONE.y &&
+    entity.y <= DEATH_ZONE.y + DEATH_ZONE.size
+  );
+}
+
+function cleanupDeathZoneEntities() {
+  if (isInsideDeathZone(hero)) {
+    hero.hp = 0;
+  }
+
+  for (let i = units.length - 1; i >= 0; i -= 1) {
+    const unit = units[i];
+    if (!isInsideDeathZone(unit)) {
+      continue;
+    }
+    units.splice(i, 1);
+    player.selectedUnits = player.selectedUnits.filter((id) => id !== unit.id);
+  }
+
+  for (let i = enemies.length - 1; i >= 0; i -= 1) {
+    if (isInsideDeathZone(enemies[i])) {
+      enemies.splice(i, 1);
+    }
+  }
+
+  if (enemyHero.active && isInsideDeathZone(enemyHero)) {
+    enemyHero.active = false;
+    enemyHero.hp = 0;
+  }
+}
+
 function cleanupDestroyedBuildings() {
   for (let i = buildings.length - 1; i >= 0; i -= 1) {
     const building = buildings[i];
@@ -1163,7 +1363,9 @@ function update(dt) {
   }
   updateCamera(dt);
   updateHero(dt);
+  updateHeroProjectiles(dt);
   updateUnits(dt, units, enemies, buildings.filter((b) => !b.isPlayer));
+  cleanupDeathZoneEntities();
   updateDamagePopups(dt);
   cleanupDefeatedEnemies();
   cleanupDestroyedBuildings();
@@ -1192,6 +1394,12 @@ function drawBackground() {
   for (let y = 0; y < WORLD.height; y += 120) {
     ctx.fillRect(0, y, WORLD.width, 2);
   }
+
+  ctx.fillStyle = COLORS.deathZone;
+  ctx.fillRect(DEATH_ZONE.x, DEATH_ZONE.y, DEATH_ZONE.size, DEATH_ZONE.size);
+  ctx.strokeStyle = "rgba(255, 220, 220, 0.45)";
+  ctx.lineWidth = 3;
+  ctx.strokeRect(DEATH_ZONE.x, DEATH_ZONE.y, DEATH_ZONE.size, DEATH_ZONE.size);
 }
 
 function drawTree(tree) {
@@ -1248,6 +1456,31 @@ function drawPickup(pickup) {
       ctx.fillRect(pickup.x - 12, pickup.y - 14, 8, 3);
       ctx.fillRect(pickup.x - 9.5, pickup.y - 16.5, 3, 8);
     }
+  } else if (pickup.type === "axe") {
+    ctx.strokeStyle = "#8f643c";
+    ctx.lineWidth = 4;
+    ctx.beginPath();
+    ctx.moveTo(pickup.x - 9, pickup.y + 10);
+    ctx.lineTo(pickup.x + 7, pickup.y - 10);
+    ctx.stroke();
+    ctx.fillStyle = "#d5dce6";
+    ctx.beginPath();
+    ctx.moveTo(pickup.x + 4, pickup.y - 12);
+    ctx.lineTo(pickup.x + 16, pickup.y - 4);
+    ctx.lineTo(pickup.x + 5, pickup.y + 1);
+    ctx.closePath();
+    ctx.fill();
+  } else if (pickup.type === "rifle") {
+    ctx.save();
+    ctx.translate(pickup.x, pickup.y);
+    ctx.rotate(-0.35);
+    ctx.fillStyle = "#2d3640";
+    ctx.fillRect(-14, -3, 28, 6);
+    ctx.fillRect(10, -2, 10, 3);
+    ctx.fillStyle = "#715235";
+    ctx.fillRect(-10, 2, 10, 4);
+    ctx.fillRect(-2, 3, 4, 8);
+    ctx.restore();
   }
 }
 
@@ -1276,6 +1509,144 @@ function drawEntityCircle(entity, fill, accent) {
   ctx.fillStyle = accent;
   ctx.arc(entity.x, entity.y - 4, entity.radius * 0.42, 0, Math.PI * 2);
   ctx.fill();
+}
+
+function getHeroHelmetStyle() {
+  if (!hero.equippedHelmetType || hero.equippedArmorValue <= 0) {
+    return null;
+  }
+
+  if (hero.equippedHelmetType === "rareHelmet") {
+    return { fill: "#3f89d8", stroke: "#b8e1ff" };
+  }
+
+  if (hero.equippedHelmetType === "enemyHelmet") {
+    return { fill: "#4f9e58", stroke: "#d3ffb5" };
+  }
+
+  return { fill: "#8795a8", stroke: "#dce5ef" };
+}
+
+function drawHeroStickFigure() {
+  const angle = hero.facingAngle || 0;
+  const headX = hero.x;
+  const headY = hero.y - 12;
+  const headRadius = 8;
+  const neckY = headY + headRadius;
+  const hipY = hero.y + 8;
+  const shoulderY = neckY + 6;
+  const shoulderSpread = 10;
+  const armReach = 12;
+  const legReach = 10;
+  const leadX = Math.cos(angle);
+  const leadY = Math.sin(angle);
+  const sideX = Math.cos(angle + Math.PI / 2);
+  const sideY = Math.sin(angle + Math.PI / 2);
+  const swingProgress = hero.axeSwingDuration > 0 ? 1 - hero.axeSwingTimer / hero.axeSwingDuration : 1;
+  const swingAngle = hero.hasAxe
+    ? angle + (-0.75 + clamp(swingProgress, 0, 1) * 1.5)
+    : angle;
+  const handX = headX + sideX * shoulderSpread + leadX * armReach;
+  const handY = shoulderY + sideY * shoulderSpread + leadY * armReach;
+  const axeGripX = headX + sideX * 4 + leadX * 6;
+  const axeGripY = headY + 6 + sideY * 2;
+
+  ctx.strokeStyle = COLORS.hero;
+  ctx.lineWidth = 4;
+  ctx.lineCap = "round";
+
+  ctx.beginPath();
+  ctx.arc(headX, headY, headRadius, 0, Math.PI * 2);
+  ctx.stroke();
+
+  const helmetStyle = getHeroHelmetStyle();
+  if (helmetStyle) {
+    ctx.fillStyle = helmetStyle.fill;
+    ctx.beginPath();
+    ctx.arc(headX, headY, headRadius + 1, Math.PI, 0);
+    ctx.fill();
+    ctx.fillRect(headX - headRadius - 1, headY - 1, (headRadius + 1) * 2, 5);
+    ctx.strokeStyle = helmetStyle.stroke;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(headX, headY, headRadius + 1, Math.PI, 0);
+    ctx.stroke();
+    ctx.strokeRect(headX - headRadius - 1, headY - 1, (headRadius + 1) * 2, 5);
+    ctx.strokeStyle = COLORS.hero;
+    ctx.lineWidth = 4;
+  }
+
+  ctx.beginPath();
+  ctx.moveTo(headX, neckY);
+  ctx.lineTo(headX, hipY);
+  ctx.moveTo(headX, shoulderY);
+  ctx.lineTo(headX + sideX * shoulderSpread + leadX * armReach, shoulderY + sideY * shoulderSpread + leadY * armReach);
+  ctx.moveTo(headX, shoulderY);
+  ctx.lineTo(headX - sideX * shoulderSpread + leadX * armReach, shoulderY - sideY * shoulderSpread + leadY * armReach);
+  ctx.moveTo(headX, hipY);
+  ctx.lineTo(headX + sideX * 6 + leadX * legReach, hipY + 18 + leadY * 4);
+  ctx.moveTo(headX, hipY);
+  ctx.lineTo(headX - sideX * 6 + leadX * legReach, hipY + 18 - leadY * 4);
+  ctx.stroke();
+
+  if (hero.hasAxe) {
+    const axeHandleLength = 18;
+    const handleEndX = axeGripX + Math.cos(swingAngle) * axeHandleLength;
+    const handleEndY = axeGripY + Math.sin(swingAngle) * axeHandleLength;
+    ctx.strokeStyle = "#8f643c";
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.moveTo(axeGripX, axeGripY);
+    ctx.lineTo(handleEndX, handleEndY);
+    ctx.stroke();
+
+    const bladeBaseX = handleEndX - Math.cos(swingAngle) * 2;
+    const bladeBaseY = handleEndY - Math.sin(swingAngle) * 2;
+    const bladeX = bladeBaseX + Math.cos(swingAngle - Math.PI / 2) * 10;
+    const bladeY = bladeBaseY + Math.sin(swingAngle - Math.PI / 2) * 10;
+    ctx.fillStyle = "#d5dce6";
+    ctx.beginPath();
+    ctx.moveTo(bladeBaseX, bladeBaseY);
+    ctx.lineTo(bladeX, bladeY);
+    ctx.lineTo(
+      bladeBaseX + Math.cos(swingAngle + Math.PI * 0.1) * 7,
+      bladeBaseY + Math.sin(swingAngle + Math.PI * 0.1) * 7
+    );
+    ctx.closePath();
+    ctx.fill();
+
+    if (hero.axeSwingTimer > 0) {
+      ctx.strokeStyle = "rgba(255, 229, 168, 0.85)";
+      ctx.lineWidth = 5;
+      ctx.beginPath();
+      ctx.arc(axeGripX, axeGripY, 22, angle - 0.75, angle + 0.75);
+      ctx.stroke();
+    }
+  }
+
+  if (hero.hasRifle) {
+    const rifleLength = 24;
+    const muzzleX = handX + Math.cos(angle) * rifleLength;
+    const muzzleY = handY + Math.sin(angle) * rifleLength;
+    ctx.strokeStyle = "#2d3640";
+    ctx.lineWidth = 5;
+    ctx.beginPath();
+    ctx.moveTo(handX - Math.cos(angle) * 4, handY - Math.sin(angle) * 4);
+    ctx.lineTo(muzzleX, muzzleY);
+    ctx.stroke();
+    ctx.strokeStyle = "#171d22";
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(muzzleX - Math.cos(angle) * 6, muzzleY - Math.sin(angle) * 6);
+    ctx.lineTo(muzzleX + Math.cos(angle) * 8, muzzleY + Math.sin(angle) * 8);
+    ctx.stroke();
+    ctx.strokeStyle = "#715235";
+    ctx.lineWidth = 4;
+    ctx.beginPath();
+    ctx.moveTo(handX - Math.cos(angle) * 3, handY - Math.sin(angle) * 3);
+    ctx.lineTo(handX - Math.cos(angle) * 11 - Math.sin(angle) * 3, handY - Math.sin(angle) * 11 + Math.cos(angle) * 3);
+    ctx.stroke();
+  }
 }
 
 function drawBuilding(building) {
@@ -1396,6 +1767,15 @@ function drawSlashArc() {
   }
 }
 
+function drawHeroProjectiles() {
+  for (const projectile of heroProjectiles) {
+    ctx.fillStyle = "#ffd07a";
+    ctx.beginPath();
+    ctx.arc(projectile.x, projectile.y, projectile.radius, 0, Math.PI * 2);
+    ctx.fill();
+  }
+}
+
 function drawDamagePopups() {
   ctx.textAlign = "center";
   ctx.font = "700 22px Chakra Petch";
@@ -1469,10 +1849,11 @@ function render() {
     drawBuilding(building);
   }
 
-  drawEntityCircle(hero, COLORS.hero, COLORS.heroAccent);
+  drawHeroStickFigure();
   drawHealthBar(hero.x, hero.y - 34, 60, hero.hp / hero.maxHp);
   drawHarvestProgress();
   drawSlashArc();
+  drawHeroProjectiles();
 
   for (const unit of units) {
     drawEntityCircle(unit, COLORS.soldier, "#8fb7ff");
@@ -1614,6 +1995,15 @@ canvas.addEventListener("mousedown", (event) => {
       return;
     }
 
+    if (hero.hasRifle && spawnHeroBullet(point.x, point.y)) {
+      selectionBox = null;
+      player.selectedUnits = [];
+      player.selectedBuildingId = null;
+      updateTrainButton();
+      statusTextEl.textContent = "M4 fired.";
+      return;
+    }
+
     const clickedUnit = getUnitAt(point, units);
     if (clickedUnit) {
       selectSingleUnit(clickedUnit);
@@ -1641,6 +2031,15 @@ canvas.addEventListener("mouseup", (event) => {
     return;
   }
   if (event.button === 0 && selectionBox) {
+    const dragWidth = Math.abs(selectionBox.x2 - selectionBox.x1);
+    const dragHeight = Math.abs(selectionBox.y2 - selectionBox.y1);
+    if (dragWidth < 10 && dragHeight < 10 && hero.hasAxe && !hero.hasRifle) {
+      selectionBox = null;
+      player.selectedUnits = [];
+      statusTextEl.textContent = "Axe swing.";
+      useAxeSwing();
+      return;
+    }
     selectUnitsInBox(selectionBox);
     selectionBox = null;
     statusTextEl.textContent = player.selectedUnits.length
