@@ -1,0 +1,88 @@
+{
+  "swordsman": {
+    "name": "Swordsman",
+    "abilityName": "Slash",
+    "cooldown": 5,
+    "portrait": "./images/sowrdsman.png",
+    "stats": {
+      "armor": 70,
+      "health": 150,
+      "weapon": 85
+    },
+    "effect": "cone",
+    "damage": 35,
+    "radius": 86,
+    "halfAngle": 1.5707963267948966
+  },
+  "soldier": {
+    "name": "Soldier",
+    "abilityName": "Burst Shot",
+    "cooldown": 1,
+    "portrait": "./images/soldier.png",
+    "stats": {
+      "armor": 45,
+      "health": 120,
+      "weapon": 78
+    },
+    "effect": "burst",
+    "damage": 8,
+    "range": 600,
+    "width": 18,
+    "rounds": 7,
+    "shotAnglesDegrees": [0, 7, -4, -6, 3, 5, -7]
+  },
+  "mage": {
+    "name": "Mage",
+    "abilityName": "Arcane Nova",
+    "cooldown": 8,
+    "portrait": "./images/mage.png",
+    "stats": {
+      "armor": 25,
+      "health": 100,
+      "weapon": 92
+    },
+    "effect": "nova",
+    "damage": 30,
+    "radius": 124
+  },
+  "robot": {
+    "name": "Robot",
+    "abilityName": "Pulse Wave",
+    "cooldown": 8,
+    "portrait": "./images/robot.png",
+    "stats": {
+      "armor": 90,
+      "health": 180,
+      "weapon": 70
+    },
+    "effect": "cone",
+    "damage": 25,
+    "radius": 132,
+    "halfAngle": 2.199114857512855
+  },
+  "stickman": {
+    "name": "Stick Man",
+    "abilityName": "Wild Swing",
+    "cooldown": 6,
+    "stats": {
+      "armor": 55,
+      "health": 140,
+      "weapon": 80
+    },
+    "effect": "cone",
+    "damage": 28,
+    "radius": 96,
+    "halfAngle": 2.670353755551324
+  },
+  "archer": {
+    "name": "Archer",
+    "abilityName": "Piercing Arrow",
+    "cooldown": 3,
+    "portrait": "./images/archer.png",
+    "stats": { "armor": 35, "health": 105, "weapon": 88 },
+    "effect": "projectile",
+    "damage": 42,
+    "range": 400,
+    "width": 10
+  }
+}

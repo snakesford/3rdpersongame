@@ -28,7 +28,7 @@ const slashAbilityEl = document.getElementById("slashAbility");
 const abilityNameEl = document.getElementById("abilityName");
 const slashCooldownTextEl = document.getElementById("slashCooldownText");
 const characterSelectEl = document.getElementById("characterSelect");
-const classCardEls = document.querySelectorAll(".class-card");
+const classGridEl = document.querySelector(".class-grid");
 const weaponBuffImage = new Image();
 weaponBuffImage.src = "./images/sword.jpg";
 const soldierRunningImage = new Image();
@@ -85,63 +85,7 @@ const COLORS = {
   healthBad: "#e36a6a",
 };
 
-const CHARACTER_OPTIONS = {
-  swordsman: {
-    name: "Swordsman",
-    abilityName: "Slash",
-    cooldown: 5,
-    portrait: "./images/sowrdsman.png",
-    stats: { armor: 70, health: 150, weapon: 85 },
-    effect: "cone",
-    damage: 35,
-    radius: 86,
-    halfAngle: Math.PI / 2,
-  },
-  soldier: {
-    name: "Soldier",
-    abilityName: "Burst Shot",
-    cooldown: 1,
-    portrait: "./images/soldier.png",
-    stats: { armor: 45, health: 120, weapon: 78 },
-    effect: "burst",
-    damage: 8,
-    range: GRID_SIZE * 5,
-    width: 18,
-    rounds: 7,
-    shotAnglesDegrees: [0, 7, -4, -6, 3, 5, -7],
-  },
-  mage: {
-    name: "Mage",
-    abilityName: "Arcane Nova",
-    portrait: "./images/mage.png",
-    cooldown: 8,
-    stats: { armor: 25, health: 100, weapon: 92 },
-    effect: "nova",
-    damage: 30,
-    radius: 124,
-  },
-  robot: {
-    name: "Robot",
-    abilityName: "Pulse Wave",
-    cooldown: 8,
-    portrait: "./images/robot.png",
-    stats: { armor: 90, health: 180, weapon: 70 },
-    effect: "cone",
-    damage: 25,
-    radius: 132,
-    halfAngle: Math.PI * 0.7,
-  },
-  stickman: {
-    name: "Stick Man",
-    abilityName: "Wild Swing",
-    cooldown: 6,
-    stats: { armor: 55, health: 140, weapon: 80 },
-    effect: "cone",
-    damage: 28,
-    radius: 96,
-    halfAngle: Math.PI * 0.85,
-  },
-};
+let CHARACTER_OPTIONS = {};
 
 const player = {
   wood: 1000,
@@ -2447,27 +2391,72 @@ function selectCharacter(classId) {
   updateStatsUI();
 }
 
-for (const classCardEl of classCardEls) {
-  const portraitEl = classCardEl.querySelector(".class-portrait");
-  const selectedClass = CHARACTER_OPTIONS[classCardEl.dataset.class];
-  if (portraitEl && selectedClass?.portrait) {
-    portraitEl.src = selectedClass.portrait;
-    portraitEl.addEventListener("load", () => {
-      portraitEl.classList.remove("hidden");
-    });
-    portraitEl.addEventListener("error", () => {
-      portraitEl.removeAttribute("src");
-      portraitEl.classList.add("hidden");
-    });
+async function loadCharacterOptions() {
+  if (window.location.protocol === "file:") {
+    throw new Error("Open the game through the local HTTP server so character-options.json can be fetched.");
   }
 
-  classCardEl.addEventListener("click", () => {
-    selectCharacter(classCardEl.dataset.class);
-  });
+  const response = await fetch("./character-options.json");
+  if (!response.ok) {
+    throw new Error(`Failed to load character options: ${response.status}`);
+  }
+  CHARACTER_OPTIONS = await response.json();
 }
 
-updateAbilityUI();
-updateStatsUI();
-updateShopUI();
-updateTraderUI();
-requestAnimationFrame(gameLoop);
+function initializeCharacterCards() {
+  classGridEl.textContent = "";
+
+  for (const [classId, selectedClass] of Object.entries(CHARACTER_OPTIONS)) {
+    const classCardEl = document.createElement("button");
+    classCardEl.className = "class-card";
+    classCardEl.dataset.class = classId;
+    classCardEl.disabled = false;
+
+    const portraitEl = document.createElement("img");
+    portraitEl.className = "class-portrait hidden";
+    portraitEl.alt = `${selectedClass.name} portrait`;
+
+    const nameEl = document.createElement("strong");
+    nameEl.textContent = selectedClass.name;
+
+    const abilityEl = document.createElement("span");
+    abilityEl.textContent = `F: ${selectedClass.abilityName}`;
+
+    classCardEl.append(portraitEl, nameEl, abilityEl);
+
+    if (selectedClass.portrait) {
+      portraitEl.src = selectedClass.portrait;
+      portraitEl.addEventListener("load", () => {
+        portraitEl.classList.remove("hidden");
+      });
+      portraitEl.addEventListener("error", () => {
+        portraitEl.removeAttribute("src");
+        portraitEl.classList.add("hidden");
+      });
+    }
+
+    classCardEl.addEventListener("click", () => {
+      selectCharacter(classId);
+    });
+
+    classGridEl.appendChild(classCardEl);
+  }
+}
+
+async function initializeGame() {
+  try {
+    await loadCharacterOptions();
+    initializeCharacterCards();
+    updateAbilityUI();
+    updateStatsUI();
+    updateShopUI();
+    updateTraderUI();
+    requestAnimationFrame(gameLoop);
+  } catch (error) {
+    console.error(error);
+    statusTextEl.textContent = String(error.message || error);
+    classGridEl.textContent = "Start the local server with `node server.js`, then open http://127.0.0.1:4173";
+  }
+}
+
+initializeGame();
