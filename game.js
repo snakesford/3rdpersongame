@@ -27,6 +27,12 @@ const characterSelectEl = document.getElementById("characterSelect");
 const classCardEls = document.querySelectorAll(".class-card");
 const weaponBuffImage = new Image();
 weaponBuffImage.src = "./images/sword.jpg";
+const soldierRunningImage = new Image();
+soldierRunningImage.src = "./images/soldierRunning.png";
+const soldierIdleImage = new Image();
+soldierIdleImage.src = "./images/soldier-stationary.png";
+const soldierShootingImage = new Image();
+soldierShootingImage.src = "./images/soldier-shooting.png";
 
 const WORLD = { width: 2400, height: 1400 };
 const GRID_SIZE = 120;
@@ -104,6 +110,16 @@ const CHARACTER_OPTIONS = {
     radius: 132,
     halfAngle: Math.PI * 0.7,
   },
+  stickman: {
+    name: "Stick Man",
+    abilityName: "Wild Swing",
+    cooldown: 6,
+    stats: { armor: 55, health: 140, weapon: 80 },
+    effect: "cone",
+    damage: 28,
+    radius: 96,
+    halfAngle: Math.PI * 0.85,
+  },
 };
 
 const player = {
@@ -159,6 +175,7 @@ const hero = {
   axeSwingDuration: 0.22,
   hasRifle: false,
   rifleCooldown: 0,
+  isMoving: false,
 };
 
 const trees = [];
@@ -1042,6 +1059,7 @@ function updateHero(dt) {
   hero.slashArcTimer = Math.max(0, hero.slashArcTimer - dt);
   hero.axeSwingTimer = Math.max(0, hero.axeSwingTimer - dt);
   hero.rifleCooldown = Math.max(0, hero.rifleCooldown - dt);
+  hero.isMoving = false;
   if (hero.abilityEffect?.effect === "burst") {
     const pendingShots = hero.abilityEffect.pendingShots || [];
     const projectiles = hero.abilityEffect.projectiles || [];
@@ -1095,6 +1113,7 @@ function updateHero(dt) {
     hero.facingAngle = Math.atan2(dy / mag, dx / mag);
     hero.x = clamp(hero.x + (dx / mag) * hero.speed * dt, hero.radius, WORLD.width - hero.radius);
     hero.y = clamp(hero.y + (dy / mag) * hero.speed * dt, hero.radius, WORLD.height - hero.radius);
+    hero.isMoving = true;
     if (hero.isHarvesting) {
       cancelHarvest();
     }
@@ -1649,6 +1668,27 @@ function drawHeroStickFigure() {
   }
 }
 
+function drawSoldierHero() {
+  const isBurstShooting = hero.abilityEffect?.effect === "burst" &&
+    Boolean(hero.abilityEffect?.pendingShots && hero.abilityEffect.pendingShots.length > 0);
+  const image = isBurstShooting
+    ? soldierShootingImage
+    : hero.isMoving
+      ? soldierRunningImage
+      : soldierIdleImage;
+  if (!image.complete || image.naturalWidth <= 0) {
+    drawEntityCircle(hero, COLORS.hero, COLORS.heroAccent);
+    return;
+  }
+
+  const size = 54;
+  ctx.save();
+  ctx.translate(hero.x, hero.y);
+  ctx.rotate(hero.facingAngle);
+  ctx.drawImage(image, -size / 2, -size / 2, size, size);
+  ctx.restore();
+}
+
 function drawBuilding(building) {
   ctx.fillStyle = building.type === "enemyBase"
     ? COLORS.enemyBase
@@ -1849,7 +1889,13 @@ function render() {
     drawBuilding(building);
   }
 
-  drawHeroStickFigure();
+  if (hero.selectedClass === "stickman") {
+    drawHeroStickFigure();
+  } else if (hero.selectedClass === "soldier") {
+    drawSoldierHero();
+  } else {
+    drawEntityCircle(hero, COLORS.hero, COLORS.heroAccent);
+  }
   drawHealthBar(hero.x, hero.y - 34, 60, hero.hp / hero.maxHp);
   drawHarvestProgress();
   drawSlashArc();
