@@ -2574,7 +2574,7 @@ window.addEventListener("keydown", (event) => {
   }
 
   if (key === "f") {
-    useSlash();
+    useSlash(mouse.worldX, mouse.worldY);
   }
 
   if (event.key === "Shift" && hero.selectedClass === "robot") {
