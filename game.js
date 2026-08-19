@@ -13,6 +13,7 @@ const weaponFillEl = document.getElementById("weaponFill");
 const speedFillEl = document.getElementById("speedFill");
 const xpLevelEl = document.getElementById("xpLevel");
 const xpFillEl = document.getElementById("xpFill");
+const upgradePointsEl = document.getElementById("upgradePoints");
 const equipmentWeaponNameEl = document.getElementById("equipmentWeaponName");
 const equipmentWeaponMetaEl = document.getElementById("equipmentWeaponMeta");
 const equipmentWeaponIconEl = document.getElementById("equipmentWeaponIcon");
@@ -34,6 +35,9 @@ const traderPanelEl = document.getElementById("traderPanel");
 const buyWeaponUpgradeBtn = document.getElementById("buyWeaponUpgradeBtn");
 const closeTraderBtn = document.getElementById("closeTraderBtn");
 const traderStatusEl = document.getElementById("traderStatus");
+const upgradePanelEl = document.getElementById("upgradePanel");
+const upgradePanelCopyEl = document.getElementById("upgradePanelCopy");
+const upgradeChoicesEl = document.getElementById("upgradeChoices");
 const slashAbilityEl = document.getElementById("slashAbility");
 const abilityNameEl = document.getElementById("abilityName");
 const slashCooldownTextEl = document.getElementById("slashCooldownText");
@@ -119,6 +123,7 @@ const player = {
   money: 0,
   level: 1,
   xp: 0,
+  upgradePoints: 0,
   selectedUnits: [],
   selectedBuildingId: null,
   isPlacingBuilding: false,
@@ -130,6 +135,12 @@ const player = {
   traderOpen: false,
   weaponBonusStat: 0,
   weaponBonusDamage: 0,
+  bonusArmor: 0,
+  bonusHealth: 0,
+  bonusDamage: 0,
+  bonusSpeed: 0,
+  bonusAbilityDamage: 0,
+  helmetBonusArmor: 0,
 };
 
 const camera = { x: 0, y: 0 };
@@ -188,6 +199,15 @@ const hero = {
   reloadTimer: 0,
   reloadDuration: 1.2,
 };
+
+const UPGRADE_OPTIONS = [
+  { id: "health", label: "Health", description: "+10 max HP" },
+  { id: "armor", label: "Armor", description: "+3 body armor" },
+  { id: "damage", label: "Damage", description: "+2 weapon damage" },
+  { id: "speed", label: "Speed", description: "+5 speed" },
+  { id: "ability", label: "Ability", description: "+3 ability damage" },
+  { id: "helmet", label: "Helmet", description: "+3 helmet armor" },
+];
 
 const trees = [];
 const stones = [];
@@ -408,6 +428,10 @@ window.addEventListener("resize", resizeCanvas);
 resizeCanvas();
 
 function getCharacterStatus() {
+  if (player.upgradePoints > 0) {
+    return "Level up available. Spend your upgrade point before continuing.";
+  }
+
   if (player.isPlacingBuilding) {
     return "Place the Barracks on open ground. Right-click or press Escape to cancel.";
   }
@@ -505,13 +529,58 @@ function updateTraderUI() {
   traderStatusEl.textContent = `Current bonus: +${player.weaponBonusStat} weapon`;
 }
 
+function getSelectedClassConfig() {
+  return hero.selectedClass ? CHARACTER_OPTIONS[hero.selectedClass] : null;
+}
+
+function getBaseArmor(selected = getSelectedClassConfig()) {
+  return selected?.stats?.armor || 0;
+}
+
+function getHelmetArmorValue() {
+  if (hero.equippedArmorValue > 0) {
+    return hero.equippedArmorValue + player.helmetBonusArmor;
+  }
+
+  return player.helmetBonusArmor;
+}
+
+function getTotalArmor(selected = getSelectedClassConfig()) {
+  return Math.max(getBaseArmor(selected) + player.bonusArmor, getHelmetArmorValue());
+}
+
+function getDisplayedWeaponStat(selected = getSelectedClassConfig()) {
+  return (selected?.stats?.weapon || 0) + player.weaponBonusStat + player.bonusDamage;
+}
+
+function getBasicBowDamage() {
+  return (CHARACTER_OPTIONS.archer?.damage || 0) + player.bonusDamage;
+}
+
+function getAbilityDamage(selected = getSelectedClassConfig()) {
+  return (selected?.damage || 0) + player.weaponBonusDamage + player.bonusAbilityDamage;
+}
+
+function getHeroSpeed(selected = getSelectedClassConfig()) {
+  return (selected?.agility || hero.speed || 0) + player.bonusSpeed;
+}
+
+function updateUpgradeUI() {
+  upgradePointsEl.textContent = `Upgrade Points: ${player.upgradePoints}`;
+  upgradePointsEl.classList.toggle("hidden", player.upgradePoints <= 0);
+  upgradePanelEl.classList.toggle("hidden", player.upgradePoints <= 0 || !player.hasSelectedCharacter);
+  upgradePanelCopyEl.textContent = player.upgradePoints === 1
+    ? "Spend your upgrade point on a permanent stat boost."
+    : `Spend your ${player.upgradePoints} upgrade points on permanent stat boosts.`;
+}
+
 function updateStatsUI() {
-  const selected = hero.selectedClass ? CHARACTER_OPTIONS[hero.selectedClass] : null;
+  const selected = getSelectedClassConfig();
   const stats = selected?.stats || { armor: 0, health: 0, weapon: 0 };
-  const armor = Math.max(stats.armor, hero.equippedArmorValue);
-  const damage = (selected?.damage || 0) + player.weaponBonusDamage;
+  const armor = getTotalArmor(selected);
+  const damage = getDisplayedWeaponStat(selected);
   const health = hero.maxHp || stats.health;
-  const speed = hero.speed || selected?.agility || 0;
+  const speed = getHeroSpeed(selected);
 
   armorValueEl.textContent = String(armor);
   healthValueEl.textContent = String(health);
@@ -578,9 +647,9 @@ function updateEquipmentUI(selected, stats) {
     hero.latestPickup?.type === "rareHelmet" ||
     hero.latestPickup?.type === "enemyHelmet"
     ? hero.latestPickup.type
-    : hero.equippedHelmetType;
+    : hero.equippedHelmetType || (player.helmetBonusArmor > 0 ? "helmet" : null);
 
-  const helmetArmorValue = hero.latestPickup?.armorValue ?? hero.equippedArmorValue;
+  const helmetArmorValue = getHelmetArmorValue();
 
   if (equippedHelmetType === "rareHelmet") {
     equipmentHelmetIconEl.src = buildHelmetIcon("#4ea0ff", "#d2efff");
@@ -604,7 +673,7 @@ function updateEquipmentUI(selected, stats) {
 
   if (selected && stats.armor > 0) {
     equipmentBodyArmorNameEl.textContent = "Standard Armor";
-    equipmentBodyArmorMetaEl.textContent = `Base armor ${stats.armor}`;
+    equipmentBodyArmorMetaEl.textContent = `Base armor ${stats.armor + player.bonusArmor}`;
   } else {
     equipmentBodyArmorNameEl.textContent = "None";
     equipmentBodyArmorMetaEl.textContent = "No body armor equipped";
@@ -619,6 +688,7 @@ function updateXpUI() {
   const xpRequired = getXpRequiredForLevel(player.level);
   xpLevelEl.textContent = `Level ${player.level} • ${player.xp}/${xpRequired} XP`;
   xpFillEl.style.width = `${Math.min(100, (player.xp / xpRequired) * 100)}%`;
+  updateUpgradeUI();
 }
 
 function awardPlayerXp(amount, sourceX = hero.x, sourceY = hero.y) {
@@ -633,6 +703,7 @@ function awardPlayerXp(amount, sourceX = hero.x, sourceY = hero.y) {
   while (player.xp >= getXpRequiredForLevel(player.level)) {
     player.xp -= getXpRequiredForLevel(player.level);
     player.level += 1;
+    player.upgradePoints += 1;
     leveledUp = true;
   }
 
@@ -642,6 +713,59 @@ function awardPlayerXp(amount, sourceX = hero.x, sourceY = hero.y) {
   }
 
   updateXpUI();
+}
+
+function applyUpgrade(upgradeId) {
+  if (player.upgradePoints <= 0) {
+    return;
+  }
+
+  if (upgradeId === "health") {
+    player.bonusHealth += 10;
+    hero.maxHp += 10;
+    hero.hp = Math.min(hero.maxHp, hero.hp + 10);
+    statusTextEl.textContent = "Upgrade applied: +10 max HP.";
+  } else if (upgradeId === "armor") {
+    player.bonusArmor += 3;
+    statusTextEl.textContent = "Upgrade applied: +3 armor.";
+  } else if (upgradeId === "damage") {
+    player.bonusDamage += 2;
+    statusTextEl.textContent = "Upgrade applied: +2 damage.";
+  } else if (upgradeId === "speed") {
+    player.bonusSpeed += 5;
+    hero.speed += 5;
+    statusTextEl.textContent = "Upgrade applied: +5 speed.";
+  } else if (upgradeId === "ability") {
+    player.bonusAbilityDamage += 3;
+    statusTextEl.textContent = "Upgrade applied: +3 ability damage.";
+  } else if (upgradeId === "helmet") {
+    player.helmetBonusArmor += 3;
+    if (!hero.equippedHelmetType) {
+      hero.equippedHelmetType = "helmet";
+    }
+    statusTextEl.textContent = "Upgrade applied: +3 helmet armor.";
+  } else {
+    return;
+  }
+
+  player.upgradePoints -= 1;
+  updateStatsUI();
+  updateXpUI();
+}
+
+function initializeUpgradeChoices() {
+  upgradeChoicesEl.textContent = "";
+
+  for (const option of UPGRADE_OPTIONS) {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "upgrade-option";
+    button.innerHTML = `<strong>${option.label}</strong><span>${option.description}</span>`;
+    button.addEventListener("click", () => {
+      applyUpgrade(option.id);
+    });
+    upgradeChoicesEl.appendChild(button);
+  }
 }
 
 function getShopBuilding() {
@@ -752,7 +876,7 @@ function respawnHero() {
   const selectedClass = hero.selectedClass ? CHARACTER_OPTIONS[hero.selectedClass] : null;
   hero.equippedArmorValue = 0;
   hero.equippedHelmetType = null;
-  hero.speed = selectedClass?.agility || 220;
+  hero.speed = getHeroSpeed(selectedClass);
   hero.lastMoveAngle = null;
   hero.hasAxe = false;
   hero.axeSwingTimer = 0;
@@ -770,6 +894,7 @@ function respawnHero() {
   hero.dashCooldown = selectedClass?.dashCooldown || 0;
   hero.dashCooldownRemaining = 0;
   heroProjectiles.length = 0;
+  hero.maxHp = (selectedClass?.stats?.health || 150) + player.bonusHealth;
   hero.hp = hero.maxHp;
   hero.x = PLAYER_BASE_SPAWN.x;
   hero.y = PLAYER_BASE_SPAWN.y;
@@ -1010,7 +1135,7 @@ function spawnAbilityProjectile(config) {
 function buildArcherArrowProjectile(damageOverride = null) {
   const archerClass = CHARACTER_OPTIONS.archer || {};
   return spawnAbilityProjectile({
-    damage: damageOverride ?? ((archerClass.damage || 0) + player.weaponBonusDamage),
+    damage: damageOverride ?? getAbilityDamage(archerClass),
     width: archerClass.width || 10,
     range: canvas.width * 0.5,
     style: "arrow",
@@ -1285,9 +1410,7 @@ function getNearbyPickup() {
 
 function equipPickup(pickup) {
   if (pickup.type === "helmet" || pickup.type === "rareHelmet" || pickup.type === "enemyHelmet") {
-    const baseArmor = hero.selectedClass ? CHARACTER_OPTIONS[hero.selectedClass].stats.armor : 0;
-    const previousArmor = Math.max(baseArmor, hero.equippedArmorValue);
-    const armorDelta = pickup.armorValue - previousArmor;
+    const previousArmor = getTotalArmor();
     if (hero.equippedHelmetType && hero.equippedArmorValue > 0) {
       spawnPickupDrop(
         {
@@ -1306,6 +1429,7 @@ function equipPickup(pickup) {
       armorValue: pickup.armorValue,
       radius: pickup.radius,
     };
+    const armorDelta = getTotalArmor() - previousArmor;
     updateStatsUI();
     if (pickup.type === "rareHelmet") {
       spawnTextPopup(pickup.x, pickup.y - 22, "Rare Helmet picked up!", "rgba(120, 196, 255, 1)", 1.8);
@@ -1465,7 +1589,6 @@ function useSlash(targetX = null, targetY = null) {
   }
 
   const selectedClass = CHARACTER_OPTIONS[hero.selectedClass];
-  const bonusDamage = player.weaponBonusDamage;
   if (!selectedClass) {
     return false;
   }
@@ -1484,9 +1607,9 @@ function useSlash(targetX = null, targetY = null) {
   if (selectedClass.effect === "cone") {
     hero.slashRadius = selectedClass.radius;
     hero.slashHalfAngle = selectedClass.halfAngle;
-    damageEnemiesInCone(selectedClass.damage + bonusDamage, selectedClass.radius, selectedClass.halfAngle);
+    damageEnemiesInCone(getAbilityDamage(selectedClass), selectedClass.radius, selectedClass.halfAngle);
   } else if (selectedClass.effect === "line") {
-    damageEnemiesInLine(selectedClass.damage + bonusDamage, selectedClass.range, selectedClass.width);
+    damageEnemiesInLine(getAbilityDamage(selectedClass), selectedClass.range, selectedClass.width);
   } else if (selectedClass.effect === "burst") {
     const burstBaseAngle = hero.abilityEffect.aimAngle;
     const shots = buildBurstShots(
@@ -1498,15 +1621,15 @@ function useSlash(targetX = null, targetY = null) {
     hero.abilityEffect.pendingShots = shots.map((shot, index) => ({
       ...shot,
       baseAngle: burstBaseAngle,
-      damage: selectedClass.damage + bonusDamage,
+      damage: getAbilityDamage(selectedClass),
       width: selectedClass.width,
       delay: index * 0.045,
     }));
     hero.abilityEffect.projectiles = [];
   } else if (selectedClass.effect === "projectile") {
-    hero.abilityEffect.projectiles = [buildArcherArrowProjectile(selectedClass.damage + bonusDamage)];
+    hero.abilityEffect.projectiles = [buildArcherArrowProjectile(getAbilityDamage(selectedClass))];
   } else if (selectedClass.effect === "nova") {
-    damageEnemiesInRadius(selectedClass.damage + bonusDamage, selectedClass.radius);
+    damageEnemiesInRadius(getAbilityDamage(selectedClass), selectedClass.radius);
   }
 
   updateAbilityUI();
@@ -1519,7 +1642,7 @@ function useAxeSwing() {
   }
 
   hero.axeSwingTimer = hero.axeSwingDuration;
-  damageEnemiesInCone(18 + player.weaponBonusDamage, 64, Math.PI / 3);
+  damageEnemiesInCone(18 + player.bonusDamage, 64, Math.PI / 3);
 }
 
 function useRobotDash() {
@@ -1618,7 +1741,7 @@ function spawnHeroBullet(targetX, targetY) {
   hero.rifleCooldown = 0.08;
   hero.ammo -= 1;
   heroProjectiles.push({
-    ...spawnBurstProjectile({ angleOffset: 0, range: GRID_SIZE * 5 }, 16 + player.weaponBonusDamage, 18),
+    ...spawnBurstProjectile({ angleOffset: 0, range: GRID_SIZE * 5 }, 16 + player.bonusDamage, 18),
     x: hero.x,
     y: hero.y,
     angle,
@@ -1644,7 +1767,7 @@ function spawnHeroBowShot(targetX, targetY) {
   hero.facingAngle = Math.atan2(dy, dx);
   hero.bowCooldown = 0.45;
   heroProjectiles.push({
-    ...buildArcherArrowProjectile(),
+    ...buildArcherArrowProjectile(getBasicBowDamage()),
     x: hero.x,
     y: hero.y,
     angle: hero.facingAngle,
@@ -1709,7 +1832,7 @@ function updateHero(dt) {
     }
   }
   hero.isMoving = false;
-  if (mouse.leftDown && !player.isPlacingBuilding && !player.shopOpen && !player.traderOpen) {
+  if (mouse.leftDown && !player.isPlacingBuilding && !player.shopOpen && !player.traderOpen && player.upgradePoints <= 0) {
     if (hero.hasRifle) {
       spawnHeroBullet(mouse.worldX, mouse.worldY);
     } else if (hero.hasBow) {
@@ -1830,13 +1953,14 @@ function updateHero(dt) {
 
       pickup.collected = true;
       if (pickup.type === "healthBuff") {
+        player.bonusHealth += pickup.healthValue;
         hero.maxHp += pickup.healthValue;
         hero.hp = hero.maxHp;
         updateStatsUI();
         spawnTextPopup(pickup.x, pickup.y - 12, "Health Buff!", "rgba(255, 172, 172, 1)", 1.8);
         spawnTextPopup(pickup.x, pickup.y + 12, `Max HP +${pickup.healthValue}`, "rgba(255, 210, 210, 1)", 1.8);
       } else if (pickup.type === "weaponBuff") {
-        player.weaponBonusDamage += pickup.damageValue;
+        player.bonusDamage += pickup.damageValue;
         updateStatsUI();
         spawnTextPopup(pickup.x, pickup.y - 12, "Weapon Buff!", "rgba(255, 218, 140, 1)", 1.8);
         spawnTextPopup(pickup.x, pickup.y + 12, `Damage +${pickup.damageValue}`, "rgba(255, 238, 196, 1)", 1.8);
@@ -2279,15 +2403,16 @@ function drawEntityCircle(entity, fill, accent) {
 }
 
 function getHeroHelmetStyle() {
-  if (!hero.equippedHelmetType || hero.equippedArmorValue <= 0) {
+  const helmetType = hero.equippedHelmetType || (player.helmetBonusArmor > 0 ? "helmet" : null);
+  if (!helmetType || getHelmetArmorValue() <= 0) {
     return null;
   }
 
-  if (hero.equippedHelmetType === "rareHelmet") {
+  if (helmetType === "rareHelmet") {
     return { fill: "#3f89d8", stroke: "#b8e1ff" };
   }
 
-  if (hero.equippedHelmetType === "enemyHelmet") {
+  if (helmetType === "enemyHelmet") {
     return { fill: "#4f9e58", stroke: "#d3ffb5" };
   }
 
@@ -2884,6 +3009,13 @@ window.addEventListener("keydown", (event) => {
     return;
   }
 
+  if (player.upgradePoints > 0) {
+    if (event.key === "Escape") {
+      event.preventDefault();
+    }
+    return;
+  }
+
   if (event.code === "Space") {
     event.preventDefault();
     if (isHeroNearTrader()) {
@@ -2967,6 +3099,9 @@ canvas.addEventListener("mousedown", (event) => {
   if (!player.hasSelectedCharacter) {
     return;
   }
+  if (player.upgradePoints > 0) {
+    return;
+  }
   if (player.shopOpen || player.traderOpen) {
     return;
   }
@@ -3035,6 +3170,9 @@ canvas.addEventListener("mouseup", (event) => {
   if (player.shopOpen || player.traderOpen) {
     return;
   }
+  if (player.upgradePoints > 0) {
+    return;
+  }
   if (event.button === 0 && selectionBox) {
     const dragWidth = Math.abs(selectionBox.x2 - selectionBox.x1);
     const dragHeight = Math.abs(selectionBox.y2 - selectionBox.y1);
@@ -3062,6 +3200,9 @@ window.addEventListener("mouseup", (event) => {
 canvas.addEventListener("contextmenu", (event) => {
   event.preventDefault();
   if (!player.hasSelectedCharacter) {
+    return;
+  }
+  if (player.upgradePoints > 0) {
     return;
   }
   if (player.shopOpen || player.traderOpen) {
@@ -3192,11 +3333,11 @@ function selectCharacter(classId) {
   hero.slashCooldown = selectedClass.cooldown;
   hero.slashRadius = selectedClass.radius || hero.slashRadius;
   hero.slashHalfAngle = selectedClass.halfAngle || hero.slashHalfAngle;
-  hero.slashDamage = selectedClass.damage;
-  hero.speed = selectedClass.agility || hero.speed;
+  hero.slashDamage = getAbilityDamage(selectedClass);
+  hero.speed = getHeroSpeed(selectedClass);
   hero.lastMoveAngle = null;
-  hero.maxHp = selectedClass.stats.health;
-  hero.hp = selectedClass.stats.health;
+  hero.maxHp = selectedClass.stats.health + player.bonusHealth;
+  hero.hp = hero.maxHp;
   hero.dashTimer = 0;
   hero.dashCooldown = selectedClass.dashCooldown || 0;
   hero.dashCooldownRemaining = 0;
@@ -3215,6 +3356,7 @@ function selectCharacter(classId) {
   statusTextEl.textContent = `${selectedClass.name} selected. Walk near a tree and press E to harvest wood.`;
   updateAbilityUI();
   updateStatsUI();
+  updateXpUI();
 }
 
 async function loadCharacterOptions() {
@@ -3283,6 +3425,7 @@ async function initializeGame() {
     await loadEnemyOptions();
     initializeEnemyForces();
     initializeCharacterCards();
+    initializeUpgradeChoices();
     updateAbilityUI();
     updateStatsUI();
     updateXpUI();

@@ -15,6 +15,7 @@
   <div class="hud">
     <div class="xp-shell">
       <span id="xpLevel" class="xp-level">Level 1</span>
+      <span id="upgradePoints" class="upgrade-points hidden">Upgrade Points: 0</span>
       <div class="xp-bar">
         <div id="xpFill" class="xp-fill"></div>
       </div>
@@ -75,21 +76,6 @@
             <span class="stats-kicker equipment-kicker">Equipment</span>
             <div class="equipment-grid">
               <div class="equipment-slot">
-                <span class="equipment-label">Weapon</span>
-                <div class="equipment-content">
-                  <img id="equipmentWeaponIcon" class="equipment-icon" src="./images/rifle.png" alt="Equipped weapon icon">
-                  <div class="equipment-copy">
-                    <strong id="equipmentWeaponName">None</strong>
-                    <span id="equipmentWeaponMeta" class="equipment-meta">No weapon equipped</span>
-                  </div>
-                </div>
-              </div>
-              <div class="equipment-slot">
-                <span class="equipment-label">F Ability</span>
-                <strong id="equipmentAbilityName">None</strong>
-                <span id="equipmentAbilityMeta" class="equipment-meta">Choose a class</span>
-              </div>
-              <div class="equipment-slot">
                 <span class="equipment-label">Helmet</span>
                 <div class="equipment-content">
                   <img id="equipmentHelmetIcon" class="equipment-icon" alt="Equipped helmet icon">
@@ -103,6 +89,21 @@
                 <span class="equipment-label">Body Armor</span>
                 <strong id="equipmentBodyArmorName">None</strong>
                 <span id="equipmentBodyArmorMeta" class="equipment-meta">No body armor equipped</span>
+              </div>
+              <div class="equipment-slot">
+                <span class="equipment-label">Weapon</span>
+                <div class="equipment-content">
+                  <img id="equipmentWeaponIcon" class="equipment-icon" src="./images/rifle.png" alt="Equipped weapon icon">
+                  <div class="equipment-copy">
+                    <strong id="equipmentWeaponName">None</strong>
+                    <span id="equipmentWeaponMeta" class="equipment-meta">No weapon equipped</span>
+                  </div>
+                </div>
+              </div>
+              <div class="equipment-slot">
+                <span class="equipment-label">F Ability</span>
+                <strong id="equipmentAbilityName">None</strong>
+                <span id="equipmentAbilityMeta" class="equipment-meta">Choose a class</span>
               </div>
             </div>
           </div>
@@ -158,6 +159,15 @@
       <button id="buyWeaponUpgradeBtn">Buy Weapon Enhancement (50 gold)</button>
       <div id="traderStatus" class="trader-status">Current bonus: +0 weapon</div>
       <button id="closeTraderBtn" class="shop-close">Close</button>
+    </div>
+  </div>
+
+  <div id="upgradePanel" class="shop-panel hidden">
+    <div class="shop-card upgrade-card">
+      <span class="shop-kicker">Level Up</span>
+      <h3>Choose an upgrade</h3>
+      <p id="upgradePanelCopy">Spend your upgrade point on a permanent stat boost.</p>
+      <div id="upgradeChoices" class="upgrade-grid"></div>
     </div>
   </div>
 
