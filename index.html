@@ -71,19 +71,43 @@
               <div class="stat-bar"><div id="speedFill" class="stat-fill speed-fill"></div></div>
             </div>
           </div>
-        </div>
-
-        <div class="weapon-panel">
-          <span class="stats-kicker">Weapon</span>
-          <div class="weapon-ui">
-            <img id="weaponIcon" class="weapon-icon" src="./images/rifle.png" alt="Current weapon">
-            <div class="weapon-copy">
-              <strong id="weaponName">None</strong>
-              <span id="weaponHint">No weapon equipped</span>
-              <span id="ammoCount" class="ammo-count">Ammo: --/--</span>
+          <div class="equipment-panel">
+            <span class="stats-kicker equipment-kicker">Equipment</span>
+            <div class="equipment-grid">
+              <div class="equipment-slot">
+                <span class="equipment-label">Weapon</span>
+                <div class="equipment-content">
+                  <img id="equipmentWeaponIcon" class="equipment-icon" src="./images/rifle.png" alt="Equipped weapon icon">
+                  <div class="equipment-copy">
+                    <strong id="equipmentWeaponName">None</strong>
+                    <span id="equipmentWeaponMeta" class="equipment-meta">No weapon equipped</span>
+                  </div>
+                </div>
+              </div>
+              <div class="equipment-slot">
+                <span class="equipment-label">F Ability</span>
+                <strong id="equipmentAbilityName">None</strong>
+                <span id="equipmentAbilityMeta" class="equipment-meta">Choose a class</span>
+              </div>
+              <div class="equipment-slot">
+                <span class="equipment-label">Helmet</span>
+                <div class="equipment-content">
+                  <img id="equipmentHelmetIcon" class="equipment-icon" alt="Equipped helmet icon">
+                  <div class="equipment-copy">
+                    <strong id="equipmentHelmetName">None</strong>
+                    <span id="equipmentHelmetMeta" class="equipment-meta">No helmet equipped</span>
+                  </div>
+                </div>
+              </div>
+              <div class="equipment-slot">
+                <span class="equipment-label">Body Armor</span>
+                <strong id="equipmentBodyArmorName">None</strong>
+                <span id="equipmentBodyArmorMeta" class="equipment-meta">No body armor equipped</span>
+              </div>
             </div>
           </div>
         </div>
+
       </div>
     </div>
 

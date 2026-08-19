@@ -13,10 +13,16 @@ const weaponFillEl = document.getElementById("weaponFill");
 const speedFillEl = document.getElementById("speedFill");
 const xpLevelEl = document.getElementById("xpLevel");
 const xpFillEl = document.getElementById("xpFill");
-const weaponIconEl = document.getElementById("weaponIcon");
-const weaponNameEl = document.getElementById("weaponName");
-const weaponHintEl = document.getElementById("weaponHint");
-const ammoCountEl = document.getElementById("ammoCount");
+const equipmentWeaponNameEl = document.getElementById("equipmentWeaponName");
+const equipmentWeaponMetaEl = document.getElementById("equipmentWeaponMeta");
+const equipmentWeaponIconEl = document.getElementById("equipmentWeaponIcon");
+const equipmentAbilityNameEl = document.getElementById("equipmentAbilityName");
+const equipmentAbilityMetaEl = document.getElementById("equipmentAbilityMeta");
+const equipmentHelmetNameEl = document.getElementById("equipmentHelmetName");
+const equipmentHelmetMetaEl = document.getElementById("equipmentHelmetMeta");
+const equipmentHelmetIconEl = document.getElementById("equipmentHelmetIcon");
+const equipmentBodyArmorNameEl = document.getElementById("equipmentBodyArmorName");
+const equipmentBodyArmorMetaEl = document.getElementById("equipmentBodyArmorMeta");
 const statusTextEl = document.getElementById("statusText");
 const overlayMessageEl = document.getElementById("overlayMessage");
 const buildBarracksBtn = document.getElementById("buildBarracksBtn");
@@ -514,7 +520,94 @@ function updateStatsUI() {
   healthFillEl.style.width = `${Math.min(100, (health / 200) * 100)}%`;
   weaponFillEl.style.width = `${Math.min(100, damage * 2)}%`;
   speedFillEl.style.width = `${Math.min(100, (speed / 300) * 100)}%`;
-  updateWeaponUI();
+  updateEquipmentUI(selected, stats);
+}
+
+function buildHelmetIcon(fill, stroke) {
+  const svg = `
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+      <rect width="64" height="64" rx="14" fill="rgba(10,18,14,0.88)"/>
+      <path d="M16 31c0-10 7-18 16-18s16 8 16 18v8c0 2-2 4-4 4H20c-2 0-4-2-4-4z" fill="${fill}" stroke="${stroke}" stroke-width="3" stroke-linejoin="round"/>
+      <path d="M23 43v6h18v-6" fill="none" stroke="${stroke}" stroke-width="3" stroke-linecap="round"/>
+      <path d="M24 29h16" stroke="rgba(255,255,255,0.35)" stroke-width="3" stroke-linecap="round"/>
+    </svg>
+  `;
+
+  return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
+}
+
+function updateEquipmentUI(selected, stats) {
+  const equippedWeaponType = hero.hasBow
+    ? "bow"
+    : hero.hasRifle
+      ? "rifle"
+      : hero.hasAxe
+        ? "axe"
+        : null;
+
+  if (equippedWeaponType === "bow") {
+    equipmentWeaponIconEl.src = "./images/bow.png";
+    equipmentWeaponNameEl.textContent = "Bow";
+    equipmentWeaponMetaEl.textContent = "Ranged weapon";
+  } else if (equippedWeaponType === "rifle") {
+    equipmentWeaponIconEl.src = "./images/rifle.png";
+    equipmentWeaponNameEl.textContent = "M4 Rifle";
+    equipmentWeaponMetaEl.textContent = "Automatic rifle";
+  } else if (equippedWeaponType === "axe") {
+    equipmentWeaponIconEl.src = "./images/sword.jpg";
+    equipmentWeaponNameEl.textContent = "Axe";
+    equipmentWeaponMetaEl.textContent = "Melee weapon";
+  } else {
+    equipmentWeaponIconEl.src = "./images/rifle.png";
+    equipmentWeaponNameEl.textContent = "None";
+    equipmentWeaponMetaEl.textContent = "No weapon equipped";
+  }
+
+  equipmentWeaponIconEl.style.opacity = equippedWeaponType ? "1" : "0.35";
+
+  if (selected) {
+    equipmentAbilityNameEl.textContent = selected.abilityName;
+    equipmentAbilityMetaEl.textContent = "Bound to F";
+  } else {
+    equipmentAbilityNameEl.textContent = "None";
+    equipmentAbilityMetaEl.textContent = "Choose a class";
+  }
+
+  const equippedHelmetType = hero.latestPickup?.type === "helmet" ||
+    hero.latestPickup?.type === "rareHelmet" ||
+    hero.latestPickup?.type === "enemyHelmet"
+    ? hero.latestPickup.type
+    : hero.equippedHelmetType;
+
+  const helmetArmorValue = hero.latestPickup?.armorValue ?? hero.equippedArmorValue;
+
+  if (equippedHelmetType === "rareHelmet") {
+    equipmentHelmetIconEl.src = buildHelmetIcon("#4ea0ff", "#d2efff");
+    equipmentHelmetNameEl.textContent = "Rare Helmet";
+    equipmentHelmetMetaEl.textContent = `Armor ${helmetArmorValue}`;
+  } else if (equippedHelmetType === "enemyHelmet") {
+    equipmentHelmetIconEl.src = buildHelmetIcon("#78bf6f", "#ecffd8");
+    equipmentHelmetNameEl.textContent = "Enemy Helmet";
+    equipmentHelmetMetaEl.textContent = `Armor ${helmetArmorValue}`;
+  } else if (equippedHelmetType === "helmet") {
+    equipmentHelmetIconEl.src = buildHelmetIcon("#9ca7b8", "#edf3ff");
+    equipmentHelmetNameEl.textContent = "Helmet";
+    equipmentHelmetMetaEl.textContent = `Armor ${helmetArmorValue}`;
+  } else {
+    equipmentHelmetIconEl.src = buildHelmetIcon("#56615d", "#aeb8b3");
+    equipmentHelmetNameEl.textContent = "None";
+    equipmentHelmetMetaEl.textContent = "No helmet equipped";
+  }
+
+  equipmentHelmetIconEl.style.opacity = equippedHelmetType ? "1" : "0.35";
+
+  if (selected && stats.armor > 0) {
+    equipmentBodyArmorNameEl.textContent = "Standard Armor";
+    equipmentBodyArmorMetaEl.textContent = `Base armor ${stats.armor}`;
+  } else {
+    equipmentBodyArmorNameEl.textContent = "None";
+    equipmentBodyArmorMetaEl.textContent = "No body armor equipped";
+  }
 }
 
 function getXpRequiredForLevel(level) {
@@ -548,41 +641,6 @@ function awardPlayerXp(amount, sourceX = hero.x, sourceY = hero.y) {
   }
 
   updateXpUI();
-}
-
-function updateWeaponUI() {
-  if (hero.hasBow) {
-    weaponIconEl.src = "./images/bow.png";
-    weaponNameEl.textContent = "Bow";
-    weaponHintEl.textContent = "Left-click to fire";
-    ammoCountEl.textContent = "Ammo: --/--";
-    return;
-  }
-
-  weaponIconEl.src = "./images/rifle.png";
-  if (hero.hasRifle) {
-    weaponNameEl.textContent = "M4 Rifle";
-    weaponHintEl.textContent = hero.isReloading
-      ? "Reloading..."
-      : hero.selectedClass === "soldier"
-        ? "Hold mouse to fire"
-        : "Left-click to fire";
-    ammoCountEl.textContent = hero.isReloading
-      ? `Ammo: Reloading... (${hero.ammo}/${hero.maxAmmo})`
-      : `Ammo: ${hero.ammo}/${hero.maxAmmo}`;
-    return;
-  }
-
-  if (hero.hasAxe) {
-    weaponNameEl.textContent = "Axe";
-    weaponHintEl.textContent = "Left-click to swing";
-    ammoCountEl.textContent = "Ammo: --/--";
-    return;
-  }
-
-  weaponNameEl.textContent = "None";
-  weaponHintEl.textContent = "No weapon equipped";
-  ammoCountEl.textContent = "Ammo: --/--";
 }
 
 function getShopBuilding() {
@@ -1378,7 +1436,6 @@ function startReload(force = false) {
 
   hero.isReloading = true;
   hero.reloadTimer = hero.reloadDuration;
-  updateWeaponUI();
   return true;
 }
 
@@ -1407,7 +1464,6 @@ function spawnHeroBullet(targetX, targetY) {
   if (hero.ammo === 0) {
     startReload();
   }
-  updateWeaponUI();
   return true;
 }
 
@@ -1488,7 +1544,6 @@ function updateHero(dt) {
     if (hero.reloadTimer === 0) {
       hero.isReloading = false;
       hero.ammo = hero.maxAmmo;
-      updateWeaponUI();
     }
   }
   hero.isMoving = false;
@@ -1653,7 +1708,7 @@ function updateHero(dt) {
           type: "axe",
           radius: pickup.radius,
         };
-        updateWeaponUI();
+        updateStatsUI();
         spawnTextPopup(pickup.x, pickup.y - 12, "Axe equipped!", "rgba(255, 214, 164, 1)", 1.8);
         spawnTextPopup(pickup.x, pickup.y + 12, "Click to swing", "rgba(255, 236, 201, 1)", 1.8);
       } else if (pickup.type === "rifle") {
@@ -1671,7 +1726,7 @@ function updateHero(dt) {
           type: "rifle",
           radius: pickup.radius,
         };
-        updateWeaponUI();
+        updateStatsUI();
         spawnTextPopup(pickup.x, pickup.y - 12, "M4 equipped!", "rgba(196, 234, 255, 1)", 1.8);
         spawnTextPopup(pickup.x, pickup.y + 12, "Left-click to fire", "rgba(196, 234, 255, 1)", 1.8);
       } else if (pickup.type === "bow") {
@@ -1687,7 +1742,7 @@ function updateHero(dt) {
           type: "bow",
           radius: pickup.radius,
         };
-        updateWeaponUI();
+        updateStatsUI();
         spawnTextPopup(pickup.x, pickup.y - 12, "Bow equipped!", "rgba(214, 200, 154, 1)", 1.8);
         spawnTextPopup(pickup.x, pickup.y + 12, "Hold left-click to fire", "rgba(245, 234, 196, 1)", 1.8);
       }

@@ -111,7 +111,6 @@ canvas {
 .brand,
 .resource-panel,
 .stats-panel,
-.weapon-panel,
 .controls-panel,
 .status-panel {
   pointer-events: auto;
@@ -169,49 +168,69 @@ canvas {
   padding: 14px 16px;
 }
 
-.weapon-panel {
-  min-width: 220px;
-  padding: 14px 16px;
+.equipment-panel {
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
 }
 
-.weapon-ui {
-  display: flex;
-  align-items: center;
-  gap: 12px;
+.equipment-kicker {
+  margin-bottom: 10px;
 }
 
-.weapon-icon {
-  width: 54px;
-  height: 54px;
-  object-fit: contain;
+.equipment-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.equipment-slot {
+  min-width: 0;
+  padding: 10px 12px;
   border-radius: 12px;
-  background: rgba(255, 255, 255, 0.08);
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  padding: 8px;
-}
-
-.weapon-copy {
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.08);
   display: flex;
   flex-direction: column;
   gap: 4px;
 }
 
-.weapon-copy strong {
-  color: #fff5d2;
-  font-size: 18px;
+.equipment-content {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
 }
 
-.weapon-copy span {
+.equipment-icon {
+  width: 42px;
+  height: 42px;
+  flex: 0 0 42px;
+  object-fit: contain;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  padding: 6px;
+}
+
+.equipment-copy {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.equipment-label,
+.equipment-meta {
   color: var(--muted);
-  font-size: 12px;
-  letter-spacing: 0.08em;
+  font-size: 11px;
+  letter-spacing: 0.1em;
   text-transform: uppercase;
 }
 
-.ammo-count {
-  color: #ffd98b;
-  font-size: 13px;
-  letter-spacing: 0.1em;
+.equipment-slot strong {
+  color: #fff5d2;
+  font-size: 15px;
 }
 
 .stats-kicker {
@@ -587,6 +606,10 @@ button.hidden {
   }
 
   .class-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .equipment-grid {
     grid-template-columns: 1fr;
   }
 }
