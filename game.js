@@ -634,8 +634,10 @@ function dropLatestPickupFromEnemyHero() {
 
 function respawnHero() {
   dropLatestPickupFromHero();
+  const selectedClass = hero.selectedClass ? CHARACTER_OPTIONS[hero.selectedClass] : null;
   hero.equippedArmorValue = 0;
   hero.equippedHelmetType = null;
+  hero.speed = selectedClass?.agility || 220;
   hero.hasAxe = false;
   hero.axeSwingTimer = 0;
   hero.hasBow = hero.selectedClass === "archer";
@@ -2718,6 +2720,7 @@ function selectCharacter(classId) {
   hero.slashRadius = selectedClass.radius || hero.slashRadius;
   hero.slashHalfAngle = selectedClass.halfAngle || hero.slashHalfAngle;
   hero.slashDamage = selectedClass.damage;
+  hero.speed = selectedClass.agility || hero.speed;
   hero.maxHp = selectedClass.stats.health;
   hero.hp = selectedClass.stats.health;
   hero.hasAxe = false;

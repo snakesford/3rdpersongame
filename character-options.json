@@ -3,6 +3,7 @@
     "name": "Swordsman",
     "abilityName": "Slash",
     "cooldown": 5,
+    "agility": 215,
     "portrait": "./images/sowrdsman.png",
     "stats": {
       "armor": 70,
@@ -18,6 +19,7 @@
     "name": "Soldier",
     "abilityName": "Burst Shot",
     "cooldown": 1,
+    "agility": 220,
     "portrait": "./images/soldier.png",
     "stats": {
       "armor": 45,
@@ -35,6 +37,7 @@
     "name": "Mage",
     "abilityName": "Arcane Nova",
     "cooldown": 8,
+    "agility": 185,
     "portrait": "./images/mage.png",
     "stats": {
       "armor": 25,
@@ -49,6 +52,7 @@
     "name": "Robot",
     "abilityName": "Pulse Wave",
     "cooldown": 8,
+    "agility": 190,
     "portrait": "./images/robot.png",
     "stats": {
       "armor": 90,
@@ -64,6 +68,7 @@
     "name": "Stick Man",
     "abilityName": "Wild Swing",
     "cooldown": 6,
+    "agility": 230,
     "stats": {
       "armor": 55,
       "health": 140,
@@ -78,6 +83,7 @@
     "name": "Archer",
     "abilityName": "Arrow Shot",
     "cooldown": 3,
+    "agility": 255,
     "portrait": "./images/archer.png",
     "stats": { "armor": 35, "health": 105, "weapon": 88 },
     "effect": "projectile",
