@@ -83,6 +83,9 @@ const COLORS = {
   path: "#b6c792",
   tree: "#2f6b33",
   trunk: "#5f4023",
+  stone: "#7e8792",
+  stoneShadow: "#5d6670",
+  stoneHighlight: "#c7d0da",
   deathZone: "#6c2030",
   hero: "#2546b8",
   heroAccent: "#93b4ff",
@@ -181,6 +184,7 @@ const hero = {
 };
 
 const trees = [];
+const stones = [];
 const buildings = [];
 const units = [];
 const enemies = [];
@@ -246,6 +250,7 @@ const pickups = [
 ];
 
 spawnTrees();
+spawnStones();
 const playerBase = createBuilding("playerBase", 60, WORLD.height / 2 - 100, true);
 playerBase.hp = 900;
 playerBase.maxHp = 900;
@@ -288,6 +293,22 @@ function spawnTrees() {
       y,
       radius: 28,
       wood: 25,
+    });
+  }
+}
+
+function spawnStones() {
+  const points = [
+    [260, 890], [520, 430], [690, 930], [970, 560], [1180, 760], [1260, 1040],
+    [1450, 500], [1540, 310], [1660, 780], [1810, 980], [1980, 610], [2140, 880],
+  ];
+
+  for (const [x, y] of points) {
+    stones.push({
+      id: nextId(),
+      x,
+      y,
+      radius: 19,
     });
   }
 }
@@ -942,11 +963,54 @@ function intersectsBuilding(point, radius, building) {
   return Math.hypot(point.x - closestX, point.y - closestY) <= radius;
 }
 
+function intersectsTree(point, radius, tree) {
+  return Math.hypot(point.x - tree.x, point.y - tree.y) <= radius + tree.radius;
+}
+
+function intersectsStone(point, radius, stone) {
+  return Math.hypot(point.x - stone.x, point.y - stone.y) <= radius + stone.radius;
+}
+
+function resolveHeroObstacleCollisions() {
+  const obstacles = [...trees, ...stones];
+  for (const obstacle of obstacles) {
+    const dx = hero.x - obstacle.x;
+    const dy = hero.y - obstacle.y;
+    const minDistance = hero.radius + obstacle.radius;
+    const distanceToObstacle = Math.hypot(dx, dy);
+
+    if (distanceToObstacle === 0) {
+      hero.x = clamp(obstacle.x + minDistance, hero.radius, WORLD.width - hero.radius);
+      continue;
+    }
+
+    if (distanceToObstacle < minDistance) {
+      const overlap = minDistance - distanceToObstacle;
+      hero.x = clamp(hero.x + (dx / distanceToObstacle) * overlap, hero.radius, WORLD.width - hero.radius);
+      hero.y = clamp(hero.y + (dy / distanceToObstacle) * overlap, hero.radius, WORLD.height - hero.radius);
+    }
+  }
+}
+
 function updateBurstProjectile(projectile, dt) {
   const step = projectile.speed * dt;
   projectile.x += Math.cos(projectile.angle) * step;
   projectile.y += Math.sin(projectile.angle) * step;
   projectile.traveled += step;
+
+  for (const tree of trees) {
+    if (intersectsTree(projectile, projectile.radius, tree)) {
+      projectile.active = false;
+      return;
+    }
+  }
+
+  for (const stone of stones) {
+    if (intersectsStone(projectile, projectile.radius, stone)) {
+      projectile.active = false;
+      return;
+    }
+  }
 
   for (let i = enemies.length - 1; i >= 0; i -= 1) {
     if (!projectile.hitIds.has(enemies[i].id) && distance(projectile, enemies[i]) <= projectile.radius + enemies[i].radius) {
@@ -984,6 +1048,20 @@ function updateAbilityProjectile(projectile, dt) {
   projectile.x += Math.cos(projectile.angle) * step;
   projectile.y += Math.sin(projectile.angle) * step;
   projectile.traveled += step;
+
+  for (const tree of trees) {
+    if (intersectsTree(projectile, projectile.radius, tree)) {
+      projectile.active = false;
+      return;
+    }
+  }
+
+  for (const stone of stones) {
+    if (intersectsStone(projectile, projectile.radius, stone)) {
+      projectile.active = false;
+      return;
+    }
+  }
 
   for (let i = enemies.length - 1; i >= 0; i -= 1) {
     if (distance(projectile, enemies[i]) <= projectile.radius + enemies[i].radius) {
@@ -1119,6 +1197,14 @@ function isValidBarracksPlacement(x, y) {
     const closestX = clamp(tree.x, preview.x, preview.x + preview.w);
     const closestY = clamp(tree.y, preview.y, preview.y + preview.h);
     if (Math.hypot(tree.x - closestX, tree.y - closestY) < tree.radius + 10) {
+      return false;
+    }
+  }
+
+  for (const stone of stones) {
+    const closestX = clamp(stone.x, preview.x, preview.x + preview.w);
+    const closestY = clamp(stone.y, preview.y, preview.y + preview.h);
+    if (Math.hypot(stone.x - closestX, stone.y - closestY) < stone.radius + 10) {
       return false;
     }
   }
@@ -1472,6 +1558,7 @@ function updateHero(dt) {
   if (hero.dashTimer > 0) {
     hero.x = clamp(hero.x + Math.cos(hero.lastMoveAngle) * hero.dashSpeed * dt, hero.radius, WORLD.width - hero.radius);
     hero.y = clamp(hero.y + Math.sin(hero.lastMoveAngle) * hero.dashSpeed * dt, hero.radius, WORLD.height - hero.radius);
+    resolveHeroObstacleCollisions();
     hero.isMoving = true;
   } else if (dx || dy) {
     const mag = Math.hypot(dx, dy);
@@ -1479,6 +1566,7 @@ function updateHero(dt) {
     hero.facingAngle = hero.lastMoveAngle;
     hero.x = clamp(hero.x + (dx / mag) * hero.speed * dt, hero.radius, WORLD.width - hero.radius);
     hero.y = clamp(hero.y + (dy / mag) * hero.speed * dt, hero.radius, WORLD.height - hero.radius);
+    resolveHeroObstacleCollisions();
     hero.isMoving = true;
     if (hero.isHarvesting) {
       cancelHarvest();
@@ -1885,6 +1973,24 @@ function drawTree(tree) {
   ctx.fillStyle = COLORS.tree;
   ctx.arc(tree.x, tree.y, tree.radius, 0, Math.PI * 2);
   ctx.fill();
+}
+
+function drawStone(stone) {
+  ctx.fillStyle = COLORS.stoneShadow;
+  ctx.beginPath();
+  ctx.ellipse(stone.x + 2, stone.y + 4, stone.radius * 0.92, stone.radius * 0.68, -0.12, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.fillStyle = COLORS.stone;
+  ctx.beginPath();
+  ctx.ellipse(stone.x, stone.y, stone.radius, stone.radius * 0.78, -0.18, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.strokeStyle = COLORS.stoneHighlight;
+  ctx.lineWidth = 3;
+  ctx.beginPath();
+  ctx.arc(stone.x - stone.radius * 0.12, stone.y - stone.radius * 0.08, stone.radius * 0.36, 3.9, 5.75);
+  ctx.stroke();
 }
 
 function drawPickup(pickup) {
@@ -2458,6 +2564,10 @@ function render() {
 
   for (const tree of trees) {
     drawTree(tree);
+  }
+
+  for (const stone of stones) {
+    drawStone(stone);
   }
 
   for (const pickup of pickups) {
