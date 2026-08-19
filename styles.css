@@ -57,6 +57,7 @@ canvas {
 
 .brand,
 .resource-panel,
+.stats-panel,
 .controls-panel,
 .status-panel {
   pointer-events: auto;
@@ -107,6 +108,75 @@ canvas {
   margin-top: 4px;
   font-size: 28px;
   color: #fff5d2;
+}
+
+.stats-panel {
+  min-width: 240px;
+  padding: 14px 16px;
+}
+
+.stats-kicker {
+  display: block;
+  margin-bottom: 12px;
+  font-size: 12px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.stats-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.stat-row {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.stat-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+
+.stat-head span {
+  color: var(--muted);
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.stat-head strong {
+  color: #fff5d2;
+  font-size: 16px;
+}
+
+.stat-bar {
+  height: 12px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  overflow: hidden;
+}
+
+.stat-fill {
+  height: 100%;
+  border-radius: 999px;
+}
+
+.armor-fill {
+  background: linear-gradient(90deg, #8f9db4, #d8e0f0);
+}
+
+.health-fill {
+  background: linear-gradient(90deg, #4d9e58, #9be17d);
+}
+
+.weapon-fill {
+  background: linear-gradient(90deg, #b26e32, #ffd074);
 }
 
 .controls-panel,
@@ -325,6 +395,7 @@ button.hidden {
   }
 
   .resource-panel,
+  .stats-panel,
   .status-panel,
   .controls-panel {
     width: 100%;

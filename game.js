@@ -3,6 +3,12 @@ const ctx = canvas.getContext("2d");
 
 const woodCountEl = document.getElementById("woodCount");
 const moneyCountEl = document.getElementById("moneyCount");
+const armorValueEl = document.getElementById("armorValue");
+const healthValueEl = document.getElementById("healthValue");
+const weaponValueEl = document.getElementById("weaponValue");
+const armorFillEl = document.getElementById("armorFill");
+const healthFillEl = document.getElementById("healthFill");
+const weaponFillEl = document.getElementById("weaponFill");
 const statusTextEl = document.getElementById("statusText");
 const overlayMessageEl = document.getElementById("overlayMessage");
 const buildBarracksBtn = document.getElementById("buildBarracksBtn");
@@ -42,6 +48,7 @@ const CHARACTER_OPTIONS = {
     abilityName: "Slash",
     cooldown: 5,
     portrait: "./images/sowrdsman.png",
+    stats: { armor: 70, health: 150, weapon: 85 },
     effect: "cone",
     damage: 35,
     radius: 86,
@@ -52,6 +59,7 @@ const CHARACTER_OPTIONS = {
     abilityName: "Burst Shot",
     cooldown: 8,
     portrait: "./images/soldier.png",
+    stats: { armor: 45, health: 120, weapon: 78 },
     effect: "burst",
     damage: 8,
     range: GRID_SIZE * 5,
@@ -64,6 +72,7 @@ const CHARACTER_OPTIONS = {
     abilityName: "Arcane Nova",
     portrait: "./images/mage.png",
     cooldown: 8,
+    stats: { armor: 25, health: 100, weapon: 92 },
     effect: "nova",
     damage: 30,
     radius: 124,
@@ -73,6 +82,7 @@ const CHARACTER_OPTIONS = {
     abilityName: "Pulse Wave",
     cooldown: 8,
     portrait: "./images/robot.png",
+    stats: { armor: 90, health: 180, weapon: 70 },
     effect: "cone",
     damage: 25,
     radius: 132,
@@ -127,6 +137,7 @@ const trees = [];
 const buildings = [];
 const units = [];
 const enemies = [];
+const damagePopups = [];
 
 spawnTrees();
 createBuilding("shop", 180, WORLD.height / 2 - 220, true);
@@ -268,6 +279,18 @@ function updateAbilityUI() {
     : "Pick Hero";
 }
 
+function updateStatsUI() {
+  const selected = hero.selectedClass ? CHARACTER_OPTIONS[hero.selectedClass] : null;
+  const stats = selected?.stats || { armor: 0, health: 0, weapon: 0 };
+
+  armorValueEl.textContent = String(stats.armor);
+  healthValueEl.textContent = String(stats.health);
+  weaponValueEl.textContent = String(stats.weapon);
+  armorFillEl.style.width = `${stats.armor}%`;
+  healthFillEl.style.width = `${stats.health}%`;
+  weaponFillEl.style.width = `${stats.weapon}%`;
+}
+
 function getShopBuilding() {
   return buildings.find((building) => building.type === "shop" && building.isPlayer) || null;
 }
@@ -318,6 +341,31 @@ function distanceToSegment(point, start, end) {
   return distance(point, closest);
 }
 
+function getDamagePopupPoint(target) {
+  if (typeof target.w === "number" && typeof target.h === "number") {
+    return { x: target.x + target.w / 2, y: target.y - 12 };
+  }
+  return { x: target.x, y: target.y - target.radius - 10 };
+}
+
+function spawnDamagePopup(target, amount) {
+  const point = getDamagePopupPoint(target);
+  damagePopups.push({
+    x: point.x,
+    y: point.y,
+    amount,
+    ttl: 0.6,
+    maxTtl: 0.6,
+  });
+}
+
+function dealDamage(target, amount, showPopup = false) {
+  target.hp -= amount;
+  if (showPopup) {
+    spawnDamagePopup(target, amount);
+  }
+}
+
 function damageEnemiesInCone(damage, radius, halfAngle) {
   const originalRadius = hero.slashRadius;
   const originalAngle = hero.slashHalfAngle;
@@ -326,15 +374,15 @@ function damageEnemiesInCone(damage, radius, halfAngle) {
 
   for (let i = enemies.length - 1; i >= 0; i -= 1) {
     if (isPointInSlash(enemies[i])) {
-      enemies[i].hp -= damage;
+      dealDamage(enemies[i], damage, true);
     }
   }
   if (isPointInSlash(enemyHero)) {
-    enemyHero.hp -= damage;
+    dealDamage(enemyHero, damage, true);
   }
   for (const building of buildings) {
     if (!building.isPlayer && isPointInSlash(getEntityTargetPoint(building))) {
-      building.hp -= damage;
+      dealDamage(building, damage, true);
     }
   }
 
@@ -345,15 +393,15 @@ function damageEnemiesInCone(damage, radius, halfAngle) {
 function damageEnemiesInRadius(damage, radius) {
   for (let i = enemies.length - 1; i >= 0; i -= 1) {
     if (distance(hero, enemies[i]) <= radius) {
-      enemies[i].hp -= damage;
+      dealDamage(enemies[i], damage, true);
     }
   }
   if (distance(hero, enemyHero) <= radius) {
-    enemyHero.hp -= damage;
+    dealDamage(enemyHero, damage, true);
   }
   for (const building of buildings) {
     if (!building.isPlayer && distance(hero, getEntityTargetPoint(building)) <= radius + 24) {
-      building.hp -= damage;
+      dealDamage(building, damage, true);
     }
   }
 }
@@ -367,15 +415,15 @@ function damageEnemiesInLine(damage, range, width) {
 
   for (let i = enemies.length - 1; i >= 0; i -= 1) {
     if (distanceToSegment(enemies[i], start, end) <= width) {
-      enemies[i].hp -= damage;
+      dealDamage(enemies[i], damage, true);
     }
   }
   if (distanceToSegment(enemyHero, start, end) <= width) {
-    enemyHero.hp -= damage;
+    dealDamage(enemyHero, damage, true);
   }
   for (const building of buildings) {
     if (!building.isPlayer && distanceToSegment(getEntityTargetPoint(building), start, end) <= width + 18) {
-      building.hp -= damage;
+      dealDamage(building, damage, true);
     }
   }
 }
@@ -385,30 +433,26 @@ function buildBurstShots(range, rounds, spreadAngle, shotAnglesDegrees) {
   const customAngles = shotAnglesDegrees?.length
     ? shotAnglesDegrees.slice(0, rounds).map((degrees) => (degrees * Math.PI) / 180)
     : null;
-  const startAngle = hero.facingAngle - spreadAngle / 2;
+  const startAngleOffset = -spreadAngle / 2;
   const angleStep = rounds > 1 ? spreadAngle / (rounds - 1) : 0;
 
   for (let index = 0; index < rounds; index += 1) {
-    const angle = customAngles
-      ? hero.facingAngle + customAngles[index]
-      : startAngle + angleStep * index;
-    const start = { x: hero.x, y: hero.y };
-    const end = {
-      x: hero.x + Math.cos(angle) * range,
-      y: hero.y + Math.sin(angle) * range,
-    };
+    const angleOffset = customAngles
+      ? customAngles[index]
+      : startAngleOffset + angleStep * index;
 
-    shots.push({ start, end, angle, range });
+    shots.push({ angleOffset, range });
   }
 
   return shots;
 }
 
 function spawnBurstProjectile(shot, damage, width) {
+  const angle = hero.facingAngle + shot.angleOffset;
   return {
-    x: shot.start.x,
-    y: shot.start.y,
-    angle: shot.angle,
+    x: hero.x,
+    y: hero.y,
+    angle,
     speed: 720,
     radius: Math.max(4, width * 0.45),
     damage,
@@ -434,29 +478,29 @@ function updateBurstProjectile(projectile, dt) {
 
   for (let i = enemies.length - 1; i >= 0; i -= 1) {
     if (!projectile.hitIds.has(enemies[i].id) && distance(projectile, enemies[i]) <= projectile.radius + enemies[i].radius) {
-      enemies[i].hp -= projectile.damage;
+      dealDamage(enemies[i], projectile.damage, true);
       projectile.hitIds.add(enemies[i].id);
     }
   }
 
   if (!projectile.hitIds.has(enemyHero.id) && distance(projectile, enemyHero) <= projectile.radius + enemyHero.radius) {
-    enemyHero.hp -= projectile.damage;
+    dealDamage(enemyHero, projectile.damage, true);
     projectile.hitIds.add(enemyHero.id);
   }
 
   for (const building of buildings) {
     if (!building.isPlayer && !projectile.hitIds.has(building.id) && intersectsBuilding(projectile, projectile.radius, building)) {
-      building.hp -= projectile.damage;
+      dealDamage(building, projectile.damage, true);
       projectile.hitIds.add(building.id);
     }
   }
 
+  const offscreenMargin = 24;
   if (
-    projectile.traveled >= projectile.maxDistance ||
-    projectile.x < 0 ||
-    projectile.y < 0 ||
-    projectile.x > WORLD.width ||
-    projectile.y > WORLD.height
+    projectile.x < camera.x - offscreenMargin ||
+    projectile.y < camera.y - offscreenMargin ||
+    projectile.x > camera.x + canvas.width + offscreenMargin ||
+    projectile.y > camera.y + canvas.height + offscreenMargin
   ) {
     projectile.active = false;
   }
@@ -730,6 +774,16 @@ function updateHero(dt) {
   updateAbilityUI();
 }
 
+function updateDamagePopups(dt) {
+  for (let index = damagePopups.length - 1; index >= 0; index -= 1) {
+    damagePopups[index].ttl -= dt;
+    damagePopups[index].y -= 34 * dt;
+    if (damagePopups[index].ttl <= 0) {
+      damagePopups.splice(index, 1);
+    }
+  }
+}
+
 function getEntityTargetPoint(target) {
   if (typeof target.w === "number" && typeof target.h === "number") {
     return { x: target.x + target.w / 2, y: target.y + target.h / 2 };
@@ -769,7 +823,7 @@ function updateUnits(dt, list, enemiesList, enemyBuildings) {
       if (dist > unit.attackRange) {
         moveTowards(unit, targetPoint.x, targetPoint.y, dt);
       } else if (unit.attackTimer === 0) {
-        target.hp -= unit.damage;
+        dealDamage(target, unit.damage, unit.isPlayer);
         unit.attackTimer = unit.attackCooldown;
       }
       unit.targetPos = { x: targetPoint.x, y: targetPoint.y };
@@ -845,6 +899,7 @@ function update(dt) {
   updateCamera(dt);
   updateHero(dt);
   updateUnits(dt, units, enemies, buildings.filter((b) => !b.isPlayer));
+  updateDamagePopups(dt);
   cleanupDestroyedBuildings();
   trainSoldierBtn.disabled = player.money < 50 || player.selectedBuildingId === null;
   sellWoodBtn.disabled = player.wood < 25 || !isHeroNearShop();
@@ -933,7 +988,7 @@ function drawHarvestProgress() {
 }
 
 function drawSlashArc() {
-  if (hero.slashArcTimer <= 0 || !hero.abilityEffect) {
+  if (!hero.abilityEffect) {
     return;
   }
 
@@ -943,6 +998,9 @@ function drawSlashArc() {
   ctx.lineWidth = 10;
 
   if (hero.abilityEffect.effect === "cone") {
+    if (hero.slashArcTimer <= 0) {
+      return;
+    }
     ctx.beginPath();
     ctx.arc(
       hero.x,
@@ -956,6 +1014,9 @@ function drawSlashArc() {
   }
 
   if (hero.abilityEffect.effect === "nova") {
+    if (hero.slashArcTimer <= 0) {
+      return;
+    }
     ctx.beginPath();
     ctx.arc(hero.x, hero.y, hero.abilityEffect.radius * (0.55 + (1 - progress) * 0.45), 0, Math.PI * 2);
     ctx.fill();
@@ -964,6 +1025,9 @@ function drawSlashArc() {
   }
 
   if (hero.abilityEffect.effect === "line") {
+    if (hero.slashArcTimer <= 0) {
+      return;
+    }
     const endX = hero.x + Math.cos(hero.facingAngle) * hero.abilityEffect.range;
     const endY = hero.y + Math.sin(hero.facingAngle) * hero.abilityEffect.range;
     ctx.beginPath();
@@ -989,6 +1053,19 @@ function drawSlashArc() {
       ctx.arc(projectile.x, projectile.y, projectile.radius, 0, Math.PI * 2);
       ctx.fill();
     }
+  }
+}
+
+function drawDamagePopups() {
+  ctx.textAlign = "center";
+  ctx.font = "700 22px Chakra Petch";
+  for (const popup of damagePopups) {
+    const alpha = popup.ttl / popup.maxTtl;
+    ctx.fillStyle = `rgba(255, 230, 140, ${alpha})`;
+    ctx.strokeStyle = `rgba(35, 20, 10, ${alpha})`;
+    ctx.lineWidth = 3;
+    ctx.strokeText(String(popup.amount), popup.x, popup.y);
+    ctx.fillText(String(popup.amount), popup.x, popup.y);
   }
 }
 
@@ -1071,6 +1148,7 @@ function render() {
   drawEntityCircle(enemyHero, COLORS.enemy, "#f2b0b0");
   drawHealthBar(enemyHero.x, enemyHero.y - 34, 60, enemyHero.hp / enemyHero.maxHp);
 
+  drawDamagePopups();
   drawBuildPreview();
   drawSelectionBox();
   drawModeHint();
@@ -1273,10 +1351,13 @@ function selectCharacter(classId) {
   hero.slashRadius = selectedClass.radius || hero.slashRadius;
   hero.slashHalfAngle = selectedClass.halfAngle || hero.slashHalfAngle;
   hero.slashDamage = selectedClass.damage;
+  hero.maxHp = selectedClass.stats.health;
+  hero.hp = selectedClass.stats.health;
   player.hasSelectedCharacter = true;
   characterSelectEl.classList.add("hidden");
   statusTextEl.textContent = `${selectedClass.name} selected. Walk near a tree and press E to harvest wood.`;
   updateAbilityUI();
+  updateStatsUI();
 }
 
 for (const classCardEl of classCardEls) {
@@ -1299,4 +1380,5 @@ for (const classCardEl of classCardEls) {
 }
 
 updateAbilityUI();
+updateStatsUI();
 requestAnimationFrame(gameLoop);
