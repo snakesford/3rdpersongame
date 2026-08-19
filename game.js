@@ -65,7 +65,7 @@ const CHARACTER_OPTIONS = {
     range: GRID_SIZE * 5,
     width: 18,
     rounds: 7,
-    shotAnglesDegrees: [0, 24, -10, -18, 8, 16, -26],
+    shotAnglesDegrees: [0, 7, -4, -6, 3, 5, -7],
   },
   mage: {
     name: "Mage",
