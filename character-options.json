@@ -76,13 +76,13 @@
   },
   "archer": {
     "name": "Archer",
-    "abilityName": "Piercing Arrow",
+    "abilityName": "Arrow Shot",
     "cooldown": 3,
     "portrait": "./images/archer.png",
     "stats": { "armor": 35, "health": 105, "weapon": 88 },
     "effect": "projectile",
     "damage": 42,
-    "range": 400,
+    "range": 0,
     "width": 10
   }
 }

@@ -138,6 +138,8 @@ const hero = {
   hasAxe: false,
   axeSwingTimer: 0,
   axeSwingDuration: 0.22,
+  hasBow: false,
+  bowCooldown: 0,
   hasRifle: false,
   rifleCooldown: 0,
   isMoving: false,
@@ -424,6 +426,13 @@ function updateStatsUI() {
 
 function updateWeaponUI() {
   weaponIconEl.src = "./images/rifle.png";
+  if (hero.hasBow) {
+    weaponNameEl.textContent = "Bow";
+    weaponHintEl.textContent = "Left-click to fire";
+    ammoCountEl.textContent = "Ammo: --/--";
+    return;
+  }
+
   if (hero.hasRifle) {
     weaponNameEl.textContent = "M4 Rifle";
     weaponHintEl.textContent = hero.isReloading
@@ -558,6 +567,8 @@ function respawnHero() {
   hero.equippedHelmetType = null;
   hero.hasAxe = false;
   hero.axeSwingTimer = 0;
+  hero.hasBow = hero.selectedClass === "archer";
+  hero.bowCooldown = 0;
   hero.hasRifle = hero.selectedClass === "soldier";
   hero.rifleCooldown = 0;
   hero.ammo = hero.hasRifle ? hero.maxAmmo : 0;
@@ -777,6 +788,34 @@ function spawnBurstProjectile(shot, damage, width) {
   };
 }
 
+function spawnAbilityProjectile(config) {
+  return {
+    x: hero.x,
+    y: hero.y,
+    angle: hero.facingAngle,
+    speed: config.speed || 820,
+    radius: Math.max(4, (config.width || 10) * 0.45),
+    damage: config.damage,
+    width: config.width || 10,
+    traveled: 0,
+    maxDistance: config.range,
+    active: true,
+    stopOnHit: true,
+    style: config.style || "arrow",
+  };
+}
+
+function buildArcherArrowProjectile(damageOverride = null) {
+  const archerClass = CHARACTER_OPTIONS.archer || {};
+  return spawnAbilityProjectile({
+    damage: damageOverride ?? ((archerClass.damage || 0) + player.weaponBonusDamage),
+    width: archerClass.width || 10,
+    range: canvas.width * 0.5,
+    style: "arrow",
+    speed: 820,
+  });
+}
+
 function intersectsBuilding(point, radius, building) {
   const closestX = clamp(point.x, building.x, building.x + building.w);
   const closestY = clamp(point.y, building.y, building.y + building.h);
@@ -810,6 +849,47 @@ function updateBurstProjectile(projectile, dt) {
 
   const offscreenMargin = 24;
   if (
+    projectile.traveled >= projectile.maxDistance ||
+    projectile.x < camera.x - offscreenMargin ||
+    projectile.y < camera.y - offscreenMargin ||
+    projectile.x > camera.x + canvas.width + offscreenMargin ||
+    projectile.y > camera.y + canvas.height + offscreenMargin
+  ) {
+    projectile.active = false;
+  }
+}
+
+function updateAbilityProjectile(projectile, dt) {
+  const step = projectile.speed * dt;
+  projectile.x += Math.cos(projectile.angle) * step;
+  projectile.y += Math.sin(projectile.angle) * step;
+  projectile.traveled += step;
+
+  for (let i = enemies.length - 1; i >= 0; i -= 1) {
+    if (distance(projectile, enemies[i]) <= projectile.radius + enemies[i].radius) {
+      dealDamage(enemies[i], projectile.damage, true);
+      projectile.active = false;
+      return;
+    }
+  }
+
+  if (distance(projectile, enemyHero) <= projectile.radius + enemyHero.radius) {
+    dealDamage(enemyHero, projectile.damage, true);
+    projectile.active = false;
+    return;
+  }
+
+  for (const building of buildings) {
+    if (!building.isPlayer && intersectsBuilding(projectile, projectile.radius, building)) {
+      dealDamage(building, projectile.damage, true);
+      projectile.active = false;
+      return;
+    }
+  }
+
+  const offscreenMargin = 24;
+  if (
+    projectile.traveled >= projectile.maxDistance ||
     projectile.x < camera.x - offscreenMargin ||
     projectile.y < camera.y - offscreenMargin ||
     projectile.x > camera.x + canvas.width + offscreenMargin ||
@@ -821,7 +901,11 @@ function updateBurstProjectile(projectile, dt) {
 
 function updateHeroProjectiles(dt) {
   for (let i = heroProjectiles.length - 1; i >= 0; i -= 1) {
-    updateBurstProjectile(heroProjectiles[i], dt);
+    if (heroProjectiles[i].style === "arrow") {
+      updateAbilityProjectile(heroProjectiles[i], dt);
+    } else {
+      updateBurstProjectile(heroProjectiles[i], dt);
+    }
     if (!heroProjectiles[i].active) {
       heroProjectiles.splice(i, 1);
     }
@@ -949,13 +1033,23 @@ function cancelHarvest() {
   harvestTreeId = null;
 }
 
-function useSlash() {
+function useSlash(targetX = null, targetY = null) {
   if (!player.hasSelectedCharacter || player.victory || player.loss || hero.slashTimer > 0) {
-    return;
+    return false;
   }
 
   const selectedClass = CHARACTER_OPTIONS[hero.selectedClass];
   const bonusDamage = player.weaponBonusDamage;
+  if (!selectedClass) {
+    return false;
+  }
+  if (targetX !== null && targetY !== null) {
+    const dx = targetX - hero.x;
+    const dy = targetY - hero.y;
+    if (Math.hypot(dx, dy) >= 1) {
+      hero.facingAngle = Math.atan2(dy, dx);
+    }
+  }
   hero.slashCooldown = selectedClass.cooldown;
   hero.slashTimer = hero.slashCooldown;
   hero.slashArcTimer = selectedClass.effect === "burst" ? 0.42 : 0.22;
@@ -981,11 +1075,14 @@ function useSlash() {
       delay: index * 0.045,
     }));
     hero.abilityEffect.projectiles = [];
+  } else if (selectedClass.effect === "projectile") {
+    hero.abilityEffect.projectiles = [buildArcherArrowProjectile(selectedClass.damage + bonusDamage)];
   } else if (selectedClass.effect === "nova") {
     damageEnemiesInRadius(selectedClass.damage + bonusDamage, selectedClass.radius);
   }
 
   updateAbilityUI();
+  return true;
 }
 
 function useAxeSwing() {
@@ -1004,6 +1101,11 @@ function swapHeroWeaponPickup(nextWeaponType, x, y, radius) {
     hero.ammo = 0;
     hero.isReloading = false;
     hero.reloadTimer = 0;
+  }
+
+  if ((nextWeaponType === "axe" || nextWeaponType === "rifle") && hero.hasBow) {
+    hero.hasBow = false;
+    hero.bowCooldown = 0;
   }
 
   if (nextWeaponType === "rifle" && hero.hasAxe) {
@@ -1059,6 +1161,29 @@ function spawnHeroBullet(targetX, targetY) {
   return true;
 }
 
+function spawnHeroBowShot(targetX, targetY) {
+  if (!hero.hasBow || hero.bowCooldown > 0) {
+    return false;
+  }
+
+  const dx = targetX - hero.x;
+  const dy = targetY - hero.y;
+  const distanceToTarget = Math.hypot(dx, dy);
+  if (distanceToTarget < 1) {
+    return false;
+  }
+
+  hero.facingAngle = Math.atan2(dy, dx);
+  hero.bowCooldown = 0.45;
+  heroProjectiles.push({
+    ...buildArcherArrowProjectile(),
+    x: hero.x,
+    y: hero.y,
+    angle: hero.facingAngle,
+  });
+  return true;
+}
+
 function setSelectedUnitsMoveTarget(x, y) {
   const selectedUnits = units.filter((unit) => player.selectedUnits.includes(unit.id));
   if (!selectedUnits.length) {
@@ -1094,6 +1219,7 @@ function updateHero(dt) {
   hero.slashTimer = Math.max(0, hero.slashTimer - dt);
   hero.slashArcTimer = Math.max(0, hero.slashArcTimer - dt);
   hero.axeSwingTimer = Math.max(0, hero.axeSwingTimer - dt);
+  hero.bowCooldown = Math.max(0, hero.bowCooldown - dt);
   hero.rifleCooldown = Math.max(0, hero.rifleCooldown - dt);
   if (hero.isReloading) {
     hero.reloadTimer = Math.max(0, hero.reloadTimer - dt);
@@ -1121,6 +1247,14 @@ function updateHero(dt) {
 
     for (let index = projectiles.length - 1; index >= 0; index -= 1) {
       updateBurstProjectile(projectiles[index], dt);
+      if (!projectiles[index].active) {
+        projectiles.splice(index, 1);
+      }
+    }
+  } else if (hero.abilityEffect?.effect === "projectile") {
+    const projectiles = hero.abilityEffect.projectiles || [];
+    for (let index = projectiles.length - 1; index >= 0; index -= 1) {
+      updateAbilityProjectile(projectiles[index], dt);
       if (!projectiles[index].active) {
         projectiles.splice(index, 1);
       }
@@ -1930,11 +2064,55 @@ function drawSlashArc() {
       ctx.arc(projectile.x, projectile.y, projectile.radius, 0, Math.PI * 2);
       ctx.fill();
     }
+    return;
   }
+
+  if (hero.abilityEffect.effect === "projectile") {
+    const projectiles = hero.abilityEffect.projectiles || [];
+    for (const projectile of projectiles) {
+      drawArrowProjectile(projectile);
+    }
+  }
+}
+
+function drawArrowProjectile(projectile) {
+  ctx.save();
+  ctx.translate(projectile.x, projectile.y);
+  ctx.rotate(projectile.angle);
+
+  ctx.strokeStyle = "#6e4823";
+  ctx.lineWidth = 3;
+  ctx.beginPath();
+  ctx.moveTo(-16, 0);
+  ctx.lineTo(10, 0);
+  ctx.stroke();
+
+  ctx.fillStyle = "#d9dfe4";
+  ctx.beginPath();
+  ctx.moveTo(10, 0);
+  ctx.lineTo(1, -5);
+  ctx.lineTo(1, 5);
+  ctx.closePath();
+  ctx.fill();
+
+  ctx.fillStyle = "#c84f4f";
+  ctx.beginPath();
+  ctx.moveTo(-16, 0);
+  ctx.lineTo(-9, -5);
+  ctx.lineTo(-11, 0);
+  ctx.lineTo(-9, 5);
+  ctx.closePath();
+  ctx.fill();
+
+  ctx.restore();
 }
 
 function drawHeroProjectiles() {
   for (const projectile of heroProjectiles) {
+    if (projectile.style === "arrow") {
+      drawArrowProjectile(projectile);
+      continue;
+    }
     ctx.fillStyle = "#ffd07a";
     ctx.beginPath();
     ctx.arc(projectile.x, projectile.y, projectile.radius, 0, Math.PI * 2);
@@ -2188,6 +2366,15 @@ canvas.addEventListener("mousedown", (event) => {
       return;
     }
 
+    if (hero.hasBow && spawnHeroBowShot(point.x, point.y)) {
+      selectionBox = null;
+      player.selectedUnits = [];
+      player.selectedBuildingId = null;
+      updateTrainButton();
+      statusTextEl.textContent = "Bow fired.";
+      return;
+    }
+
     const clickedUnit = getUnitAt(point, units);
     if (clickedUnit) {
       selectSingleUnit(clickedUnit);
@@ -2379,6 +2566,8 @@ function selectCharacter(classId) {
   hero.hp = selectedClass.stats.health;
   hero.hasAxe = false;
   hero.axeSwingTimer = 0;
+  hero.hasBow = classId === "archer";
+  hero.bowCooldown = 0;
   hero.hasRifle = classId === "soldier";
   hero.rifleCooldown = 0;
   hero.ammo = hero.hasRifle ? hero.maxAmmo : 0;
