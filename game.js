@@ -741,6 +741,10 @@ function normalizeAngle(angle) {
   return normalized;
 }
 
+function getAbilityAimAngle() {
+  return hero.abilityEffect?.aimAngle ?? hero.facingAngle;
+}
+
 function isPointInSlash(point) {
   const dx = point.x - hero.x;
   const dy = point.y - hero.y;
@@ -750,7 +754,7 @@ function isPointInSlash(point) {
   }
 
   const angle = Math.atan2(dy, dx);
-  const delta = normalizeAngle(angle - hero.facingAngle);
+  const delta = normalizeAngle(angle - getAbilityAimAngle());
   return Math.abs(delta) <= hero.slashHalfAngle;
 }
 
@@ -846,10 +850,11 @@ function damageEnemiesInRadius(damage, radius) {
 }
 
 function damageEnemiesInLine(damage, range, width) {
+  const aimAngle = getAbilityAimAngle();
   const start = { x: hero.x, y: hero.y };
   const end = {
-    x: hero.x + Math.cos(hero.facingAngle) * range,
-    y: hero.y + Math.sin(hero.facingAngle) * range,
+    x: hero.x + Math.cos(aimAngle) * range,
+    y: hero.y + Math.sin(aimAngle) * range,
   };
 
   for (let i = enemies.length - 1; i >= 0; i -= 1) {
@@ -887,7 +892,7 @@ function buildBurstShots(range, rounds, spreadAngle, shotAnglesDegrees) {
 }
 
 function spawnBurstProjectile(shot, damage, width) {
-  const angle = hero.facingAngle + shot.angleOffset;
+  const angle = (shot.baseAngle ?? hero.facingAngle) + shot.angleOffset;
   return {
     x: hero.x,
     y: hero.y,
@@ -1168,7 +1173,7 @@ function useSlash(targetX = null, targetY = null) {
   hero.slashCooldown = selectedClass.cooldown;
   hero.slashTimer = hero.slashCooldown;
   hero.slashArcTimer = selectedClass.effect === "burst" ? 0.42 : 0.22;
-  hero.abilityEffect = { ...selectedClass };
+  hero.abilityEffect = { ...selectedClass, aimAngle: hero.facingAngle };
 
   if (selectedClass.effect === "cone") {
     hero.slashRadius = selectedClass.radius;
@@ -1177,6 +1182,7 @@ function useSlash(targetX = null, targetY = null) {
   } else if (selectedClass.effect === "line") {
     damageEnemiesInLine(selectedClass.damage + bonusDamage, selectedClass.range, selectedClass.width);
   } else if (selectedClass.effect === "burst") {
+    const burstBaseAngle = hero.abilityEffect.aimAngle;
     const shots = buildBurstShots(
       selectedClass.range,
       selectedClass.rounds,
@@ -1185,6 +1191,7 @@ function useSlash(targetX = null, targetY = null) {
     );
     hero.abilityEffect.pendingShots = shots.map((shot, index) => ({
       ...shot,
+      baseAngle: burstBaseAngle,
       damage: selectedClass.damage + bonusDamage,
       width: selectedClass.width,
       delay: index * 0.045,
@@ -2280,13 +2287,14 @@ function drawSlashArc() {
     if (hero.slashArcTimer <= 0) {
       return;
     }
+    const aimAngle = hero.abilityEffect.aimAngle ?? hero.facingAngle;
     ctx.beginPath();
     ctx.arc(
       hero.x,
       hero.y,
       hero.abilityEffect.radius - 18,
-      hero.facingAngle - hero.abilityEffect.halfAngle,
-      hero.facingAngle + hero.abilityEffect.halfAngle
+      aimAngle - hero.abilityEffect.halfAngle,
+      aimAngle + hero.abilityEffect.halfAngle
     );
     ctx.stroke();
     return;
@@ -2307,8 +2315,9 @@ function drawSlashArc() {
     if (hero.slashArcTimer <= 0) {
       return;
     }
-    const endX = hero.x + Math.cos(hero.facingAngle) * hero.abilityEffect.range;
-    const endY = hero.y + Math.sin(hero.facingAngle) * hero.abilityEffect.range;
+    const aimAngle = hero.abilityEffect.aimAngle ?? hero.facingAngle;
+    const endX = hero.x + Math.cos(aimAngle) * hero.abilityEffect.range;
+    const endY = hero.y + Math.sin(aimAngle) * hero.abilityEffect.range;
     ctx.beginPath();
     ctx.moveTo(hero.x, hero.y);
     ctx.lineTo(endX, endY);
