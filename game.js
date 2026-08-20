@@ -159,16 +159,35 @@ const BATTLE_MEDICINE_USE_DURATION = 0.9;
 const tutorialNpcs = [];
 const tutorialPlots = [];
 const tutorialSites = [];
+const tutorialRangeTargets = [];
 const tutorialDialogue = {
   npcId: null,
   text: "",
   options: [],
   taskOffered: false,
 };
+const SHOOTING_INSTRUCTOR_ID = "shootingInstructor";
+const SHOOTING_RANGE_CONFIG = {
+  instructorStartX: TUTORIAL_WORLD.spawnX + 120,
+  instructorStartY: TUTORIAL_WORLD.spawnY - 110,
+  shootPosX: TUTORIAL_WORLD.spawnX + 420,
+  shootPosY: TUTORIAL_WORLD.spawnY - 120,
+  targetLaneX: TUTORIAL_WORLD.spawnX + 690,
+  nearTargetY: TUTORIAL_WORLD.spawnY - 170,
+  farTargetY: TUTORIAL_WORLD.spawnY - 285,
+};
+const shootingRangeTutorial = {
+  state: "idle",
+  started: false,
+  completed: false,
+  hits: 0,
+  introSeen: false,
+};
 const TUTORIAL_PROFESSIONS = {
   farmer: {
     label: "Farmer",
     color: "#b8d86b",
+    taskXp: 12,
     intro: "I teach farming. Start with seeds, learn to plant, then harvest for better crops and better rewards later.",
     workText: "Farming grows from simple seed plots into better crops, rarer harvests, and stronger farm rewards.",
     taskTitle: "Plant and harvest 1 crop",
@@ -177,6 +196,7 @@ const TUTORIAL_PROFESSIONS = {
   mercenary: {
     label: "Mercenary",
     color: "#ff5a5a",
+    taskXp: 12,
     intro: "I post combat contracts. The first one is simple: kill a nearby target and come back alive.",
     workText: "Mercenary work scales into area clears, escorts, hunts, and harder contracts with gold and gear.",
     taskTitle: "Defeat the training raider",
@@ -185,6 +205,7 @@ const TUTORIAL_PROFESSIONS = {
   explorer: {
     label: "Explorer",
     color: "#7fd0c5",
+    taskXp: 12,
     intro: "I map the wilds. Find the marked landmark nearby and you will understand how discovery work begins.",
     workText: "Exploration unlocks landmarks, ruins, treasure routes, and deeper resource finds the farther you roam.",
     taskTitle: "Discover the old waypoint",
@@ -193,6 +214,7 @@ const TUTORIAL_PROFESSIONS = {
   merchant: {
     label: "Merchant",
     color: "#e0b766",
+    taskXp: 12,
     intro: "I teach trade. Bring me gathered materials and I turn them into deals, gold, and better prices.",
     workText: "Trading grows through deliveries, buying low, selling high, and unlocking stronger market opportunities.",
     taskTitle: "Deliver 25 wood",
@@ -201,6 +223,7 @@ const TUTORIAL_PROFESSIONS = {
   craftsman: {
     label: "Craftsman",
     color: "#aab6cb",
+    taskXp: 12,
     intro: "I teach crafting. Gather ore, bring it back, and I will show you how raw material becomes equipment.",
     workText: "Crafting expands into recipes, forging, upgrades, and stronger equipment options over time.",
     taskTitle: "Collect 1 ore sample",
@@ -209,12 +232,14 @@ const TUTORIAL_PROFESSIONS = {
   scholar: {
     label: "Scholar",
     color: "#c794ff",
+    taskXp: 12,
     intro: "I study artifacts and enchantment. Bring me an arcane shard and I will introduce the magical path.",
     workText: "Scholar work opens enchanting, artifacts, magical materials, and stronger ability growth.",
     taskTitle: "Recover 1 arcane shard",
     rewardText: "Scholar progress increased and magical insight granted.",
   },
 };
+const SHOOTING_RANGE_TUTORIAL_XP = 12;
 const tutorialProfessionState = Object.fromEntries(
   Object.keys(TUTORIAL_PROFESSIONS).map((professionId) => [
     professionId,
@@ -261,6 +286,7 @@ function clearWorldEntities() {
   tutorialNpcs.length = 0;
   tutorialPlots.length = 0;
   tutorialSites.length = 0;
+  tutorialRangeTargets.length = 0;
 }
 
 function initializeMainWorld() {
@@ -327,7 +353,42 @@ function createTutorialNpc(professionId, x, y) {
     y,
     radius: 22,
     color: profession.color,
+    speed: 92,
+    kind: "professionGuide",
   });
+}
+
+function createSpecialTutorialNpc(npcConfig) {
+  tutorialNpcs.push({
+    radius: 22,
+    speed: 92,
+    ...npcConfig,
+  });
+}
+
+function resetShootingRangeTutorial() {
+  tutorialRangeTargets.length = 0;
+  shootingRangeTutorial.state = "idle";
+  shootingRangeTutorial.started = false;
+  shootingRangeTutorial.completed = false;
+  shootingRangeTutorial.hits = 0;
+  shootingRangeTutorial.introSeen = false;
+  tutorialRangeTargets.push(
+    {
+      id: "rangeTargetNear",
+      x: SHOOTING_RANGE_CONFIG.targetLaneX,
+      y: SHOOTING_RANGE_CONFIG.nearTargetY,
+      radius: 18,
+      hit: false,
+    },
+    {
+      id: "rangeTargetFar",
+      x: SHOOTING_RANGE_CONFIG.targetLaneX + 86,
+      y: SHOOTING_RANGE_CONFIG.farTargetY,
+      radius: 18,
+      hit: false,
+    }
+  );
 }
 
 function resetTutorialObjects() {
@@ -386,13 +447,25 @@ function resetTutorialObjects() {
 
 function populateTutorialWorld() {
   tutorialNpcs.length = 0;
-  createTutorialNpc("farmer", TUTORIAL_WORLD.spawnX - 260, TUTORIAL_WORLD.spawnY + 18);
-  createTutorialNpc("mercenary", TUTORIAL_WORLD.spawnX + 280, TUTORIAL_WORLD.spawnY - 20);
-  createTutorialNpc("explorer", TUTORIAL_WORLD.spawnX - 250, TUTORIAL_WORLD.spawnY - 220);
-  createTutorialNpc("merchant", TUTORIAL_WORLD.spawnX + 10, TUTORIAL_WORLD.spawnY + 250);
-  createTutorialNpc("craftsman", TUTORIAL_WORLD.spawnX + 260, TUTORIAL_WORLD.spawnY + 185);
-  createTutorialNpc("scholar", TUTORIAL_WORLD.spawnX + 20, TUTORIAL_WORLD.spawnY - 240);
+  createTutorialNpc("explorer", TUTORIAL_WORLD.spawnX - 520, TUTORIAL_WORLD.spawnY - 280);
+  createTutorialNpc("scholar", TUTORIAL_WORLD.spawnX - 520, TUTORIAL_WORLD.spawnY - 170);
+  createTutorialNpc("farmer", TUTORIAL_WORLD.spawnX - 520, TUTORIAL_WORLD.spawnY - 60);
+  createTutorialNpc("merchant", TUTORIAL_WORLD.spawnX - 520, TUTORIAL_WORLD.spawnY + 50);
+  createTutorialNpc("craftsman", TUTORIAL_WORLD.spawnX - 520, TUTORIAL_WORLD.spawnY + 160);
+  createTutorialNpc("mercenary", TUTORIAL_WORLD.spawnX - 520, TUTORIAL_WORLD.spawnY + 270);
+  createSpecialTutorialNpc({
+    id: SHOOTING_INSTRUCTOR_ID,
+    professionId: null,
+    kind: "shootingInstructor",
+    name: "Shooting Instructor",
+    x: SHOOTING_RANGE_CONFIG.instructorStartX,
+    y: SHOOTING_RANGE_CONFIG.instructorStartY,
+    color: "#d88444",
+    targetX: SHOOTING_RANGE_CONFIG.instructorStartX,
+    targetY: SHOOTING_RANGE_CONFIG.instructorStartY,
+  });
   resetTutorialObjects();
+  resetShootingRangeTutorial();
 }
 
 function startTutorialProfessionTask(professionId) {
@@ -615,6 +688,12 @@ function spawnQuestGoblin() {
 
 function getQuestObjectiveText() {
   if (player.inTutorialWorld) {
+    if (shootingRangeTutorial.started && !shootingRangeTutorial.completed) {
+      if (shootingRangeTutorial.state === "leading") {
+        return "Follow the Shooting Instructor.";
+      }
+      return `Hit the targets: ${shootingRangeTutorial.hits}/2`;
+    }
     const activeTasks = Object.entries(tutorialProfessionState)
       .filter(([, state]) => state.activeTask && state.activeTask.status !== "completed")
       .map(([professionId]) => `${TUTORIAL_PROFESSIONS[professionId].label}: ${TUTORIAL_PROFESSIONS[professionId].taskTitle}`);
@@ -706,6 +785,10 @@ function getNearbyTutorialNpc() {
   return closest;
 }
 
+function getShootingInstructor() {
+  return getTutorialNpcById(SHOOTING_INSTRUCTOR_ID);
+}
+
 function closeTutorialDialogue() {
   tutorialDialogue.npcId = null;
   tutorialDialogue.text = "";
@@ -718,6 +801,14 @@ function getTutorialNpcById(npcId) {
 }
 
 function buildTutorialDialogueOptions(npc) {
+  if (npc.kind === "shootingInstructor") {
+    return [
+      { id: "work", label: "1. Ask About Work" },
+      { id: "progress", label: "3. View Progress" },
+      { id: "leave", label: "4. Leave" },
+    ];
+  }
+
   const state = getTutorialProfessionState(npc.professionId);
   const options = [
     { id: "work", label: "1. Ask About Work" },
@@ -735,6 +826,16 @@ function buildTutorialDialogueOptions(npc) {
 }
 
 function openTutorialNpcMenu(npc, text = null, taskOffered = false) {
+  if (npc.kind === "shootingInstructor") {
+    tutorialDialogue.npcId = npc.id;
+    tutorialDialogue.text = text || "I cover ranged combat. Ask about work and I will walk you through a short live-fire lesson.";
+    tutorialDialogue.taskOffered = false;
+    tutorialDialogue.options = buildTutorialDialogueOptions(npc);
+    shootingRangeTutorial.introSeen = true;
+    updateDialogueUI();
+    return;
+  }
+
   const profession = TUTORIAL_PROFESSIONS[npc.professionId];
   const state = getTutorialProfessionState(npc.professionId);
   tutorialDialogue.npcId = npc.id;
@@ -757,6 +858,7 @@ function completeTutorialProfessionTask(professionId) {
 
 function turnInTutorialProfessionTask(professionId) {
   const state = getTutorialProfessionState(professionId);
+  const profession = TUTORIAL_PROFESSIONS[professionId];
   if (!state.activeTask || state.activeTask.status !== "readyToTurnIn") {
     return false;
   }
@@ -779,7 +881,8 @@ function turnInTutorialProfessionTask(professionId) {
     player.money += 15;
   }
 
-  awardTutorialProfessionProgress(professionId, 12, 1, `${TUTORIAL_PROFESSIONS[professionId].label}: ${TUTORIAL_PROFESSIONS[professionId].rewardText}`);
+  awardPlayerXp(profession.taskXp || 0);
+  awardTutorialProfessionProgress(professionId, 12, 1, `${profession.label}: ${profession.rewardText}`);
   state.activeTask.status = "completed";
   state.activeTask = null;
   updateInventoryUI();
@@ -792,6 +895,53 @@ function handleTutorialNpcOption(optionId) {
   const npc = getTutorialNpcById(tutorialDialogue.npcId);
   if (!npc) {
     return;
+  }
+
+  if (npc.kind === "shootingInstructor") {
+    if (optionId === "leave") {
+      closeTutorialDialogue();
+      updateDialogueUI();
+      statusTextEl.textContent = getCharacterStatus();
+      return;
+    }
+
+    if (optionId === "work") {
+      if (shootingRangeTutorial.completed) {
+        openTutorialNpcMenu(npc, "Clean work. You cleared the range. Head to the main world when you are ready.");
+        return;
+      }
+      if (!shootingRangeTutorial.started) {
+        shootingRangeTutorial.started = true;
+        shootingRangeTutorial.state = "leading";
+        npc.targetX = SHOOTING_RANGE_CONFIG.shootPosX;
+        npc.targetY = SHOOTING_RANGE_CONFIG.shootPosY;
+        spawnTextPopup(npc.x, npc.y - 30, "Follow me.", "rgba(255, 226, 148, 1)", 1.2);
+        closeTutorialDialogue();
+        updateDialogueUI();
+        statusTextEl.textContent = "Instructor: Follow me to the range.";
+        updateQuestUI();
+        return;
+      }
+      if (shootingRangeTutorial.state === "leading") {
+        openTutorialNpcMenu(npc, "Stay with me. We are moving to the firing line.");
+      } else {
+        openTutorialNpcMenu(npc, `Take the shots. Hit the targets: ${shootingRangeTutorial.hits}/2.`);
+      }
+      return;
+    }
+
+    if (optionId === "progress") {
+      if (shootingRangeTutorial.completed) {
+        openTutorialNpcMenu(npc, "Range lesson complete. Both targets were hit.");
+      } else if (!shootingRangeTutorial.started) {
+        openTutorialNpcMenu(npc, "Lesson not started. Ask about work to begin.");
+      } else if (shootingRangeTutorial.state === "leading") {
+        openTutorialNpcMenu(npc, "Current step: follow me to the shooting position.");
+      } else {
+        openTutorialNpcMenu(npc, `Current step: hit the targets. Progress ${shootingRangeTutorial.hits}/2.`);
+      }
+      return;
+    }
   }
 
   const profession = TUTORIAL_PROFESSIONS[npc.professionId];
@@ -1758,6 +1908,65 @@ function handleTutorialInteraction() {
   return false;
 }
 
+function moveTutorialNpcToward(npc, x, y, dt) {
+  const dx = x - npc.x;
+  const dy = y - npc.y;
+  const dist = Math.hypot(dx, dy);
+  if (dist <= 2) {
+    npc.x = x;
+    npc.y = y;
+    return true;
+  }
+  const step = Math.min(dist, npc.speed * dt);
+  npc.x += (dx / dist) * step;
+  npc.y += (dy / dist) * step;
+  return false;
+}
+
+function completeShootingRangeTutorial() {
+  if (shootingRangeTutorial.completed) {
+    return;
+  }
+
+  shootingRangeTutorial.completed = true;
+  shootingRangeTutorial.state = "completed";
+  awardPlayerXp(SHOOTING_RANGE_TUTORIAL_XP);
+  const instructor = getShootingInstructor();
+  if (instructor) {
+    openTutorialNpcMenu(instructor, "Good shooting. Both targets are down. The tutorial is complete.");
+  }
+  spawnTextPopup(hero.x, hero.y - 24, "Tutorial complete!", "rgba(255, 226, 148, 1)", 1.6);
+  statusTextEl.textContent = "Tutorial complete. Enter the main world when you are ready.";
+  updateQuestUI();
+}
+
+function tryHitTutorialRangeTarget(projectile) {
+  if (!player.inTutorialWorld || shootingRangeTutorial.state !== "shootTargets") {
+    return false;
+  }
+
+  for (const target of tutorialRangeTargets) {
+    if (target.hit) {
+      continue;
+    }
+    if (distance(projectile, target) > projectile.radius + target.radius) {
+      continue;
+    }
+    target.hit = true;
+    shootingRangeTutorial.hits += 1;
+    projectile.active = false;
+    spawnTextPopup(target.x, target.y - 28, "Hit!", "rgba(255, 232, 164, 1)", 0.9);
+    statusTextEl.textContent = `Instructor: Hit the targets: ${shootingRangeTutorial.hits}/2.`;
+    updateQuestUI();
+    if (shootingRangeTutorial.hits >= tutorialRangeTargets.length) {
+      completeShootingRangeTutorial();
+    }
+    return true;
+  }
+
+  return false;
+}
+
 function updateTutorialWorldSystems(dt) {
   for (const plot of tutorialPlots) {
     if (!plot.active || plot.state !== "growing") {
@@ -1778,6 +1987,21 @@ function updateTutorialWorldSystems(dt) {
     waypoint.discovered = true;
     completeTutorialProfessionTask("explorer");
     statusTextEl.textContent = "Landmark discovered. Return to the Explorer.";
+  }
+
+  const instructor = getShootingInstructor();
+  if (instructor && shootingRangeTutorial.state === "leading") {
+    const heroDistance = distance(hero, instructor);
+    if (heroDistance <= 220) {
+      const arrived = moveTutorialNpcToward(instructor, instructor.targetX, instructor.targetY, dt);
+      if (arrived) {
+        shootingRangeTutorial.state = "shootTargets";
+        spawnTextPopup(instructor.x, instructor.y - 30, "Hit both targets.", "rgba(255, 226, 148, 1)", 1.2);
+        openTutorialNpcMenu(instructor, "This is the firing line. Shoot both targets.");
+        statusTextEl.textContent = "Instructor: Hold here and shoot both targets.";
+        updateQuestUI();
+      }
+    }
   }
 }
 
@@ -2615,6 +2839,10 @@ function updateBurstProjectile(projectile, dt) {
     }
   }
 
+  if (tryHitTutorialRangeTarget(projectile)) {
+    return;
+  }
+
   for (let i = enemies.length - 1; i >= 0; i -= 1) {
     if (!projectile.hitIds.has(enemies[i].id) && distance(projectile, enemies[i]) <= projectile.radius + enemies[i].radius) {
       applyRangedProjectileHit(enemies[i], projectile);
@@ -2664,6 +2892,10 @@ function updateAbilityProjectile(projectile, dt) {
       projectile.active = false;
       return;
     }
+  }
+
+  if (tryHitTutorialRangeTarget(projectile)) {
+    return;
   }
 
   for (let i = enemies.length - 1; i >= 0; i -= 1) {
@@ -4125,9 +4357,6 @@ function drawVillager() {
 
 function drawTutorialNpcs() {
   for (const npc of tutorialNpcs) {
-    const professionState = getTutorialProfessionState(npc.professionId);
-    const xpRequired = getProfessionXpRequired(professionState.level);
-    const reputationProgress = clamp(professionState.xp / xpRequired, 0, 1);
     ctx.fillStyle = npc.color;
     ctx.beginPath();
     ctx.arc(npc.x, npc.y, npc.radius, 0, Math.PI * 2);
@@ -4137,6 +4366,23 @@ function drawTutorialNpcs() {
     ctx.arc(npc.x, npc.y - 8, npc.radius * 0.42, 0, Math.PI * 2);
     ctx.fill();
     drawNameplate(npc.x, npc.y - 40, npc.name, "rgba(15, 33, 24, 0.9)");
+    if (npc.kind === "shootingInstructor") {
+      if (distance(hero, npc) <= 90) {
+        const label = shootingRangeTutorial.completed
+          ? "Tutorial complete"
+          : shootingRangeTutorial.started
+            ? shootingRangeTutorial.state === "leading"
+              ? "Follow me"
+              : `Targets ${shootingRangeTutorial.hits}/2`
+            : "Range lesson ready";
+        drawNameplate(npc.x, npc.y - 64, label, "rgba(33, 24, 15, 0.9)");
+      }
+      continue;
+    }
+
+    const professionState = getTutorialProfessionState(npc.professionId);
+    const xpRequired = getProfessionXpRequired(professionState.level);
+    const reputationProgress = clamp(professionState.xp / xpRequired, 0, 1);
     if (distance(hero, npc) <= 90) {
       drawNameplate(
         npc.x,
@@ -4157,6 +4403,35 @@ function drawTutorialNpcs() {
 }
 
 function drawTutorialObjects() {
+  if (player.inTutorialWorld) {
+    ctx.fillStyle = "rgba(92, 73, 42, 0.55)";
+    ctx.fillRect(SHOOTING_RANGE_CONFIG.shootPosX - 54, SHOOTING_RANGE_CONFIG.shootPosY - 12, 18, 128);
+    ctx.fillRect(SHOOTING_RANGE_CONFIG.targetLaneX - 18, SHOOTING_RANGE_CONFIG.farTargetY - 42, 174, 12);
+    ctx.strokeStyle = "rgba(255, 232, 194, 0.35)";
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(SHOOTING_RANGE_CONFIG.shootPosX, SHOOTING_RANGE_CONFIG.shootPosY - 34);
+    ctx.lineTo(SHOOTING_RANGE_CONFIG.shootPosX, SHOOTING_RANGE_CONFIG.shootPosY + 96);
+    ctx.stroke();
+
+    for (const target of tutorialRangeTargets) {
+      ctx.fillStyle = "#5f4023";
+      ctx.fillRect(target.x - 4, target.y + 16, 8, 34);
+      ctx.fillStyle = target.hit ? "#7c2f2f" : "#e8dec0";
+      ctx.beginPath();
+      ctx.arc(target.x, target.y, target.radius, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = target.hit ? "#bd4a4a" : "#c13d3d";
+      ctx.beginPath();
+      ctx.arc(target.x, target.y, target.radius * 0.62, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = target.hit ? "#f0bb76" : "#f3d392";
+      ctx.beginPath();
+      ctx.arc(target.x, target.y, target.radius * 0.24, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+
   for (const plot of tutorialPlots) {
     if (!plot.active) {
       continue;
