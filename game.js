@@ -4381,7 +4381,10 @@ function drawSoldierHero() {
     ? Math.atan2(mouse.worldY - hero.y, mouse.worldX - hero.x)
     : hero.facingAngle;
   const facingAngle = hero.lastMoveAngle ?? shootingAngle ?? hero.facingAngle ?? 0;
-  const isFacingLeft = Math.cos(facingAngle) < 0;
+  const spriteFacingAngle = image === soldierShootingImage
+    ? (shootingAngle ?? hero.facingAngle ?? 0)
+    : facingAngle;
+  const isFacingLeft = Math.cos(spriteFacingAngle) < 0;
   if (animationName !== lastSoldierAnimationName) {
     console.log("Soldier animation changed:", animationName);
     lastSoldierAnimationName = animationName;
