@@ -9,6 +9,7 @@ const soldierRunningImage = loadImage("./images/soldierRunning.png");
 const soldierRunningTransitionImage = loadImage("./images/soldierRunningTransition.png");
 const soldierRunningRightFootImage = loadImage("./images/soldierRunningRightFoot.png");
 const soldierIdleImage = loadImage("./images/soldier-stationary.png");
+const soldierMedkitImage = loadImage("./images/soldierMedkit.png");
 const soldierReloadingImage = loadImage("./images/soldierReloading.png");
 const soldierShootingImage = loadImage("./images/soldier-shooting.png");
 const skeletonImage = loadImage("./images/skeleton.png");
@@ -26,6 +27,7 @@ export {
   bowImage,
   skeletonImage,
   soldierIdleImage,
+  soldierMedkitImage,
   soldierReloadingImage,
   soldierRunningImage,
   soldierRunningRightFootImage,

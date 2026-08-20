@@ -81,6 +81,7 @@ const hero = {
   grenadeCooldownRemaining: 0,
   battleMedicineCooldownRemaining: 0,
   battleMedicineBuffTimer: 0,
+  battleMedicineUseTimer: 0,
   shootLockTimer: 0,
   weaponPickupCooldown: 0,
   hasRifle: false,

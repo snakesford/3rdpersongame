@@ -6,6 +6,7 @@ import {
   bowImage,
   skeletonImage,
   soldierIdleImage,
+  soldierMedkitImage,
   soldierReloadingImage,
   soldierRunningImage,
   soldierRunningRightFootImage,
@@ -152,6 +153,7 @@ let lastTimestamp = 0;
 let playerBase = null;
 let enemyBase = null;
 let enemyHero = null;
+const BATTLE_MEDICINE_USE_DURATION = 0.9;
 
 function initializeEnemyForces() {
   createUnit("boss", WORLD.width / 2, MAIN_LANE_Y, false);
@@ -711,12 +713,19 @@ function useBattleMedicine() {
   hero.hp = Math.min(hero.maxHp, hero.hp + SOLDIER_BATTLE_MEDICINE_HEAL);
   hero.battleMedicineBuffTimer = SOLDIER_BATTLE_MEDICINE_DURATION;
   hero.battleMedicineCooldownRemaining = SOLDIER_BATTLE_MEDICINE_COOLDOWN;
+  hero.battleMedicineUseTimer = BATTLE_MEDICINE_USE_DURATION;
   hero.regenProgress = 0;
+  hero.targetPos = null;
+  hero.isMoving = false;
   spawnTextPopup(hero.x, hero.y - hero.radius - 28, `+${SOLDIER_BATTLE_MEDICINE_HEAL} HP`, "rgba(156, 245, 164, 1)", 1);
   spawnTextPopup(hero.x, hero.y - hero.radius - 6, `+${SOLDIER_BATTLE_MEDICINE_REGEN_BONUS} Regen`, "rgba(196, 255, 172, 1)", 1.2);
   statusTextEl.textContent = "Battle Medicine activated.";
   updateAbilityUI();
   return true;
+}
+
+function isUsingBattleMedicine() {
+  return hero.selectedClass === "soldier" && hero.battleMedicineUseTimer > 0;
 }
 
 function cancelGrenadeAim() {
@@ -1383,6 +1392,7 @@ function respawnHero() {
   hero.grenadeCooldownRemaining = 0;
   hero.battleMedicineCooldownRemaining = 0;
   hero.battleMedicineBuffTimer = 0;
+  hero.battleMedicineUseTimer = 0;
   hero.weaponPickupCooldown = 0;
   hero.hasRifle = hero.selectedClass === "soldier";
   hero.rifleCooldown = 0;
@@ -2555,7 +2565,7 @@ function swapHeroWeaponPickup(nextWeaponType, x, y, radius) {
 }
 
 function startReload(force = false) {
-  if (!hero.hasRifle || hero.isReloading) {
+  if (!hero.hasRifle || hero.isReloading || isUsingBattleMedicine()) {
     return false;
   }
   if (!force && hero.ammo > 0) {
@@ -2571,7 +2581,7 @@ function startReload(force = false) {
 }
 
 function spawnHeroBullet(targetX, targetY) {
-  if (!hero.hasRifle || hero.isReloading || hero.rifleCooldown > 0 || hero.ammo <= 0 || hero.shootLockTimer > 0) {
+  if (!hero.hasRifle || hero.isReloading || hero.rifleCooldown > 0 || hero.ammo <= 0 || hero.shootLockTimer > 0 || isUsingBattleMedicine()) {
     return false;
   }
 
@@ -2669,6 +2679,7 @@ function updateHero(dt) {
   hero.grenadeCooldownRemaining = Math.max(0, hero.grenadeCooldownRemaining - dt);
   hero.battleMedicineCooldownRemaining = Math.max(0, hero.battleMedicineCooldownRemaining - dt);
   hero.battleMedicineBuffTimer = Math.max(0, hero.battleMedicineBuffTimer - dt);
+  hero.battleMedicineUseTimer = Math.max(0, hero.battleMedicineUseTimer - dt);
   hero.shootLockTimer = Math.max(0, hero.shootLockTimer - dt);
   hero.weaponPickupCooldown = Math.max(0, hero.weaponPickupCooldown - dt);
   hero.rifleCooldown = Math.max(0, hero.rifleCooldown - dt);
@@ -2701,7 +2712,7 @@ function updateHero(dt) {
     updateAbilityUI();
     return;
   }
-  if (mouse.leftDown && !player.isPlacingBuilding && !player.shopOpen && !player.traderOpen) {
+  if (mouse.leftDown && !player.isPlacingBuilding && !player.shopOpen && !player.traderOpen && !isUsingBattleMedicine()) {
     if (hero.hasRifle) {
       spawnHeroBullet(mouse.worldX, mouse.worldY);
     } else if (hero.hasBow) {
@@ -2765,7 +2776,9 @@ function updateHero(dt) {
   const dx = (keys.has("d") ? 1 : 0) - (keys.has("a") ? 1 : 0);
   const dy = (keys.has("s") ? 1 : 0) - (keys.has("w") ? 1 : 0);
 
-  if (hero.dashTimer > 0) {
+  if (isUsingBattleMedicine()) {
+    hero.isMoving = false;
+  } else if (hero.dashTimer > 0) {
     hero.x = clamp(hero.x + Math.cos(hero.lastMoveAngle) * hero.dashSpeed * dt, hero.radius, WORLD.width - hero.radius);
     hero.y = clamp(hero.y + Math.sin(hero.lastMoveAngle) * hero.dashSpeed * dt, hero.radius, WORLD.height - hero.radius);
     resolveHeroObstacleCollisions();
@@ -3764,6 +3777,7 @@ function drawSoldierHero() {
   const isBurstShooting = hero.abilityEffect?.effect === "burst" &&
     Boolean(hero.abilityEffect?.pendingShots && hero.abilityEffect.pendingShots.length > 0);
   const isRifleShooting = hero.hasRifle && mouse.leftDown && !hero.isReloading;
+  const isUsingMedicine = isUsingBattleMedicine();
   const isReloading = hero.hasRifle && hero.isReloading && hero.ammo === 0;
   const runningFrames = [
     soldierRunningImage,
@@ -3774,6 +3788,8 @@ function drawSoldierHero() {
   const runningFrame = runningFrames[Math.floor(hero.runAnimationTimer / 0.3) % runningFrames.length];
   const image = hero.isMoving
     ? runningFrame
+    : isUsingMedicine
+      ? soldierMedkitImage
     : isReloading
       ? soldierReloadingImage
     : (isBurstShooting || isRifleShooting)
@@ -3797,12 +3813,15 @@ function drawSoldierHero() {
     if (isFacingLeft) {
       ctx.scale(-1, 1);
     }
-  } else if (image === soldierIdleImage || image === soldierReloadingImage) {
+  } else if (
+    image === soldierIdleImage ||
+    image === soldierReloadingImage ||
+    image === soldierShootingImage ||
+    image === soldierMedkitImage
+  ) {
     if (isFacingLeft) {
       ctx.scale(-1, 1);
     }
-  } else {
-    ctx.rotate(hero.facingAngle);
   }
   ctx.drawImage(image, -size / 2, -size / 2, size, size);
   const helmetStyle = getHeroHelmetStyle();
@@ -4831,6 +4850,7 @@ function selectCharacter(classId) {
   hero.grenadeCooldownRemaining = 0;
   hero.battleMedicineCooldownRemaining = 0;
   hero.battleMedicineBuffTimer = 0;
+  hero.battleMedicineUseTimer = 0;
   hero.weaponPickupCooldown = 0;
   hero.hasRifle = classId === "soldier";
   hero.rifleCooldown = 0;
