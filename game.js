@@ -2287,12 +2287,32 @@ function getClampedGrenadeTarget(targetX, targetY) {
 }
 
 function explodeGrenade(grenade) {
+  const particles = [];
+  const particleCount = 34;
+  for (let index = 0; index < particleCount; index += 1) {
+    const angle = Math.random() * Math.PI * 2;
+    const distanceScale = 0.45 + Math.random() * 0.75;
+    particles.push({
+      angle,
+      targetRadius: SOLDIER_GRENADE_RADIUS * distanceScale,
+      size: 1.4 + Math.random() * 2.8,
+      drift: (Math.random() - 0.5) * 20,
+      speedScale: 0.8 + Math.random() * 0.4,
+      color: Math.random() > 0.5
+        ? "255, 220, 110"
+        : Math.random() > 0.45
+          ? "255, 182, 68"
+          : "255, 245, 185",
+    });
+  }
+
   grenadeShockwaves.push({
     x: grenade.targetX,
     y: grenade.targetY,
     radius: SOLDIER_GRENADE_RADIUS,
-    ttl: 0.42,
-    maxTtl: 0.42,
+    ttl: 0.22,
+    maxTtl: 0.22,
+    particles,
   });
   damageEnemiesInRadiusFromPoint(grenade.targetX, grenade.targetY, SOLDIER_GRENADE_DAMAGE + player.weaponBonusDamage, SOLDIER_GRENADE_RADIUS);
   destroyEnvironmentInRadius(grenade.targetX, grenade.targetY, SOLDIER_GRENADE_RADIUS);
@@ -4738,17 +4758,25 @@ function drawHeroGrenades() {
 function drawGrenadeShockwaves() {
   for (const shockwave of grenadeShockwaves) {
     const progress = 1 - shockwave.ttl / shockwave.maxTtl;
-    const radius = shockwave.radius * (0.35 + progress * 0.65);
     const alpha = 1 - progress;
+    const coreRadius = 8 + progress * 18;
+
     ctx.beginPath();
-    ctx.fillStyle = `rgba(255, 189, 92, ${alpha * 0.18})`;
-    ctx.arc(shockwave.x, shockwave.y, radius, 0, Math.PI * 2);
+    ctx.fillStyle = `rgba(255, 208, 116, ${alpha * 0.42})`;
+    ctx.arc(shockwave.x, shockwave.y, coreRadius, 0, Math.PI * 2);
     ctx.fill();
-    ctx.beginPath();
-    ctx.strokeStyle = `rgba(255, 232, 180, ${alpha * 0.9})`;
-    ctx.lineWidth = 7 - progress * 3;
-    ctx.arc(shockwave.x, shockwave.y, radius, 0, Math.PI * 2);
-    ctx.stroke();
+
+    for (const particle of shockwave.particles || []) {
+      const traveled = particle.targetRadius * Math.min(1, progress * 1.45) * particle.speedScale;
+      const spreadX = Math.cos(particle.angle) * traveled + Math.cos(particle.angle + Math.PI / 2) * particle.drift * progress;
+      const spreadY = Math.sin(particle.angle) * traveled + Math.sin(particle.angle + Math.PI / 2) * particle.drift * progress;
+      const size = Math.max(0.8, particle.size * (1 - progress * 0.45));
+
+      ctx.beginPath();
+      ctx.fillStyle = `rgba(${particle.color}, ${alpha})`;
+      ctx.arc(shockwave.x + spreadX, shockwave.y + spreadY, size, 0, Math.PI * 2);
+      ctx.fill();
+    }
   }
 }
 
