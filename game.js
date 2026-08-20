@@ -5624,6 +5624,7 @@ async function initializeGame() {
     await loadCharacterOptions();
     await loadEnemyOptions();
     initializeMainWorld();
+    activateTutorialWorld();
     initializeCharacterCards();
     updateAbilityUI();
     updateStatsUI();
