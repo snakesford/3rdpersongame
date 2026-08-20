@@ -259,8 +259,8 @@ const villagePaths = [];
 const villageFences = [];
 const villageProps = [];
 const trader = {
-  x: GRID_SIZE * 6,
-  y: MAIN_LANE_Y,
+  x: 304,
+  y: 1492,
   radius: 22,
 };
 const pickups = [
