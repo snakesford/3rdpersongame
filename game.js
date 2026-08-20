@@ -380,6 +380,9 @@ function resetShootingRangeTutorial() {
       y: SHOOTING_RANGE_CONFIG.nearTargetY,
       radius: 18,
       hit: false,
+      destroyed: false,
+      hp: 40,
+      maxHp: 40,
     },
     {
       id: "rangeTargetFar",
@@ -387,8 +390,19 @@ function resetShootingRangeTutorial() {
       y: SHOOTING_RANGE_CONFIG.farTargetY,
       radius: 18,
       hit: false,
+      destroyed: false,
+      hp: 40,
+      maxHp: 40,
     }
   );
+}
+
+function resetTutorialRangeTargets() {
+  for (const target of tutorialRangeTargets) {
+    target.hit = false;
+    target.destroyed = false;
+    target.hp = target.maxHp;
+  }
 }
 
 function resetTutorialObjects() {
@@ -911,6 +925,8 @@ function handleTutorialNpcOption(optionId) {
         return;
       }
       if (!shootingRangeTutorial.started) {
+        resetTutorialRangeTargets();
+        shootingRangeTutorial.hits = 0;
         shootingRangeTutorial.started = true;
         shootingRangeTutorial.state = "leading";
         npc.targetX = SHOOTING_RANGE_CONFIG.shootPosX;
@@ -1940,26 +1956,84 @@ function completeShootingRangeTutorial() {
   updateQuestUI();
 }
 
+function registerTutorialTargetHit(target) {
+  if (shootingRangeTutorial.state !== "shootTargets" && shootingRangeTutorial.state !== "completed") {
+    return;
+  }
+  if (target.hit) {
+    return;
+  }
+
+  target.hit = true;
+  shootingRangeTutorial.hits += 1;
+  statusTextEl.textContent = `Instructor: Hit the targets: ${shootingRangeTutorial.hits}/2.`;
+  updateQuestUI();
+  if (shootingRangeTutorial.hits >= tutorialRangeTargets.length) {
+    completeShootingRangeTutorial();
+  }
+}
+
+function destroyTutorialRangeTarget(target, reason = "destroyed") {
+  if (reason !== "grenade" && shootingRangeTutorial.state !== "shootTargets" && shootingRangeTutorial.state !== "completed") {
+    return;
+  }
+  if (target.destroyed) {
+    return;
+  }
+
+  target.destroyed = true;
+  target.hp = 0;
+  if (shootingRangeTutorial.state === "shootTargets" || shootingRangeTutorial.state === "completed") {
+    registerTutorialTargetHit(target);
+  }
+  spawnTextPopup(
+    target.x,
+    target.y - 28,
+    reason === "grenade" ? "Target destroyed" : "Target down",
+    "rgba(255, 218, 148, 1)",
+    0.9
+  );
+}
+
 function tryHitTutorialRangeTarget(projectile) {
-  if (!player.inTutorialWorld || shootingRangeTutorial.state !== "shootTargets") {
+  if (!player.inTutorialWorld) {
     return false;
   }
 
   for (const target of tutorialRangeTargets) {
-    if (target.hit) {
+    if (target.destroyed) {
       continue;
+    }
+    const postLeft = target.x - 4;
+    const postTop = target.y + 16;
+    const postRight = postLeft + 8;
+    const postBottom = postTop + 34;
+    const hitsPost = (
+      projectile.x + projectile.radius >= postLeft &&
+      projectile.x - projectile.radius <= postRight &&
+      projectile.y + projectile.radius >= postTop &&
+      projectile.y - projectile.radius <= postBottom
+    );
+    if (hitsPost) {
+      projectile.active = false;
+      spawnTextPopup(target.x, target.y - 28, "Miss!", "rgba(255, 214, 148, 1)", 0.9);
+      return true;
     }
     if (distance(projectile, target) > projectile.radius + target.radius) {
       continue;
     }
-    target.hit = true;
-    shootingRangeTutorial.hits += 1;
+    const damage = Math.max(1, Math.round(projectile.baseDamage ?? projectile.damage ?? 1));
+    spawnDamagePopup(target, damage);
     projectile.active = false;
-    spawnTextPopup(target.x, target.y - 28, "Hit!", "rgba(255, 232, 164, 1)", 0.9);
-    statusTextEl.textContent = `Instructor: Hit the targets: ${shootingRangeTutorial.hits}/2.`;
-    updateQuestUI();
-    if (shootingRangeTutorial.hits >= tutorialRangeTargets.length) {
-      completeShootingRangeTutorial();
+    if (shootingRangeTutorial.state !== "shootTargets" && shootingRangeTutorial.state !== "completed") {
+      return true;
+    }
+
+    target.hp = Math.max(0, target.hp - damage);
+    if (target.hp <= 0) {
+      destroyTutorialRangeTarget(target);
+    } else {
+      registerTutorialTargetHit(target);
     }
     return true;
   }
@@ -2462,6 +2536,15 @@ function destroyEnvironmentInRadius(centerX, centerY, radius) {
     if (distance(center, stone) <= radius + stone.radius) {
       spawnTextPopup(stone.x, stone.y - stone.radius - 10, "Rock blasted", "rgba(214, 226, 235, 1)", 0.8);
       stones.splice(i, 1);
+    }
+  }
+
+  for (const target of tutorialRangeTargets) {
+    if (target.destroyed) {
+      continue;
+    }
+    if (distance(center, target) <= radius + target.radius) {
+      destroyTutorialRangeTarget(target, "grenade");
     }
   }
 }
@@ -4415,6 +4498,20 @@ function drawTutorialObjects() {
     ctx.stroke();
 
     for (const target of tutorialRangeTargets) {
+      if (target.destroyed) {
+        ctx.fillStyle = "#5f4023";
+        ctx.fillRect(target.x - 4, target.y + 22, 8, 28);
+        ctx.strokeStyle = "rgba(155, 84, 58, 0.9)";
+        ctx.lineWidth = 4;
+        ctx.beginPath();
+        ctx.moveTo(target.x - 15, target.y + 16);
+        ctx.lineTo(target.x + 15, target.y + 28);
+        ctx.moveTo(target.x - 12, target.y + 28);
+        ctx.lineTo(target.x + 12, target.y + 14);
+        ctx.stroke();
+        continue;
+      }
+
       ctx.fillStyle = "#5f4023";
       ctx.fillRect(target.x - 4, target.y + 16, 8, 34);
       ctx.fillStyle = target.hit ? "#7c2f2f" : "#e8dec0";
