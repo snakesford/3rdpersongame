@@ -480,6 +480,16 @@ function populateTutorialWorld() {
   });
   resetTutorialObjects();
   resetShootingRangeTutorial();
+  if (!player.tutorialPathsUnlocked) {
+    pickups.push({
+      id: nextId(),
+      type: "tutorialScroll",
+      x: TUTORIAL_WORLD.spawnX - 120,
+      y: TUTORIAL_WORLD.spawnY + 120,
+      radius: 20,
+      collected: false,
+    });
+  }
 }
 
 function startTutorialProfessionTask(professionId) {
@@ -727,6 +737,11 @@ function getQuestObjectiveText() {
 
 function updateQuestUI() {
   if (player.inTutorialWorld) {
+    const visible = player.tutorialPathsUnlocked;
+    questPanelEl.classList.toggle("hidden", !visible);
+    if (!visible) {
+      return;
+    }
     questPanelEl.classList.remove("hidden");
     questTitleEl.textContent = "Tutorial Paths";
     questObjectiveEl.textContent = getQuestObjectiveText();
@@ -3093,7 +3108,8 @@ function isManualPickupType(type) {
     type === "enemyHelmet" ||
     type === "axe" ||
     type === "rifle" ||
-    type === "bow";
+    type === "bow" ||
+    type === "tutorialScroll";
 }
 
 function getNearbyPickup() {
@@ -3106,6 +3122,14 @@ function getNearbyPickup() {
 }
 
 function equipPickup(pickup) {
+  if (pickup.type === "tutorialScroll") {
+    player.tutorialPathsUnlocked = true;
+    statusTextEl.textContent = "Quest started: Tutorial Paths.";
+    spawnTextPopup(pickup.x, pickup.y - 24, "Quest: Tutorial Paths", "rgba(255, 236, 184, 1)", 1.2);
+    updateQuestUI();
+    return;
+  }
+
   if (pickup.type === "helmet" || pickup.type === "rareHelmet" || pickup.type === "goldHelmet" || pickup.type === "enemyHelmet") {
     const previousArmor = getTotalArmor();
     if (hero.equippedHelmetType && hero.equippedArmorValue > 0) {
@@ -4309,6 +4333,28 @@ function drawStone(stone) {
 
 function drawPickup(pickup) {
   if (pickup.collected) {
+    return;
+  }
+
+  if (pickup.type === "tutorialScroll") {
+    ctx.fillStyle = "#e6d3a4";
+    ctx.beginPath();
+    ctx.ellipse(pickup.x, pickup.y, 19, 13, -0.12, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = "#8a6736";
+    ctx.lineWidth = 2;
+    ctx.stroke();
+    ctx.fillStyle = "#b18853";
+    ctx.fillRect(pickup.x - 16, pickup.y - 8, 5, 16);
+    ctx.fillRect(pickup.x + 11, pickup.y - 8, 5, 16);
+    ctx.strokeStyle = "rgba(110, 76, 39, 0.55)";
+    ctx.beginPath();
+    ctx.moveTo(pickup.x - 8, pickup.y - 3);
+    ctx.lineTo(pickup.x + 8, pickup.y - 3);
+    ctx.moveTo(pickup.x - 8, pickup.y + 2);
+    ctx.lineTo(pickup.x + 8, pickup.y + 2);
+    ctx.stroke();
+    drawNameplate(pickup.x, pickup.y - 34, "Quest: Tutorial Paths", "rgba(56, 39, 20, 0.82)");
     return;
   }
 

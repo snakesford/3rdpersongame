@@ -38,6 +38,7 @@ const player = {
     ore: 0,
     arcaneDust: 0,
   },
+  tutorialPathsUnlocked: false,
 };
 
 const camera = { x: 0, y: 0 };
