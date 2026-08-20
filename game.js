@@ -2299,10 +2299,10 @@ function explodeGrenade(grenade) {
       drift: (Math.random() - 0.5) * 20,
       speedScale: 0.8 + Math.random() * 0.4,
       color: Math.random() > 0.5
-        ? "255, 220, 110"
+        ? "255, 232, 132"
         : Math.random() > 0.45
-          ? "255, 182, 68"
-          : "255, 245, 185",
+          ? "255, 194, 88"
+          : "255, 248, 200",
     });
   }
 
@@ -4762,7 +4762,7 @@ function drawGrenadeShockwaves() {
     const coreRadius = 8 + progress * 18;
 
     ctx.beginPath();
-    ctx.fillStyle = `rgba(255, 208, 116, ${alpha * 0.42})`;
+    ctx.fillStyle = `rgba(255, 220, 132, ${alpha * 0.48})`;
     ctx.arc(shockwave.x, shockwave.y, coreRadius, 0, Math.PI * 2);
     ctx.fill();
 
