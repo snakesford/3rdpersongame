@@ -1137,6 +1137,19 @@ function isUsingBattleMedicine() {
   return hero.selectedClass === "soldier" && hero.battleMedicineUseTimer > 0;
 }
 
+function isSoldierRifleShooting() {
+  return hero.selectedClass === "soldier" &&
+    hero.hasRifle &&
+    mouse.leftDown &&
+    !hero.isReloading &&
+    hero.ammo > 0 &&
+    hero.shootLockTimer <= 0 &&
+    !player.isPlacingBuilding &&
+    !player.shopOpen &&
+    !player.traderOpen &&
+    !isUsingBattleMedicine();
+}
+
 function cancelGrenadeAim() {
   grenadeAim.active = false;
 }
@@ -1264,7 +1277,7 @@ function getHeroSpeed(selected = getSelectedClassConfig()) {
 
 function getHeroRegen(selected = getSelectedClassConfig()) {
   const baseRegen = selected?.stats?.regen || 0;
-  return baseRegen + (hero.battleMedicineBuffTimer > 0 ? SOLDIER_BATTLE_MEDICINE_REGEN_BONUS : 0);
+  return baseRegen + player.bonusRegen + (hero.battleMedicineBuffTimer > 0 ? SOLDIER_BATTLE_MEDICINE_REGEN_BONUS : 0);
 }
 
 function updateUpgradeUI() {
@@ -1476,6 +1489,9 @@ function applyUpgrade(upgradeId) {
     player.bonusSpeed += 5;
     hero.speed += 5;
     statusTextEl.textContent = "Upgrade applied: +5 speed.";
+  } else if (upgradeId === "regen") {
+    player.bonusRegen += 0.5;
+    statusTextEl.textContent = "Upgrade applied: +0.5 health regen.";
   } else if (upgradeId === "ability") {
     player.bonusAbilityDamage += 3;
     statusTextEl.textContent = "Upgrade applied: +3 ability damage.";
@@ -3192,6 +3208,9 @@ function updateHero(dt) {
   } else if (hero.hp >= hero.maxHp) {
     hero.regenProgress = 0;
   }
+  if (isSoldierRifleShooting()) {
+    hero.facingAngle = Math.atan2(mouse.worldY - hero.y, mouse.worldX - hero.x);
+  }
   hero.isMoving = false;
   if (isDialogueOpen()) {
     updateInventoryUI();
@@ -3262,6 +3281,7 @@ function updateHero(dt) {
 
   const dx = (keys.has("d") ? 1 : 0) - (keys.has("a") ? 1 : 0);
   const dy = (keys.has("s") ? 1 : 0) - (keys.has("w") ? 1 : 0);
+  const movementSpeedMultiplier = isSoldierRifleShooting() ? 0.5 : 1;
 
   if (isUsingBattleMedicine()) {
     hero.isMoving = false;
@@ -3273,9 +3293,11 @@ function updateHero(dt) {
   } else if (dx || dy) {
     const mag = Math.hypot(dx, dy);
     hero.lastMoveAngle = Math.atan2(dy / mag, dx / mag);
-    hero.facingAngle = hero.lastMoveAngle;
-    hero.x = clamp(hero.x + (dx / mag) * hero.speed * dt, hero.radius, WORLD.width - hero.radius);
-    hero.y = clamp(hero.y + (dy / mag) * hero.speed * dt, hero.radius, WORLD.height - hero.radius);
+    if (!isSoldierRifleShooting()) {
+      hero.facingAngle = hero.lastMoveAngle;
+    }
+    hero.x = clamp(hero.x + (dx / mag) * hero.speed * movementSpeedMultiplier * dt, hero.radius, WORLD.width - hero.radius);
+    hero.y = clamp(hero.y + (dy / mag) * hero.speed * movementSpeedMultiplier * dt, hero.radius, WORLD.height - hero.radius);
     resolveHeroObstacleCollisions();
     hero.isMoving = true;
     if (hero.isHarvesting) {
@@ -4319,7 +4341,7 @@ function drawHeroStickFigure() {
 function drawSoldierHero() {
   const isBurstShooting = hero.abilityEffect?.effect === "burst" &&
     Boolean(hero.abilityEffect?.pendingShots && hero.abilityEffect.pendingShots.length > 0);
-  const isRifleShooting = hero.hasRifle && mouse.leftDown && !hero.isReloading;
+  const isRifleShooting = isSoldierRifleShooting();
   const isUsingMedicine = isUsingBattleMedicine();
   const isReloading = hero.hasRifle && hero.isReloading && hero.ammo === 0;
   const runningFrames = [
@@ -4329,16 +4351,19 @@ function drawSoldierHero() {
     soldierRunningTransitionImage,
   ];
   const runningFrame = runningFrames[Math.floor(hero.runAnimationTimer / 0.3) % runningFrames.length];
-  const image = hero.isMoving
-    ? runningFrame
-    : isUsingMedicine
-      ? soldierMedkitImage
-    : isReloading
-      ? soldierReloadingImage
+  const image = isUsingMedicine
+    ? soldierMedkitImage
     : (isBurstShooting || isRifleShooting)
       ? soldierShootingImage
+    : hero.isMoving
+      ? runningFrame
+    : isReloading
+      ? soldierReloadingImage
       : soldierIdleImage;
-  const facingAngle = hero.lastMoveAngle ?? hero.facingAngle ?? 0;
+  const shootingAngle = isRifleShooting
+    ? Math.atan2(mouse.worldY - hero.y, mouse.worldX - hero.x)
+    : hero.facingAngle;
+  const facingAngle = hero.lastMoveAngle ?? shootingAngle ?? hero.facingAngle ?? 0;
   const isFacingLeft = Math.cos(facingAngle) < 0;
   if (!image.complete || image.naturalWidth <= 0) {
     drawEntityCircle(hero, COLORS.hero, COLORS.heroAccent);
@@ -4359,12 +4384,13 @@ function drawSoldierHero() {
   } else if (
     image === soldierIdleImage ||
     image === soldierReloadingImage ||
-    image === soldierShootingImage ||
     image === soldierMedkitImage
   ) {
     if (isFacingLeft) {
       ctx.scale(-1, 1);
     }
+  } else if (image === soldierShootingImage) {
+    ctx.rotate(shootingAngle || 0);
   }
   ctx.drawImage(image, -size / 2, -size / 2, size, size);
   const helmetStyle = getHeroHelmetStyle();

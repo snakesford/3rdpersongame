@@ -29,6 +29,7 @@ const player = {
   bonusHealth: 0,
   bonusDamage: 0,
   bonusSpeed: 0,
+  bonusRegen: 0,
   bonusAbilityDamage: 0,
   helmetBonusArmor: 0,
   tutorialResources: {
