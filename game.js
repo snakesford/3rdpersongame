@@ -287,6 +287,10 @@ const RANGED_HEADSHOT_CONFIG = {
     headshotChance: 0.22,
     headshotMultiplier: 2,
   },
+  arenaBullet: {
+    headshotChance: 0.16,
+    headshotMultiplier: 2,
+  },
 };
 const HELMET_HEADSHOT_PROTECTION = {
   helmet: 0.2,
@@ -1367,12 +1371,18 @@ function leaveDodgeArena(message = "Returned from the Dodge Arena.") {
 }
 
 function spawnDodgeArenaBullet() {
+  const headshotConfig = buildProjectileHeadshotConfig("arenaBullet");
   dodgeArenaBullets.push({
     x: DODGE_ARENA.x + 24 + Math.random() * (DODGE_ARENA.w - 48),
     y: DODGE_ARENA.y - 18,
     radius: 7 + Math.random() * 2,
     speed: 260 + Math.random() * 90,
     damage: 14,
+    baseDamage: 14,
+    projectileType: "arenaBullet",
+    canHeadshot: true,
+    headshotChance: headshotConfig.headshotChance,
+    headshotMultiplier: headshotConfig.headshotMultiplier,
   });
 }
 
@@ -1394,8 +1404,7 @@ function updateDodgeArena(dt) {
     const bullet = dodgeArenaBullets[index];
     bullet.y += bullet.speed * dt;
     if (distance(hero, bullet) <= hero.radius + bullet.radius) {
-      hero.hp -= bullet.damage;
-      spawnDamagePopup(hero, bullet.damage);
+      applyRangedProjectileHit(hero, bullet);
       dodgeArenaBullets.splice(index, 1);
       continue;
     }
