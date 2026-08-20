@@ -4910,13 +4910,16 @@ function drawNameplate(
   name,
   fillStyle = "rgba(15, 33, 24, 0.88)",
   textFillRatio = null,
-  progressColor = "#ffd36b"
+  progressColor = "#ffd36b",
+  borderStyle = "rgba(255, 245, 210, 0.28)",
+  textColor = "#fff5d2",
+  font = "700 14px Chakra Petch"
 ) {
   if (!name) {
     return;
   }
 
-  ctx.font = "700 14px Chakra Petch";
+  ctx.font = font;
   ctx.textAlign = "center";
   const paddingX = 10;
   const width = ctx.measureText(name).width + paddingX * 2;
@@ -4933,10 +4936,10 @@ function drawNameplate(
       ctx.fillRect(left, top, width * clampedRatio, height);
     }
   }
-  ctx.strokeStyle = "rgba(255, 245, 210, 0.28)";
+  ctx.strokeStyle = borderStyle;
   ctx.lineWidth = 1;
   ctx.strokeRect(left, top, width, height);
-  ctx.fillStyle = "#fff5d2";
+  ctx.fillStyle = textColor;
   ctx.fillText(name, x, top + 15);
 }
 
@@ -5372,7 +5375,17 @@ function render() {
   }
   drawDodgeArenaBullets();
   drawHealthBar(hero.x, hero.y - 34, 60, hero.hp / hero.maxHp);
-  drawNameplate(hero.x, hero.y - 50, player.displayName || "Player");
+  drawNameplate(
+    hero.x,
+    hero.y - 50,
+    player.displayName || "Player",
+    "rgba(10, 18, 14, 0.42)",
+    null,
+    "#ffd36b",
+    "rgba(255, 245, 210, 0.16)",
+    "rgba(255, 253, 242, 0.92)",
+    "500 14px Chakra Petch"
+  );
   drawHarvestProgress();
   drawSlashArc();
   drawGrenadeAimArc();
