@@ -4405,13 +4405,12 @@ function drawSoldierHero() {
   } else if (
     image === soldierIdleImage ||
     image === soldierReloadingImage ||
-    image === soldierMedkitImage
+    image === soldierMedkitImage ||
+    image === soldierShootingImage
   ) {
     if (isFacingLeft) {
       ctx.scale(-1, 1);
     }
-  } else if (image === soldierShootingImage) {
-    ctx.rotate(shootingAngle || 0);
   }
   ctx.drawImage(image, -size / 2, -size / 2, size, size);
   const helmetStyle = getHeroHelmetStyle();
