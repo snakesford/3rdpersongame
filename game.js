@@ -26,6 +26,10 @@ const equipmentHelmetIconEl = document.getElementById("equipmentHelmetIcon");
 const equipmentBodyArmorNameEl = document.getElementById("equipmentBodyArmorName");
 const equipmentBodyArmorMetaEl = document.getElementById("equipmentBodyArmorMeta");
 const equipmentBodyArmorIconEl = document.getElementById("equipmentBodyArmorIcon");
+const inventoryListEl = document.getElementById("inventoryList");
+const questPanelEl = document.getElementById("questPanel");
+const questTitleEl = document.getElementById("questTitle");
+const questObjectiveEl = document.getElementById("questObjective");
 const statusTextEl = document.getElementById("statusText");
 const overlayMessageEl = document.getElementById("overlayMessage");
 const buildBarracksBtn = document.getElementById("buildBarracksBtn");
@@ -52,6 +56,10 @@ const classStepEl = document.getElementById("classStep");
 const playerNameInputEl = document.getElementById("playerNameInput");
 const confirmPlayerNameBtn = document.getElementById("confirmPlayerNameBtn");
 const classGridEl = document.querySelector(".class-grid");
+const dialoguePanelEl = document.getElementById("dialoguePanel");
+const dialogueSpeakerEl = document.getElementById("dialogueSpeaker");
+const dialogueTextEl = document.getElementById("dialogueText");
+const dialogueHintEl = document.getElementById("dialogueHint");
 const weaponBuffImage = new Image();
 weaponBuffImage.src = "./images/sword.jpg";
 const soldierRunningImage = new Image();
@@ -254,6 +262,38 @@ const SOLDIER_GRENADE_RANGE = GRID_SIZE * 4;
 const SOLDIER_GRENADE_RADIUS = 110;
 const SOLDIER_GRENADE_DAMAGE = 42;
 const SOLDIER_GRENADE_COOLDOWN = 6;
+const QUEST_ID = "goblinTrouble";
+const GOLD_HELMET_ARMOR = 95;
+const villager = {
+  x: 356,
+  y: 1298,
+  radius: 20,
+  name: "Villager",
+};
+const quest = {
+  id: QUEST_ID,
+  stage: "available",
+  goblinId: null,
+  activeDialogue: null,
+  dialogueIndex: 0,
+};
+const inventory = [];
+const QUEST_DIALOGUES = {
+  intro: [
+    "Please help us. A goblin has been causing trouble near the edge of the village.",
+    "Can you hunt it down and keep the village safe?",
+  ],
+  inProgress: [
+    "That goblin is still out there. Please take care of it.",
+  ],
+  readyToTurnIn: [
+    "You did it. The village is safe again.",
+    "Take this Gold Helmet as thanks for helping us.",
+  ],
+  completed: [
+    "You already saved us. Thank you again for dealing with the goblin.",
+  ],
+};
 
 const trees = [];
 const stones = [];
@@ -468,6 +508,191 @@ function initializeVillage() {
   );
 }
 
+function isQuestGoblin(unit) {
+  return unit?.kind === "goblin" && unit.id === quest.goblinId;
+}
+
+function hasInventoryItem(itemType) {
+  return inventory.some((item) => item.type === itemType);
+}
+
+function addInventoryItem(item) {
+  if (hasInventoryItem(item.type)) {
+    return;
+  }
+  inventory.push(item);
+  updateInventoryUI();
+}
+
+function awardGoldHelmet() {
+  if (quest.stage === "completed") {
+    return;
+  }
+
+  addInventoryItem({
+    type: "goldHelmet",
+    name: "Gold Helmet",
+    description: `Armor ${GOLD_HELMET_ARMOR}`,
+  });
+  hero.equippedArmorValue = GOLD_HELMET_ARMOR;
+  hero.equippedHelmetType = "goldHelmet";
+  hero.latestPickup = {
+    type: "goldHelmet",
+    armorValue: GOLD_HELMET_ARMOR,
+    radius: 18,
+  };
+  quest.stage = "completed";
+  updateQuestUI();
+  updateStatsUI();
+  spawnTextPopup(hero.x, hero.y - 28, "Gold Helmet received!", "rgba(255, 226, 148, 1)", 1.8);
+  statusTextEl.textContent = "Quest complete. Gold Helmet added to inventory.";
+}
+
+function completeQuestGoblinObjective(x, y) {
+  if (quest.stage !== "active") {
+    return;
+  }
+
+  quest.stage = "readyToTurnIn";
+  quest.goblinId = null;
+  updateQuestUI();
+  spawnTextPopup(x, y - 24, "Objective complete!", "rgba(214, 255, 176, 1)", 1.6);
+  statusTextEl.textContent = "Kill the Goblin (1/1). Return to the villager.";
+}
+
+function spawnQuestGoblin() {
+  if (quest.goblinId && enemies.some((enemy) => enemy.id === quest.goblinId)) {
+    return;
+  }
+
+  const goblin = createUnit("goblin", 862, 1462, false);
+  goblin.displayName = "Quest Goblin";
+  quest.goblinId = goblin.id;
+  spawnTextPopup(goblin.x, goblin.y - 22, "Goblin spotted!", "rgba(201, 255, 164, 1)", 1.6);
+}
+
+function getQuestObjectiveText() {
+  if (quest.stage === "available") {
+    return "Talk to the villager.";
+  }
+  if (quest.stage === "active") {
+    return "Kill the Goblin (0/1)";
+  }
+  if (quest.stage === "readyToTurnIn") {
+    return "Kill the Goblin (1/1) • Return to the villager.";
+  }
+  return "Quest complete.";
+}
+
+function updateQuestUI() {
+  const visible = player.hasSelectedCharacter || quest.stage !== "available";
+  questPanelEl.classList.toggle("hidden", !visible);
+  questTitleEl.textContent = "Goblin Trouble";
+  questObjectiveEl.textContent = getQuestObjectiveText();
+}
+
+function updateInventoryUI() {
+  inventoryListEl.textContent = "";
+  if (!inventory.length) {
+    const emptyEl = document.createElement("span");
+    emptyEl.className = "inventory-empty";
+    emptyEl.textContent = "No items yet";
+    inventoryListEl.appendChild(emptyEl);
+    return;
+  }
+
+  for (const item of inventory) {
+    const itemEl = document.createElement("div");
+    itemEl.className = "inventory-item";
+    itemEl.textContent = `${item.name} • ${item.description}`;
+    inventoryListEl.appendChild(itemEl);
+  }
+}
+
+function isHeroNearVillager() {
+  return distance(hero, villager) <= 80;
+}
+
+function isDialogueOpen() {
+  return Boolean(quest.activeDialogue);
+}
+
+function openQuestDialogue(dialogueKey) {
+  quest.activeDialogue = dialogueKey;
+  quest.dialogueIndex = 0;
+  updateDialogueUI();
+}
+
+function closeQuestDialogue() {
+  quest.activeDialogue = null;
+  quest.dialogueIndex = 0;
+  updateDialogueUI();
+}
+
+function updateDialogueUI() {
+  const open = isDialogueOpen();
+  dialoguePanelEl.classList.toggle("hidden", !open);
+  if (!open) {
+    return;
+  }
+
+  const lines = QUEST_DIALOGUES[quest.activeDialogue] || [];
+  dialogueSpeakerEl.textContent = villager.name;
+  dialogueTextEl.textContent = lines[quest.dialogueIndex] || "";
+  const isLastLine = quest.dialogueIndex >= lines.length - 1;
+  if (quest.activeDialogue === "intro" && isLastLine) {
+    dialogueHintEl.textContent = "Press Space to accept quest";
+  } else if (quest.activeDialogue === "readyToTurnIn" && isLastLine) {
+    dialogueHintEl.textContent = "Press Space to claim reward";
+  } else {
+    dialogueHintEl.textContent = "Press Space to continue";
+  }
+}
+
+function beginVillagerInteraction() {
+  if (!isHeroNearVillager()) {
+    return false;
+  }
+
+  if (quest.stage === "available") {
+    openQuestDialogue("intro");
+  } else if (quest.stage === "active") {
+    openQuestDialogue("inProgress");
+  } else if (quest.stage === "readyToTurnIn") {
+    openQuestDialogue("readyToTurnIn");
+  } else {
+    openQuestDialogue("completed");
+  }
+
+  return true;
+}
+
+function advanceQuestDialogue() {
+  if (!isDialogueOpen()) {
+    return false;
+  }
+
+  const lines = QUEST_DIALOGUES[quest.activeDialogue] || [];
+  const isLastLine = quest.dialogueIndex >= lines.length - 1;
+  if (!isLastLine) {
+    quest.dialogueIndex += 1;
+    updateDialogueUI();
+    return true;
+  }
+
+  if (quest.activeDialogue === "intro" && quest.stage === "available") {
+    quest.stage = "active";
+    spawnQuestGoblin();
+    updateQuestUI();
+    statusTextEl.textContent = "Quest accepted: Kill the Goblin (0/1).";
+  } else if (quest.activeDialogue === "readyToTurnIn" && quest.stage === "readyToTurnIn") {
+    awardGoldHelmet();
+  }
+
+  closeQuestDialogue();
+  return true;
+}
+
 function createUnit(kind, x, y, isPlayer) {
   const enemyConfig = !isPlayer ? ENEMY_OPTIONS[kind] : null;
   if (!isPlayer && !enemyConfig) {
@@ -568,6 +793,10 @@ window.addEventListener("resize", resizeCanvas);
 resizeCanvas();
 
 function getCharacterStatus() {
+  if (isDialogueOpen()) {
+    return "Talking to the villager. Press Space to continue.";
+  }
+
   if (player.inDodgeArena) {
     return "Dodge Arena active. Survive the bullet rain.";
   }
@@ -584,6 +813,9 @@ function getCharacterStatus() {
   if (nearbyPickup) {
     if (nearbyPickup.type === "rareHelmet") {
       return "Press E to equip the rare blue helmet.";
+    }
+    if (nearbyPickup.type === "goldHelmet") {
+      return "Press E to equip the Gold Helmet.";
     }
     if (nearbyPickup.type === "healthBuff") {
       return "Run over the health buff to gain +20 HP.";
@@ -605,6 +837,19 @@ function getCharacterStatus() {
 
   if (isHeroNearTrader()) {
     return "Near the Trader. Press Space to buy weapon upgrades.";
+  }
+
+  if (isHeroNearVillager()) {
+    if (quest.stage === "available") {
+      return "Near the Villager. Press Space to hear about a goblin quest.";
+    }
+    if (quest.stage === "active") {
+      return "Quest active. Kill the Goblin (0/1).";
+    }
+    if (quest.stage === "readyToTurnIn") {
+      return "Return to the Villager. Press Space to claim your reward.";
+    }
+    return "The villager is grateful for your help.";
   }
 
   if (isHeroNearShop()) {
@@ -891,6 +1136,7 @@ function updateEquipmentUI(selected, stats) {
 
   const equippedHelmetType = hero.latestPickup?.type === "helmet" ||
     hero.latestPickup?.type === "rareHelmet" ||
+    hero.latestPickup?.type === "goldHelmet" ||
     hero.latestPickup?.type === "enemyHelmet"
     ? hero.latestPickup.type
     : hero.equippedHelmetType || (player.helmetBonusArmor > 0 ? "helmet" : null);
@@ -900,6 +1146,10 @@ function updateEquipmentUI(selected, stats) {
   if (equippedHelmetType === "rareHelmet") {
     equipmentHelmetIconEl.src = buildHelmetIcon("#4ea0ff", "#d2efff");
     equipmentHelmetNameEl.textContent = "Rare Helmet";
+    equipmentHelmetMetaEl.textContent = `Armor ${helmetArmorValue}`;
+  } else if (equippedHelmetType === "goldHelmet") {
+    equipmentHelmetIconEl.src = buildHelmetIcon("#d3a63a", "#fff0b3");
+    equipmentHelmetNameEl.textContent = "Gold Helmet";
     equipmentHelmetMetaEl.textContent = `Armor ${helmetArmorValue}`;
   } else if (equippedHelmetType === "enemyHelmet") {
     equipmentHelmetIconEl.src = buildHelmetIcon("#78bf6f", "#ecffd8");
@@ -1922,6 +2172,7 @@ function getNearbyTree() {
 function isManualPickupType(type) {
   return type === "helmet" ||
     type === "rareHelmet" ||
+    type === "goldHelmet" ||
     type === "enemyHelmet" ||
     type === "axe" ||
     type === "rifle" ||
@@ -1938,7 +2189,7 @@ function getNearbyPickup() {
 }
 
 function equipPickup(pickup) {
-  if (pickup.type === "helmet" || pickup.type === "rareHelmet" || pickup.type === "enemyHelmet") {
+  if (pickup.type === "helmet" || pickup.type === "rareHelmet" || pickup.type === "goldHelmet" || pickup.type === "enemyHelmet") {
     const previousArmor = getTotalArmor();
     if (hero.equippedHelmetType && hero.equippedArmorValue > 0) {
       spawnPickupDrop(
@@ -1963,6 +2214,9 @@ function equipPickup(pickup) {
     if (pickup.type === "rareHelmet") {
       spawnTextPopup(pickup.x, pickup.y - 22, "Rare Helmet picked up!", "rgba(120, 196, 255, 1)", 1.8);
       spawnTextPopup(pickup.x, pickup.y + 4, `Rare Armor ${armorDelta >= 0 ? "+" : ""}${armorDelta}`, "rgba(120, 196, 255, 1)", 1.8);
+    } else if (pickup.type === "goldHelmet") {
+      spawnTextPopup(pickup.x, pickup.y - 22, "Gold Helmet equipped!", "rgba(255, 226, 148, 1)", 1.8);
+      spawnTextPopup(pickup.x, pickup.y + 4, `Armor ${armorDelta >= 0 ? "+" : ""}${armorDelta}`, "rgba(255, 244, 196, 1)", 1.8);
     } else if (pickup.type === "enemyHelmet") {
       spawnTextPopup(pickup.x, pickup.y - 22, "Enemy Helmet picked up!", "rgba(170, 255, 170, 1)", 1.8);
       spawnTextPopup(pickup.x, pickup.y + 4, `Armor ${armorDelta >= 0 ? "+" : ""}${armorDelta}`, "rgba(170, 255, 170, 1)", 1.8);
@@ -2377,6 +2631,13 @@ function updateHero(dt) {
     }
   }
   hero.isMoving = false;
+  if (isDialogueOpen()) {
+    woodCountEl.textContent = String(player.wood);
+    moneyCountEl.textContent = String(player.money);
+    statusTextEl.textContent = getCharacterStatus();
+    updateAbilityUI();
+    return;
+  }
   if (mouse.leftDown && !player.isPlacingBuilding && !player.shopOpen && !player.traderOpen) {
     if (hero.hasRifle) {
       spawnHeroBullet(mouse.worldX, mouse.worldY);
@@ -2676,6 +2937,9 @@ function cleanupDeathZoneEntities() {
 
   for (let i = enemies.length - 1; i >= 0; i -= 1) {
     if (isInsideDeathZone(enemies[i])) {
+      if (isQuestGoblin(enemies[i])) {
+        completeQuestGoblinObjective(enemies[i].x, enemies[i].y);
+      }
       enemies.splice(i, 1);
     }
   }
@@ -2723,6 +2987,10 @@ function cleanupDefeatedEnemies() {
 
     if (enemy.kind === "boss") {
       spawnRareHelmetDrop(enemy.x, enemy.y);
+    }
+
+    if (isQuestGoblin(enemy)) {
+      completeQuestGoblinObjective(enemy.x, enemy.y);
     }
 
     awardPlayerXp(enemy.xpReward || 0, enemy.x, enemy.y);
@@ -2937,12 +3205,19 @@ function drawMinimap() {
   minimapCtx.arc(toMapX(trader.x), toMapY(trader.y), 3, 0, Math.PI * 2);
   minimapCtx.fill();
 
+  minimapCtx.fillStyle = "#ffd87c";
+  minimapCtx.beginPath();
+  minimapCtx.arc(toMapX(villager.x), toMapY(villager.y), 3, 0, Math.PI * 2);
+  minimapCtx.fill();
+
   for (const pickup of pickups) {
     if (pickup.collected || distance(hero, pickup) > MINIMAP_NEARBY_RADIUS * 1.25) {
       continue;
     }
     minimapCtx.fillStyle = pickup.type === "rareHelmet"
       ? "#6db5ff"
+      : pickup.type === "goldHelmet"
+        ? "#e1bb55"
       : pickup.type === "healthBuff"
         ? "#ff9a9a"
         : pickup.type === "weaponBuff"
@@ -3018,9 +3293,21 @@ function drawPickup(pickup) {
     return;
   }
 
-  if (pickup.type === "helmet" || pickup.type === "rareHelmet" || pickup.type === "enemyHelmet") {
-    const fill = pickup.type === "rareHelmet" ? "#3f89d8" : pickup.type === "enemyHelmet" ? "#4f9e58" : "#8795a8";
-    const stroke = pickup.type === "rareHelmet" ? "#b8e1ff" : pickup.type === "enemyHelmet" ? "#d3ffb5" : "#dce5ef";
+  if (pickup.type === "helmet" || pickup.type === "rareHelmet" || pickup.type === "goldHelmet" || pickup.type === "enemyHelmet") {
+    const fill = pickup.type === "rareHelmet"
+      ? "#3f89d8"
+      : pickup.type === "goldHelmet"
+        ? "#d3a63a"
+        : pickup.type === "enemyHelmet"
+          ? "#4f9e58"
+          : "#8795a8";
+    const stroke = pickup.type === "rareHelmet"
+      ? "#b8e1ff"
+      : pickup.type === "goldHelmet"
+        ? "#fff0b3"
+        : pickup.type === "enemyHelmet"
+          ? "#d3ffb5"
+          : "#dce5ef";
     ctx.fillStyle = fill;
     ctx.beginPath();
     ctx.arc(pickup.x, pickup.y, pickup.radius, Math.PI, 0);
@@ -3122,6 +3409,21 @@ function drawTrader() {
   ctx.fillText("TRADER", trader.x, trader.y - 34);
 }
 
+function drawVillager() {
+  ctx.beginPath();
+  ctx.fillStyle = "#d2b08a";
+  ctx.arc(villager.x, villager.y, villager.radius, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.fillStyle = "#6b472b";
+  ctx.arc(villager.x, villager.y - 7, villager.radius * 0.42, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = "#fff1cf";
+  ctx.font = "700 14px Chakra Petch";
+  ctx.textAlign = "center";
+  ctx.fillText("VILLAGER", villager.x, villager.y - 34);
+}
+
 function drawVillageProp(prop) {
   if (prop.type === "crate") {
     ctx.fillStyle = "#8f643c";
@@ -3189,6 +3491,10 @@ function getHeroHelmetStyle() {
 
   if (helmetType === "rareHelmet") {
     return { fill: "#3f89d8", stroke: "#b8e1ff" };
+  }
+
+  if (helmetType === "goldHelmet") {
+    return { fill: "#d3a63a", stroke: "#fff0b3" };
   }
 
   if (helmetType === "enemyHelmet") {
@@ -3843,6 +4149,16 @@ function drawBuildPreview() {
 }
 
 function drawModeHint() {
+  if (isHeroNearVillager() && !isDialogueOpen()) {
+    ctx.fillStyle = "rgba(15, 33, 24, 0.82)";
+    ctx.fillRect(villager.x - 58, villager.y - 72, 116, 26);
+    ctx.fillStyle = "#fff5d2";
+    ctx.font = "600 16px Chakra Petch";
+    ctx.textAlign = "center";
+    ctx.fillText("Press Space", villager.x, villager.y - 54);
+    return;
+  }
+
   const nearbyPickup = getNearbyPickup();
   if (nearbyPickup) {
     ctx.fillStyle = "rgba(15, 33, 24, 0.82)";
@@ -3889,6 +4205,7 @@ function render() {
   }
 
   drawTrader();
+  drawVillager();
 
   for (const building of buildings) {
     drawBuilding(building);
@@ -3940,6 +4257,11 @@ function render() {
       ctx.font = "700 16px Chakra Petch";
       ctx.textAlign = "center";
       ctx.fillText("BOSS", unit.x, unit.y - 44);
+    } else if (isQuestGoblin(unit)) {
+      ctx.fillStyle = "#d7ffb8";
+      ctx.font = "700 14px Chakra Petch";
+      ctx.textAlign = "center";
+      ctx.fillText("GOBLIN", unit.x, unit.y - 36);
     }
   }
 
@@ -3974,8 +4296,24 @@ window.addEventListener("keydown", (event) => {
     return;
   }
 
+  if (isDialogueOpen()) {
+    if (event.code === "Space") {
+      event.preventDefault();
+      advanceQuestDialogue();
+      return;
+    }
+    if (event.key === "Escape") {
+      closeQuestDialogue();
+      statusTextEl.textContent = getCharacterStatus();
+    }
+    return;
+  }
+
   if (event.code === "Space") {
     event.preventDefault();
+    if (beginVillagerInteraction()) {
+      return;
+    }
     if (isHeroNearTrader()) {
       if (player.traderOpen) {
         closeTrader();
@@ -4347,6 +4685,7 @@ function selectCharacter(classId) {
   statusTextEl.textContent = classId === "soldier"
     ? `${selectedClass.name} selected. Walk near a tree and press E to harvest wood. Press F for Burst Shot and G for Grenade.`
     : `${selectedClass.name} selected. Walk near a tree and press E to harvest wood.`;
+  updateQuestUI();
   updateAbilityUI();
   updateStatsUI();
   updateXpUI();
@@ -4437,6 +4776,9 @@ async function initializeGame() {
     updateAbilityUI();
     updateStatsUI();
     updateXpUI();
+    updateQuestUI();
+    updateInventoryUI();
+    updateDialogueUI();
     updateShopUI();
     updateTraderUI();
     updateTrainButton();

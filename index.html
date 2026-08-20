@@ -27,6 +27,11 @@
           <span class="brand-kicker">RTS / ACTION PROTOTYPE</span>
           <h1>Timberline Command</h1>
         </div>
+        <div id="questPanel" class="quest-panel hidden">
+          <span class="stats-kicker">Quest</span>
+          <strong id="questTitle">Goblin Trouble</strong>
+          <span id="questObjective" class="quest-objective">Talk to the villager.</span>
+        </div>
         <div class="resource-panel">
           <div class="resource-row">
             <span>Wood</span>
@@ -113,6 +118,12 @@
               </div>
             </div>
           </div>
+          <div class="inventory-panel">
+            <span class="stats-kicker inventory-kicker">Inventory</span>
+            <div id="inventoryList" class="inventory-list">
+              <span class="inventory-empty">No items yet</span>
+            </div>
+          </div>
         </div>
 
       </div>
@@ -172,6 +183,14 @@
       <button id="buyWeaponUpgradeBtn">Buy Weapon Enhancement (50 gold)</button>
       <div id="traderStatus" class="trader-status">Current bonus: +0 weapon</div>
       <button id="closeTraderBtn" class="shop-close">Close</button>
+    </div>
+  </div>
+
+  <div id="dialoguePanel" class="dialogue-panel hidden">
+    <div class="dialogue-card">
+      <span id="dialogueSpeaker" class="dialogue-speaker">Villager</span>
+      <p id="dialogueText" class="dialogue-text"></p>
+      <div id="dialogueHint" class="dialogue-hint">Press Space to continue</div>
     </div>
   </div>
 

@@ -26,6 +26,15 @@
     "attackCooldown": 1,
     "xp": 15
   },
+  "goblin": {
+    "radius": 16,
+    "speed": 96,
+    "hp": 55,
+    "damage": 9,
+    "attackRange": 28,
+    "attackCooldown": 0.85,
+    "xp": 30
+  },
   "enemyHero": {
     "radius": 18,
     "speed": 0,
