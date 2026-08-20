@@ -797,44 +797,6 @@ function getCharacterStatus() {
     return "Talking to the villager. Press Space to continue.";
   }
 
-  if (player.inDodgeArena) {
-    return "Dodge Arena active. Survive the bullet rain.";
-  }
-
-  if (grenadeAim.active) {
-    return "Grenade readied. Release G to throw.";
-  }
-
-  if (player.isPlacingBuilding) {
-    return "Place the Barracks on open ground. Right-click or press Escape to cancel.";
-  }
-
-  const nearbyPickup = getNearbyPickup();
-  if (nearbyPickup) {
-    if (nearbyPickup.type === "rareHelmet") {
-      return "Press E to equip the rare blue helmet.";
-    }
-    if (nearbyPickup.type === "goldHelmet") {
-      return "Press E to equip the Gold Helmet.";
-    }
-    if (nearbyPickup.type === "healthBuff") {
-      return "Run over the health buff to gain +20 HP.";
-    }
-    if (nearbyPickup.type === "weaponBuff") {
-      return "Run over the weapon buff to gain +2 damage.";
-    }
-    if (nearbyPickup.type === "axe") {
-      return "Press E to equip the axe. Click to swing it.";
-    }
-    if (nearbyPickup.type === "rifle") {
-      return "Press E to equip the M4 rifle. Left-click to fire, F for Burst Shot, G for Grenade.";
-    }
-    if (nearbyPickup.type === "bow") {
-      return "Press E to equip the bow. Hold left-click to fire arrows.";
-    }
-    return "Press E to equip the helmet.";
-  }
-
   if (isHeroNearTrader()) {
     return "Near the Trader. Press Space to buy weapon upgrades.";
   }
@@ -843,44 +805,20 @@ function getCharacterStatus() {
     if (quest.stage === "available") {
       return "Near the Villager. Press Space to hear about a goblin quest.";
     }
-    if (quest.stage === "active") {
-      return "Quest active. Kill the Goblin (0/1).";
-    }
     if (quest.stage === "readyToTurnIn") {
       return "Return to the Villager. Press Space to claim your reward.";
     }
-    return "The villager is grateful for your help.";
+    if (quest.stage === "active") {
+      return "Near the Villager. Press Space to talk about the goblin quest.";
+    }
+    return "Near the Villager. Press Space to talk.";
   }
 
   if (isHeroNearShop()) {
     return "Near the Shop. Press Space to trade 25 wood for 25 gold.";
   }
 
-  if (!SPAWN_WAVE_TILE.triggered && isHeroOnSpawnWaveTile()) {
-    return "Spawn Wave triggered.";
-  }
-
-  if (isHeroOnSpawnStreamTile()) {
-    return "Standing on Spawn Stream.";
-  }
-
-  if (isHeroOnDodgeArenaTile()) {
-    return "Step onto Dodge Arena to teleport in.";
-  }
-
-  const tree = getNearbyTree();
-  if (hero.isHarvesting) {
-    return "Harvesting tree...";
-  }
-  if (tree) {
-    return "Press E to harvest this tree for 25 wood.";
-  }
-  if (hero.hasRifle) {
-    return hero.selectedClass === "soldier"
-      ? "Left-click to fire the M4 rifle. Press F for Burst Shot or G for Grenade."
-      : "Left-click to fire the M4 rifle.";
-  }
-  return "Walk near a tree and press E to harvest wood.";
+  return "";
 }
 
 function updateTrainButton() {
@@ -1558,23 +1496,71 @@ function getDamagePopupPoint(target) {
   return { x: target.x, y: target.y - target.radius - 10 };
 }
 
+function getPopupSpawnPoint(baseX, baseY, lane = "center") {
+  const horizontalOffsets = lane === "xp"
+    ? [26, -26, 40, -40, 54, -54]
+    : [0, 18, -18, 32, -32];
+  const verticalStep = lane === "xp" ? 18 : 14;
+
+  for (let index = 0; index < horizontalOffsets.length; index += 1) {
+    const candidate = {
+      x: baseX + horizontalOffsets[index],
+      y: baseY - Math.floor(index / 2) * verticalStep,
+    };
+    const overlaps = damagePopups.some((popup) =>
+      Math.abs(popup.x - candidate.x) < 28 &&
+      Math.abs(popup.y - candidate.y) < 18 &&
+      popup.ttl > 0.15
+    );
+    if (!overlaps) {
+      return candidate;
+    }
+  }
+
+  return {
+    x: baseX + (lane === "xp" ? 26 : 0),
+    y: baseY - verticalStep * 2,
+  };
+}
+
+function getRandomDamagePopupVector() {
+  const directions = [
+    { x: 0, y: -1 },
+    { x: 0, y: 1 },
+    { x: -1, y: 0 },
+    { x: 1, y: 0 },
+  ];
+  const direction = directions[Math.floor(Math.random() * directions.length)];
+  return {
+    offsetX: direction.x * 20,
+    offsetY: direction.y * 20,
+    driftX: direction.x * 34,
+    driftY: direction.y * 34,
+  };
+}
+
 function spawnDamagePopup(target, amount) {
   const point = getDamagePopupPoint(target);
+  const vector = getRandomDamagePopupVector();
+  const popupPoint = getPopupSpawnPoint(point.x + vector.offsetX, point.y + vector.offsetY, "damage");
   damagePopups.push({
-    x: point.x,
-    y: point.y,
+    x: popupPoint.x,
+    y: popupPoint.y,
     amount,
     ttl: 0.6,
     maxTtl: 0.6,
     color: "rgba(255, 230, 140, 1)",
     outline: "rgba(35, 20, 10, 1)",
+    driftX: vector.driftX,
+    driftY: vector.driftY,
   });
 }
 
 function spawnTextPopup(x, y, text, color = "rgba(255, 230, 140, 1)", ttl = 0.9) {
+  const popupPoint = getPopupSpawnPoint(x, y, String(text).includes("XP") ? "xp" : "center");
   damagePopups.push({
-    x,
-    y,
+    x: popupPoint.x,
+    y: popupPoint.y,
     amount: text,
     ttl,
     maxTtl: ttl,
@@ -2798,9 +2784,11 @@ function updateHero(dt) {
 
 function updateDamagePopups(dt) {
   for (let index = damagePopups.length - 1; index >= 0; index -= 1) {
-    damagePopups[index].ttl -= dt;
-    damagePopups[index].y -= 34 * dt;
-    if (damagePopups[index].ttl <= 0) {
+    const popup = damagePopups[index];
+    popup.ttl -= dt;
+    popup.x += (popup.driftX || 0) * dt;
+    popup.y += (popup.driftY ?? -34) * dt;
+    if (popup.ttl <= 0) {
       damagePopups.splice(index, 1);
     }
   }

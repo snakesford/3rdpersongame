@@ -45,12 +45,6 @@
       </div>
 
       <div class="hud-right">
-        <div class="minimap-panel">
-          <div class="minimap-head">
-            <span class="stats-kicker minimap-kicker">Mini Map</span>
-          </div>
-          <canvas id="minimapCanvas" class="minimap-canvas" width="220" height="140"></canvas>
-        </div>
         <div class="stats-panel">
           <span class="stats-kicker">Player Stats</span>
           <div class="stats-grid">
@@ -130,13 +124,22 @@
     </div>
 
     <div class="hud-bottom">
+      <div class="hud-bottom-left">
+        <div class="minimap-panel">
+          <div class="minimap-head">
+            <span class="stats-kicker minimap-kicker">Mini Map</span>
+          </div>
+          <canvas id="minimapCanvas" class="minimap-canvas" width="220" height="140"></canvas>
+        </div>
+
+        <div class="status-panel">
+          <div id="statusText">Walk near a tree and press E to harvest wood.</div>
+        </div>
+      </div>
+
       <div class="controls-panel">
         <button id="buildBarracksBtn">Build Barracks (100 wood)</button>
         <button id="trainSoldierBtn" class="hidden">Train Soldier (50 gold)</button>
-      </div>
-
-      <div class="status-panel">
-        <div id="statusText">Walk near a tree and press E to harvest wood.</div>
       </div>
     </div>
 
