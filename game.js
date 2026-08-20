@@ -1395,6 +1395,29 @@ function damageEnemiesInRadiusFromPoint(centerX, centerY, damage, radius) {
   }
 }
 
+function destroyEnvironmentInRadius(centerX, centerY, radius) {
+  const center = { x: centerX, y: centerY };
+
+  for (let i = trees.length - 1; i >= 0; i -= 1) {
+    const tree = trees[i];
+    if (distance(center, tree) <= radius + tree.radius) {
+      if (harvestTreeId === tree.id) {
+        cancelHarvest();
+      }
+      spawnTextPopup(tree.x, tree.y - tree.radius - 10, "Tree down", "rgba(201, 255, 184, 1)", 0.8);
+      trees.splice(i, 1);
+    }
+  }
+
+  for (let i = stones.length - 1; i >= 0; i -= 1) {
+    const stone = stones[i];
+    if (distance(center, stone) <= radius + stone.radius) {
+      spawnTextPopup(stone.x, stone.y - stone.radius - 10, "Rock blasted", "rgba(214, 226, 235, 1)", 0.8);
+      stones.splice(i, 1);
+    }
+  }
+}
+
 function damageEnemiesInLine(damage, range, width) {
   const aimAngle = getAbilityAimAngle();
   const start = { x: hero.x, y: hero.y };
@@ -1462,6 +1485,7 @@ function explodeGrenade(grenade) {
     maxTtl: 0.42,
   });
   damageEnemiesInRadiusFromPoint(grenade.targetX, grenade.targetY, SOLDIER_GRENADE_DAMAGE + player.weaponBonusDamage, SOLDIER_GRENADE_RADIUS);
+  destroyEnvironmentInRadius(grenade.targetX, grenade.targetY, SOLDIER_GRENADE_RADIUS);
   spawnTextPopup(grenade.targetX, grenade.targetY - 18, "BOOM", "rgba(255, 210, 138, 1)", 0.5);
 }
 
