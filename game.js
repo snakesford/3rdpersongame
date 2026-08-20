@@ -1,409 +1,151 @@
-const canvas = document.getElementById("gameCanvas");
-const ctx = canvas.getContext("2d");
-
-const armorValueEl = document.getElementById("armorValue");
-const healthValueEl = document.getElementById("healthValue");
-const weaponValueEl = document.getElementById("weaponValue");
-const speedValueEl = document.getElementById("speedValue");
-const regenValueEl = document.getElementById("regenValue");
-const armorFillEl = document.getElementById("armorFill");
-const healthFillEl = document.getElementById("healthFill");
-const weaponFillEl = document.getElementById("weaponFill");
-const speedFillEl = document.getElementById("speedFill");
-const regenFillEl = document.getElementById("regenFill");
-const xpLevelEl = document.getElementById("xpLevel");
-const xpFillEl = document.getElementById("xpFill");
-const upgradePointsEl = document.getElementById("upgradePoints");
-const upgradeActionEls = document.querySelectorAll(".upgrade-action");
-const minimapCanvas = document.getElementById("minimapCanvas");
-const minimapCtx = minimapCanvas.getContext("2d");
-const equipmentWeaponNameEl = document.getElementById("equipmentWeaponName");
-const equipmentWeaponMetaEl = document.getElementById("equipmentWeaponMeta");
-const equipmentWeaponIconEl = document.getElementById("equipmentWeaponIcon");
-const equipmentHelmetNameEl = document.getElementById("equipmentHelmetName");
-const equipmentHelmetMetaEl = document.getElementById("equipmentHelmetMeta");
-const equipmentHelmetIconEl = document.getElementById("equipmentHelmetIcon");
-const equipmentBodyArmorNameEl = document.getElementById("equipmentBodyArmorName");
-const equipmentBodyArmorMetaEl = document.getElementById("equipmentBodyArmorMeta");
-const equipmentBodyArmorIconEl = document.getElementById("equipmentBodyArmorIcon");
-const inventoryListEl = document.getElementById("inventoryList");
-const questPanelEl = document.getElementById("questPanel");
-const questTitleEl = document.getElementById("questTitle");
-const questObjectiveEl = document.getElementById("questObjective");
-const statusTextEl = document.getElementById("statusText");
-const overlayMessageEl = document.getElementById("overlayMessage");
-const buildBarracksBtn = document.getElementById("buildBarracksBtn");
-const trainSoldierBtn = document.getElementById("trainSoldierBtn");
-const shopPanelEl = document.getElementById("shopPanel");
-const shopSellWoodBtn = document.getElementById("shopSellWoodBtn");
-const closeShopBtn = document.getElementById("closeShopBtn");
-const traderPanelEl = document.getElementById("traderPanel");
-const buyWeaponUpgradeBtn = document.getElementById("buyWeaponUpgradeBtn");
-const closeTraderBtn = document.getElementById("closeTraderBtn");
-const traderStatusEl = document.getElementById("traderStatus");
-const slashAbilityEl = document.getElementById("slashAbility");
-const abilityNameEl = document.getElementById("abilityName");
-const slashCooldownTextEl = document.getElementById("slashCooldownText");
-const battleMedicineAbilityEl = document.getElementById("battleMedicineAbility");
-const battleMedicineAbilityNameEl = document.getElementById("battleMedicineAbilityName");
-const battleMedicineCooldownTextEl = document.getElementById("battleMedicineCooldownText");
-const grenadeAbilityEl = document.getElementById("grenadeAbility");
-const grenadeAbilityNameEl = document.getElementById("grenadeAbilityName");
-const grenadeCooldownTextEl = document.getElementById("grenadeCooldownText");
-const dashAbilityEl = document.getElementById("dashAbility");
-const dashAbilityNameEl = document.getElementById("dashAbilityName");
-const dashCooldownTextEl = document.getElementById("dashCooldownText");
-const characterSelectEl = document.getElementById("characterSelect");
-const nameStepEl = document.getElementById("nameStep");
-const classStepEl = document.getElementById("classStep");
-const playerNameInputEl = document.getElementById("playerNameInput");
-const confirmPlayerNameBtn = document.getElementById("confirmPlayerNameBtn");
-const classGridEl = document.querySelector(".class-grid");
-const dialoguePanelEl = document.getElementById("dialoguePanel");
-const dialogueSpeakerEl = document.getElementById("dialogueSpeaker");
-const dialogueTextEl = document.getElementById("dialogueText");
-const dialogueHintEl = document.getElementById("dialogueHint");
-const weaponBuffImage = new Image();
-weaponBuffImage.src = "./images/sword.jpg";
-const soldierRunningImage = new Image();
-soldierRunningImage.src = "./images/soldierRunning.png";
-const soldierRunningTransitionImage = new Image();
-soldierRunningTransitionImage.src = "./images/soldierRunningTransition.png";
-const soldierRunningRightFootImage = new Image();
-soldierRunningRightFootImage.src = "./images/soldierRunningRightFoot.png";
-const soldierIdleImage = new Image();
-soldierIdleImage.src = "./images/soldier-stationary.png";
-const soldierShootingImage = new Image();
-soldierShootingImage.src = "./images/soldier-shooting.png";
-const skeletonImage = new Image();
-skeletonImage.src = "./images/skeleton.png";
-const bowImage = new Image();
-bowImage.src = "./images/bow.png";
-const archerImage = new Image();
-archerImage.src = "./images/archer.png";
-const archerRunningImage = new Image();
-archerRunningImage.src = "./images/archer-running.png";
-const archerShootingImage = new Image();
-archerShootingImage.src = "./images/archer-shooting.png";
-const archerDeadImage = new Image();
-archerDeadImage.src = "./images/archer-dead.png";
-
-const MAIN_WORLD_HEIGHT = 1400;
-const MAIN_LANE_Y = 700;
-const WORLD = { width: 2400, height: 1900 };
-const GRID_SIZE = 120;
-const PLAYER_BASE_SPAWN = { x: 250, y: 740 };
-const DEATH_ZONE = {
-  x: WORLD.width / 2 - 110,
-  y: MAIN_WORLD_HEIGHT - 300,
-  size: 220,
-};
-const SPAWN_WAVE_TILE = {
-  x: PLAYER_BASE_SPAWN.x + 120,
-  y: PLAYER_BASE_SPAWN.y + 110,
-  size: 90,
-  triggered: false,
-};
-const SPAWN_STREAM_TILE = {
-  x: PLAYER_BASE_SPAWN.x + 220,
-  y: PLAYER_BASE_SPAWN.y + 110,
-  size: 90,
-  interval: 0.5,
-  timer: 0,
-};
-const DODGE_ARENA_TILE = {
-  x: PLAYER_BASE_SPAWN.x + 320,
-  y: PLAYER_BASE_SPAWN.y + 110,
-  size: 90,
-};
-const DODGE_ARENA = {
-  x: WORLD.width - 520,
-  y: 120,
-  w: 360,
-  h: 320,
-  spawnX: WORLD.width - 340,
-  spawnY: 280,
-  bulletInterval: 0.3,
-};
-const VILLAGE_ROAD_WIDTH = 76;
-const COLORS = {
-  ground: "#a8cb7a",
-  path: "#b6c792",
-  tree: "#2f6b33",
-  trunk: "#5f4023",
-  stone: "#7e8792",
-  stoneShadow: "#5d6670",
-  stoneHighlight: "#c7d0da",
-  deathZone: "#6c2030",
-  hero: "#2546b8",
-  heroAccent: "#93b4ff",
-  soldier: "#315ba8",
-  enemy: "#9d3737",
-  spawnWave: "#7a5a32",
-  spawnStream: "#5d6f2e",
-  enemyBase: "#7f2727",
-  playerBase: "#3c6f4c",
-  barracks: "#6f4d96",
-  shop: "#7a5230",
-  dodgeArena: "#3e6f97",
-  villageRoof: "#8c5b3b",
-  villageWall: "#d7bf97",
-  villageWell: "#7f8f9d",
-  villageField: "#7e6638",
-  villageCrop: "#7dbf54",
-  villageFence: "#7a5a35",
-  villageHay: "#dcbf63",
-  selection: "#ffe487",
-  previewValid: "rgba(111, 77, 150, 0.45)",
-  previewInvalid: "rgba(198, 81, 81, 0.45)",
-  healthBg: "rgba(0, 0, 0, 0.32)",
-  healthGood: "#83df72",
-  healthBad: "#e36a6a",
-};
+import {
+  archerDeadImage,
+  archerImage,
+  archerRunningImage,
+  archerShootingImage,
+  bowImage,
+  skeletonImage,
+  soldierIdleImage,
+  soldierRunningImage,
+  soldierRunningRightFootImage,
+  soldierRunningTransitionImage,
+  soldierShootingImage,
+  weaponBuffImage,
+} from "./modules/assets.js";
+import {
+  COLORS,
+  DEFAULT_ENEMY_NAME,
+  DEATH_ZONE,
+  DODGE_ARENA,
+  DODGE_ARENA_DODGE_XP,
+  DODGE_ARENA_TILE,
+  GOLD_HELMET_ARMOR,
+  GRID_SIZE,
+  HELMET_HEADSHOT_PROTECTION,
+  MAIN_LANE_Y,
+  MAIN_WORLD_HEIGHT,
+  MINIMAP_NEARBY_RADIUS,
+  PLAYER_BASE_SPAWN,
+  PLAYER_NAME_STORAGE_KEY,
+  QUEST_DIALOGUES,
+  QUEST_ID,
+  RANGED_HEADSHOT_CONFIG,
+  SOLDIER_BATTLE_MEDICINE_COOLDOWN,
+  SOLDIER_BATTLE_MEDICINE_DURATION,
+  SOLDIER_BATTLE_MEDICINE_HEAL,
+  SOLDIER_BATTLE_MEDICINE_REGEN_BONUS,
+  SOLDIER_GRENADE_COOLDOWN,
+  SOLDIER_GRENADE_DAMAGE,
+  SOLDIER_GRENADE_RADIUS,
+  SOLDIER_GRENADE_RANGE,
+  SPAWN_STREAM_TILE,
+  SPAWN_WAVE_TILE,
+  UPGRADE_OPTIONS,
+  VILLAGE_ROAD_WIDTH,
+  WORLD,
+} from "./modules/constants.js";
+import {
+  abilityNameEl,
+  armorFillEl,
+  armorValueEl,
+  battleMedicineAbilityEl,
+  battleMedicineAbilityNameEl,
+  battleMedicineCooldownTextEl,
+  buildBarracksBtn,
+  buyWeaponUpgradeBtn,
+  canvas,
+  characterSelectEl,
+  classGridEl,
+  classStepEl,
+  closeShopBtn,
+  closeTraderBtn,
+  confirmPlayerNameBtn,
+  ctx,
+  dashAbilityEl,
+  dashAbilityNameEl,
+  dashCooldownTextEl,
+  dialogueHintEl,
+  dialoguePanelEl,
+  dialogueSpeakerEl,
+  dialogueTextEl,
+  equipmentBodyArmorIconEl,
+  equipmentBodyArmorMetaEl,
+  equipmentBodyArmorNameEl,
+  equipmentHelmetIconEl,
+  equipmentHelmetMetaEl,
+  equipmentHelmetNameEl,
+  equipmentWeaponIconEl,
+  equipmentWeaponMetaEl,
+  equipmentWeaponNameEl,
+  grenadeAbilityEl,
+  grenadeAbilityNameEl,
+  grenadeCooldownTextEl,
+  healthFillEl,
+  healthValueEl,
+  inventoryListEl,
+  minimapCanvas,
+  minimapCtx,
+  nameStepEl,
+  overlayMessageEl,
+  playerNameInputEl,
+  questObjectiveEl,
+  questPanelEl,
+  questTitleEl,
+  regenFillEl,
+  regenValueEl,
+  shopPanelEl,
+  shopSellWoodBtn,
+  slashAbilityEl,
+  slashCooldownTextEl,
+  speedFillEl,
+  speedValueEl,
+  statusTextEl,
+  traderPanelEl,
+  traderStatusEl,
+  trainSoldierBtn,
+  upgradeActionEls,
+  upgradePointsEl,
+  weaponFillEl,
+  weaponValueEl,
+  xpFillEl,
+  xpLevelEl,
+} from "./modules/dom.js";
+import {
+  buildings,
+  camera,
+  damagePopups,
+  dodgeArenaBullets,
+  enemies,
+  grenadeAim,
+  grenadeShockwaves,
+  hero,
+  heroGrenades,
+  heroProjectiles,
+  inventory,
+  keys,
+  mouse,
+  nextId,
+  pickups,
+  player,
+  quest,
+  sparkEffects,
+  stones,
+  trader,
+  trees,
+  units,
+  villageFences,
+  villageFields,
+  villagePaths,
+  villageProps,
+  villager,
+} from "./modules/state.js";
 
 let CHARACTER_OPTIONS = {};
 let ENEMY_OPTIONS = {};
 
-const player = {
-  displayName: "",
-  wood: 1000,
-  money: 0,
-  level: 1,
-  xp: 0,
-  upgradePoints: 0,
-  selectedUnits: [],
-  selectedBuildingId: null,
-  isPlacingBuilding: false,
-  victory: false,
-  loss: false,
-  hasBuiltBarracks: false,
-  hasSelectedCharacter: false,
-  shopOpen: false,
-  traderOpen: false,
-  inDodgeArena: false,
-  dodgeArenaReturnX: PLAYER_BASE_SPAWN.x + 40,
-  dodgeArenaReturnY: PLAYER_BASE_SPAWN.y,
-  weaponBonusStat: 0,
-  weaponBonusDamage: 0,
-  bonusArmor: 0,
-  bonusHealth: 0,
-  bonusDamage: 0,
-  bonusSpeed: 0,
-  bonusAbilityDamage: 0,
-  helmetBonusArmor: 0,
-};
-
-const camera = { x: 0, y: 0 };
-const mouse = { x: 0, y: 0, worldX: 0, worldY: 0, leftDown: false };
-const keys = new Set();
-const grenadeAim = { active: false };
-
-let entityId = 1;
 let selectionBox = null;
 let harvestTreeId = null;
 let lastTimestamp = 0;
-
-const hero = {
-  id: nextId(),
-  x: PLAYER_BASE_SPAWN.x,
-  y: PLAYER_BASE_SPAWN.y,
-  radius: 18,
-  speed: 220,
-  hp: 150,
-  maxHp: 150,
-  facingAngle: 0,
-  lastMoveAngle: null,
-  slashCooldown: 8,
-  slashTimer: 0,
-  slashRadius: 86,
-  slashHalfAngle: Math.PI / 2,
-  slashDamage: 35,
-  slashArcTimer: 0,
-  dashTimer: 0,
-  dashCooldown: 0,
-  dashCooldownRemaining: 0,
-  dashSpeed: 680,
-  dashDuration: 0.18,
-  selectedClass: null,
-  abilityEffect: null,
-  harvestTime: 1.4,
-  harvestProgress: 0,
-  isHarvesting: false,
-  equippedArmorValue: 0,
-  equippedHelmetType: null,
-  latestPickup: null,
-  hasAxe: false,
-  axeSwingTimer: 0,
-  axeSwingDuration: 0.22,
-  hasBow: false,
-  bowCooldown: 0,
-  grenadeCooldownRemaining: 0,
-  battleMedicineCooldownRemaining: 0,
-  battleMedicineBuffTimer: 0,
-  shootLockTimer: 0,
-  weaponPickupCooldown: 0,
-  hasRifle: false,
-  rifleCooldown: 0,
-  isMoving: false,
-  runAnimationTimer: 0,
-  isDead: false,
-  deathTimer: 0,
-  deathDuration: 0.7,
-  regenProgress: 0,
-  ammo: 0,
-  maxAmmo: 30,
-  isReloading: false,
-  reloadTimer: 0,
-  reloadDuration: 1.2,
-};
-
-const UPGRADE_OPTIONS = [
-  { id: "health", label: "Health", description: "+10 max HP" },
-  { id: "armor", label: "Armor", description: "+3 body armor" },
-  { id: "damage", label: "Damage", description: "+2 weapon damage" },
-  { id: "speed", label: "Speed", description: "+5 speed" },
-  { id: "ability", label: "Ability", description: "+3 ability damage" },
-  { id: "helmet", label: "Helmet", description: "+3 helmet armor" },
-];
-
-const DEFAULT_ENEMY_NAME = "Enemy Hero";
-const MINIMAP_NEARBY_RADIUS = 360;
-const PLAYER_NAME_STORAGE_KEY = "timberlineCommandPlayerName";
-const SOLDIER_GRENADE_RANGE = GRID_SIZE * 4;
-const SOLDIER_GRENADE_RADIUS = 110;
-const SOLDIER_GRENADE_DAMAGE = 42;
-const SOLDIER_GRENADE_COOLDOWN = 6;
-const SOLDIER_BATTLE_MEDICINE_HEAL = 50;
-const SOLDIER_BATTLE_MEDICINE_REGEN_BONUS = 2;
-const SOLDIER_BATTLE_MEDICINE_DURATION = 10;
-const SOLDIER_BATTLE_MEDICINE_COOLDOWN = 20;
-const DODGE_ARENA_DODGE_XP = 1;
-const RANGED_HEADSHOT_CONFIG = {
-  bullet: {
-    headshotChance: 0.18,
-    headshotMultiplier: 2,
-  },
-  arrow: {
-    headshotChance: 0.22,
-    headshotMultiplier: 2,
-  },
-  arenaBullet: {
-    headshotChance: 0.16,
-    headshotMultiplier: 2,
-  },
-};
-const HELMET_HEADSHOT_PROTECTION = {
-  helmet: 0.2,
-  rareHelmet: 0.45,
-  enemyHelmet: 0.6,
-  goldHelmet: 0.75,
-};
-const QUEST_ID = "goblinTrouble";
-const GOLD_HELMET_ARMOR = 95;
-const villager = {
-  x: 356,
-  y: 1298,
-  radius: 20,
-  name: "Villager",
-};
-const quest = {
-  id: QUEST_ID,
-  stage: "available",
-  goblinId: null,
-  activeDialogue: null,
-  dialogueIndex: 0,
-};
-const inventory = [];
-const QUEST_DIALOGUES = {
-  intro: [
-    "Please help us. A goblin has been causing trouble near the edge of the village.",
-    "Can you hunt it down and keep the village safe?",
-  ],
-  inProgress: [
-    "That goblin is still out there. Please take care of it.",
-  ],
-  readyToTurnIn: [
-    "You did it. The village is safe again.",
-    "Take this Gold Helmet as thanks for helping us.",
-  ],
-  completed: [
-    "You already saved us. Thank you again for dealing with the goblin.",
-  ],
-};
-
-const trees = [];
-const stones = [];
-const buildings = [];
-const units = [];
-const enemies = [];
-const heroProjectiles = [];
-const heroGrenades = [];
-const grenadeShockwaves = [];
-const damagePopups = [];
-const sparkEffects = [];
-const dodgeArenaBullets = [];
-const villageFields = [];
-const villagePaths = [];
-const villageFences = [];
-const villageProps = [];
-const trader = {
-  x: 304,
-  y: 1492,
-  radius: 22,
-};
-const pickups = [
-  // {
-  //   id: nextId(),
-  //   type: "helmet",
-  //   x: 540,
-  //   y: 650,
-  //   radius: 18,
-  //   collected: false,
-  //   armorValue: 60,
-  // },
-  // {
-  //   id: nextId(),
-  //   type: "healthBuff",
-  //   x: GRID_SIZE * 6 + 80,
-  //   y: MAIN_LANE_Y + 20,
-  //   radius: 18,
-  //   collected: false,
-  //   healthValue: 20,
-  // },
-  // {
-  //   id: nextId(),
-  //   type: "weaponBuff",
-  //   x: GRID_SIZE * 6 - 80,
-  //   y: MAIN_LANE_Y + 20,
-  //   radius: 18,
-  //   collected: false,
-  //   damageValue: 2,
-  // },
-  // {
-  //   id: nextId(),
-  //   type: "axe",
-  //   x: PLAYER_BASE_SPAWN.x + 140,
-  //   y: PLAYER_BASE_SPAWN.y - 50,
-  //   radius: 18,
-  //   collected: false,
-  // },
-  // {
-  //   id: nextId(),
-  //   type: "rifle",
-  //   x: PLAYER_BASE_SPAWN.x + 210,
-  //   y: PLAYER_BASE_SPAWN.y - 50,
-  //   radius: 18,
-  //   collected: false,
-  // },
-  // {
-  //   id: nextId(),
-  //   type: "bow",
-  //   x: PLAYER_BASE_SPAWN.x + 280,
-  //   y: PLAYER_BASE_SPAWN.y - 50,
-  //   radius: 18,
-  //   collected: false,
-  // },
-];
 
 spawnTrees();
 spawnStones();
@@ -431,10 +173,6 @@ function initializeEnemyForces() {
   radius: 18,
   };
   createUnit("enemySoldier", WORLD.width - 470, MAIN_LANE_Y + 90, false);
-}
-
-function nextId() {
-  return entityId++;
 }
 
 function spawnTrees() {

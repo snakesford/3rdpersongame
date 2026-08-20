@@ -1,0 +1,132 @@
+const canvas = document.getElementById("gameCanvas");
+const ctx = canvas.getContext("2d");
+
+const armorValueEl = document.getElementById("armorValue");
+const healthValueEl = document.getElementById("healthValue");
+const weaponValueEl = document.getElementById("weaponValue");
+const speedValueEl = document.getElementById("speedValue");
+const regenValueEl = document.getElementById("regenValue");
+const armorFillEl = document.getElementById("armorFill");
+const healthFillEl = document.getElementById("healthFill");
+const weaponFillEl = document.getElementById("weaponFill");
+const speedFillEl = document.getElementById("speedFill");
+const regenFillEl = document.getElementById("regenFill");
+const xpLevelEl = document.getElementById("xpLevel");
+const xpFillEl = document.getElementById("xpFill");
+const upgradePointsEl = document.getElementById("upgradePoints");
+const upgradeActionEls = document.querySelectorAll(".upgrade-action");
+const minimapCanvas = document.getElementById("minimapCanvas");
+const minimapCtx = minimapCanvas.getContext("2d");
+const equipmentWeaponNameEl = document.getElementById("equipmentWeaponName");
+const equipmentWeaponMetaEl = document.getElementById("equipmentWeaponMeta");
+const equipmentWeaponIconEl = document.getElementById("equipmentWeaponIcon");
+const equipmentHelmetNameEl = document.getElementById("equipmentHelmetName");
+const equipmentHelmetMetaEl = document.getElementById("equipmentHelmetMeta");
+const equipmentHelmetIconEl = document.getElementById("equipmentHelmetIcon");
+const equipmentBodyArmorNameEl = document.getElementById("equipmentBodyArmorName");
+const equipmentBodyArmorMetaEl = document.getElementById("equipmentBodyArmorMeta");
+const equipmentBodyArmorIconEl = document.getElementById("equipmentBodyArmorIcon");
+const inventoryListEl = document.getElementById("inventoryList");
+const questPanelEl = document.getElementById("questPanel");
+const questTitleEl = document.getElementById("questTitle");
+const questObjectiveEl = document.getElementById("questObjective");
+const statusTextEl = document.getElementById("statusText");
+const overlayMessageEl = document.getElementById("overlayMessage");
+const buildBarracksBtn = document.getElementById("buildBarracksBtn");
+const trainSoldierBtn = document.getElementById("trainSoldierBtn");
+const shopPanelEl = document.getElementById("shopPanel");
+const shopSellWoodBtn = document.getElementById("shopSellWoodBtn");
+const closeShopBtn = document.getElementById("closeShopBtn");
+const traderPanelEl = document.getElementById("traderPanel");
+const buyWeaponUpgradeBtn = document.getElementById("buyWeaponUpgradeBtn");
+const closeTraderBtn = document.getElementById("closeTraderBtn");
+const traderStatusEl = document.getElementById("traderStatus");
+const slashAbilityEl = document.getElementById("slashAbility");
+const abilityNameEl = document.getElementById("abilityName");
+const slashCooldownTextEl = document.getElementById("slashCooldownText");
+const battleMedicineAbilityEl = document.getElementById("battleMedicineAbility");
+const battleMedicineAbilityNameEl = document.getElementById("battleMedicineAbilityName");
+const battleMedicineCooldownTextEl = document.getElementById("battleMedicineCooldownText");
+const grenadeAbilityEl = document.getElementById("grenadeAbility");
+const grenadeAbilityNameEl = document.getElementById("grenadeAbilityName");
+const grenadeCooldownTextEl = document.getElementById("grenadeCooldownText");
+const dashAbilityEl = document.getElementById("dashAbility");
+const dashAbilityNameEl = document.getElementById("dashAbilityName");
+const dashCooldownTextEl = document.getElementById("dashCooldownText");
+const characterSelectEl = document.getElementById("characterSelect");
+const nameStepEl = document.getElementById("nameStep");
+const classStepEl = document.getElementById("classStep");
+const playerNameInputEl = document.getElementById("playerNameInput");
+const confirmPlayerNameBtn = document.getElementById("confirmPlayerNameBtn");
+const classGridEl = document.querySelector(".class-grid");
+const dialoguePanelEl = document.getElementById("dialoguePanel");
+const dialogueSpeakerEl = document.getElementById("dialogueSpeaker");
+const dialogueTextEl = document.getElementById("dialogueText");
+const dialogueHintEl = document.getElementById("dialogueHint");
+
+export {
+  abilityNameEl,
+  armorFillEl,
+  armorValueEl,
+  battleMedicineAbilityEl,
+  battleMedicineAbilityNameEl,
+  battleMedicineCooldownTextEl,
+  buildBarracksBtn,
+  canvas,
+  characterSelectEl,
+  classGridEl,
+  classStepEl,
+  closeShopBtn,
+  closeTraderBtn,
+  confirmPlayerNameBtn,
+  ctx,
+  dashAbilityEl,
+  dashAbilityNameEl,
+  dashCooldownTextEl,
+  dialogueHintEl,
+  dialoguePanelEl,
+  dialogueSpeakerEl,
+  dialogueTextEl,
+  equipmentBodyArmorIconEl,
+  equipmentBodyArmorMetaEl,
+  equipmentBodyArmorNameEl,
+  equipmentHelmetIconEl,
+  equipmentHelmetMetaEl,
+  equipmentHelmetNameEl,
+  equipmentWeaponIconEl,
+  equipmentWeaponMetaEl,
+  equipmentWeaponNameEl,
+  grenadeAbilityEl,
+  grenadeAbilityNameEl,
+  grenadeCooldownTextEl,
+  healthFillEl,
+  healthValueEl,
+  inventoryListEl,
+  minimapCanvas,
+  minimapCtx,
+  nameStepEl,
+  overlayMessageEl,
+  playerNameInputEl,
+  questObjectiveEl,
+  questPanelEl,
+  questTitleEl,
+  regenFillEl,
+  regenValueEl,
+  shopPanelEl,
+  shopSellWoodBtn,
+  slashAbilityEl,
+  slashCooldownTextEl,
+  speedFillEl,
+  speedValueEl,
+  statusTextEl,
+  traderPanelEl,
+  traderStatusEl,
+  trainSoldierBtn,
+  upgradeActionEls,
+  upgradePointsEl,
+  weaponFillEl,
+  weaponValueEl,
+  xpFillEl,
+  xpLevelEl,
+  buyWeaponUpgradeBtn,
+};
