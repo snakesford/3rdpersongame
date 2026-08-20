@@ -14,6 +14,9 @@ const speedFillEl = document.getElementById("speedFill");
 const xpLevelEl = document.getElementById("xpLevel");
 const xpFillEl = document.getElementById("xpFill");
 const upgradePointsEl = document.getElementById("upgradePoints");
+const upgradeActionEls = document.querySelectorAll(".upgrade-action");
+const minimapCanvas = document.getElementById("minimapCanvas");
+const minimapCtx = minimapCanvas.getContext("2d");
 const equipmentWeaponNameEl = document.getElementById("equipmentWeaponName");
 const equipmentWeaponMetaEl = document.getElementById("equipmentWeaponMeta");
 const equipmentWeaponIconEl = document.getElementById("equipmentWeaponIcon");
@@ -35,9 +38,6 @@ const traderPanelEl = document.getElementById("traderPanel");
 const buyWeaponUpgradeBtn = document.getElementById("buyWeaponUpgradeBtn");
 const closeTraderBtn = document.getElementById("closeTraderBtn");
 const traderStatusEl = document.getElementById("traderStatus");
-const upgradePanelEl = document.getElementById("upgradePanel");
-const upgradePanelCopyEl = document.getElementById("upgradePanelCopy");
-const upgradeChoicesEl = document.getElementById("upgradeChoices");
 const slashAbilityEl = document.getElementById("slashAbility");
 const abilityNameEl = document.getElementById("abilityName");
 const slashCooldownTextEl = document.getElementById("slashCooldownText");
@@ -45,6 +45,10 @@ const dashAbilityEl = document.getElementById("dashAbility");
 const dashAbilityNameEl = document.getElementById("dashAbilityName");
 const dashCooldownTextEl = document.getElementById("dashCooldownText");
 const characterSelectEl = document.getElementById("characterSelect");
+const nameStepEl = document.getElementById("nameStep");
+const classStepEl = document.getElementById("classStep");
+const playerNameInputEl = document.getElementById("playerNameInput");
+const confirmPlayerNameBtn = document.getElementById("confirmPlayerNameBtn");
 const classGridEl = document.querySelector(".class-grid");
 const weaponBuffImage = new Image();
 weaponBuffImage.src = "./images/sword.jpg";
@@ -67,12 +71,14 @@ archerShootingImage.src = "./images/archer-shooting.png";
 const archerDeadImage = new Image();
 archerDeadImage.src = "./images/archer-dead.png";
 
-const WORLD = { width: 2400, height: 1400 };
+const MAIN_WORLD_HEIGHT = 1400;
+const MAIN_LANE_Y = 700;
+const WORLD = { width: 2400, height: 1900 };
 const GRID_SIZE = 120;
 const PLAYER_BASE_SPAWN = { x: 250, y: 740 };
 const DEATH_ZONE = {
   x: WORLD.width / 2 - 110,
-  y: WORLD.height - 300,
+  y: MAIN_WORLD_HEIGHT - 300,
   size: 220,
 };
 const SPAWN_WAVE_TILE = {
@@ -88,6 +94,21 @@ const SPAWN_STREAM_TILE = {
   interval: 0.5,
   timer: 0,
 };
+const DODGE_ARENA_TILE = {
+  x: PLAYER_BASE_SPAWN.x + 320,
+  y: PLAYER_BASE_SPAWN.y + 110,
+  size: 90,
+};
+const DODGE_ARENA = {
+  x: WORLD.width - 520,
+  y: 120,
+  w: 360,
+  h: 320,
+  spawnX: WORLD.width - 340,
+  spawnY: 280,
+  bulletInterval: 0.3,
+};
+const VILLAGE_ROAD_WIDTH = 76;
 const COLORS = {
   ground: "#a8cb7a",
   path: "#b6c792",
@@ -107,6 +128,14 @@ const COLORS = {
   playerBase: "#3c6f4c",
   barracks: "#6f4d96",
   shop: "#7a5230",
+  dodgeArena: "#3e6f97",
+  villageRoof: "#8c5b3b",
+  villageWall: "#d7bf97",
+  villageWell: "#7f8f9d",
+  villageField: "#7e6638",
+  villageCrop: "#7dbf54",
+  villageFence: "#7a5a35",
+  villageHay: "#dcbf63",
   selection: "#ffe487",
   previewValid: "rgba(111, 77, 150, 0.45)",
   previewInvalid: "rgba(198, 81, 81, 0.45)",
@@ -119,6 +148,7 @@ let CHARACTER_OPTIONS = {};
 let ENEMY_OPTIONS = {};
 
 const player = {
+  displayName: "",
   wood: 1000,
   money: 0,
   level: 1,
@@ -133,6 +163,9 @@ const player = {
   hasSelectedCharacter: false,
   shopOpen: false,
   traderOpen: false,
+  inDodgeArena: false,
+  dodgeArenaReturnX: PLAYER_BASE_SPAWN.x + 40,
+  dodgeArenaReturnY: PLAYER_BASE_SPAWN.y,
   weaponBonusStat: 0,
   weaponBonusDamage: 0,
   bonusArmor: 0,
@@ -209,6 +242,9 @@ const UPGRADE_OPTIONS = [
   { id: "helmet", label: "Helmet", description: "+3 helmet armor" },
 ];
 
+const DEFAULT_ENEMY_NAME = "Enemy Hero";
+const MINIMAP_NEARBY_RADIUS = 360;
+
 const trees = [];
 const stones = [];
 const buildings = [];
@@ -217,9 +253,14 @@ const enemies = [];
 const heroProjectiles = [];
 const damagePopups = [];
 const sparkEffects = [];
+const dodgeArenaBullets = [];
+const villageFields = [];
+const villagePaths = [];
+const villageFences = [];
+const villageProps = [];
 const trader = {
   x: GRID_SIZE * 6,
-  y: WORLD.height / 2,
+  y: MAIN_LANE_Y,
   radius: 22,
 };
 const pickups = [
@@ -236,7 +277,7 @@ const pickups = [
     id: nextId(),
     type: "healthBuff",
     x: GRID_SIZE * 6 + 80,
-    y: WORLD.height / 2 + 20,
+    y: MAIN_LANE_Y + 20,
     radius: 18,
     collected: false,
     healthValue: 20,
@@ -245,7 +286,7 @@ const pickups = [
     id: nextId(),
     type: "weaponBuff",
     x: GRID_SIZE * 6 - 80,
-    y: WORLD.height / 2 + 20,
+    y: MAIN_LANE_Y + 20,
     radius: 18,
     collected: false,
     damageValue: 2,
@@ -278,13 +319,14 @@ const pickups = [
 
 spawnTrees();
 spawnStones();
-const playerBase = createBuilding("playerBase", 60, WORLD.height / 2 - 100, true);
+const playerBase = createBuilding("playerBase", 60, MAIN_LANE_Y - 100, true);
 playerBase.hp = 900;
 playerBase.maxHp = 900;
 playerBase.w = 180;
 playerBase.h = 200;
-createBuilding("shop", 180, WORLD.height / 2 - 220, true);
-const enemyBase = createBuilding("enemyBase", WORLD.width - 270, WORLD.height / 2 - 100, false);
+createBuilding("shop", 180, MAIN_LANE_Y - 220, true);
+initializeVillage();
+const enemyBase = createBuilding("enemyBase", WORLD.width - 270, MAIN_LANE_Y - 100, false);
 enemyBase.hp = 800;
 enemyBase.maxHp = 800;
 enemyBase.w = 180;
@@ -292,15 +334,15 @@ enemyBase.h = 200;
 let enemyHero = null;
 
 function initializeEnemyForces() {
-  createUnit("boss", WORLD.width / 2, WORLD.height / 2, false);
-  enemyHero = createEnemyHero(WORLD.width - 430, WORLD.height / 2 - 10);
+  createUnit("boss", WORLD.width / 2, MAIN_LANE_Y, false);
+  enemyHero = createEnemyHero(WORLD.width - 430, MAIN_LANE_Y - 10);
   enemyHero.equippedArmorValue = 80;
   enemyHero.latestPickup = {
   type: "enemyHelmet",
   armorValue: 80,
   radius: 18,
   };
-  createUnit("enemySoldier", WORLD.width - 470, WORLD.height / 2 + 90, false);
+  createUnit("enemySoldier", WORLD.width - 470, MAIN_LANE_Y + 90, false);
 }
 
 function nextId() {
@@ -340,20 +382,78 @@ function spawnStones() {
   }
 }
 
-function createBuilding(type, x, y, isPlayer) {
+function createBuilding(type, x, y, isPlayer, options = {}) {
   const building = {
     id: nextId(),
     type,
     x,
     y,
-    w: 140,
-    h: 140,
-    hp: type === "barracks" ? 400 : type === "shop" ? 300 : type === "playerBase" ? 900 : 800,
-    maxHp: type === "barracks" ? 400 : type === "shop" ? 300 : type === "playerBase" ? 900 : 800,
+    w: options.w ?? 140,
+    h: options.h ?? 140,
+    hp: options.hp ?? (type === "barracks" ? 400 : type === "shop" ? 300 : type === "playerBase" ? 900 : 800),
+    maxHp: options.maxHp ?? (type === "barracks" ? 400 : type === "shop" ? 300 : type === "playerBase" ? 900 : 800),
     isPlayer,
+    selectable: options.selectable ?? true,
   };
   buildings.push(building);
   return building;
+}
+
+function addVillageRectProp(type, x, y, w, h, collidable = true) {
+  villageProps.push({ type, x, y, w, h, collidable, shape: "rect" });
+}
+
+function addVillageCircleProp(type, x, y, radius, collidable = true) {
+  villageProps.push({ type, x, y, radius, collidable, shape: "circle" });
+}
+
+function initializeVillage() {
+  villagePaths.push(
+    { x: 132, y: playerBase.y + playerBase.h, w: VILLAGE_ROAD_WIDTH, h: 420 },
+    { x: 132, y: 1210, w: 430, h: 64 },
+    { x: 210, y: 1338, w: 330, h: 56 },
+    { x: 188, y: 1476, w: 170, h: 52 },
+    { x: 408, y: 1246, w: 70, h: 160 }
+  );
+
+  villageFields.push(
+    { x: 640, y: 1295, w: 160, h: 94 },
+    { x: 642, y: 1418, w: 156, h: 88 }
+  );
+
+  villageFences.push(
+    { x1: 620, y1: 1278, x2: 818, y2: 1278 },
+    { x1: 620, y1: 1394, x2: 818, y2: 1394 },
+    { x1: 620, y1: 1278, x2: 620, y2: 1394 },
+    { x1: 818, y1: 1278, x2: 818, y2: 1394 },
+    { x1: 620, y1: 1402, x2: 816, y2: 1402 },
+    { x1: 620, y1: 1512, x2: 816, y2: 1512 },
+    { x1: 620, y1: 1402, x2: 620, y2: 1512 },
+    { x1: 816, y1: 1402, x2: 816, y2: 1512 },
+    { x1: 94, y1: 1190, x2: 570, y2: 1190 },
+    { x1: 94, y1: 1548, x2: 570, y2: 1548 }
+  );
+
+  createBuilding("villageHouse", 86, 1232, true, { w: 102, h: 86, hp: 500, maxHp: 500, selectable: false });
+  createBuilding("villageHouse", 210, 1362, true, { w: 96, h: 82, hp: 500, maxHp: 500, selectable: false });
+  createBuilding("villageHouse", 352, 1246, true, { w: 94, h: 84, hp: 500, maxHp: 500, selectable: false });
+  createBuilding("well", 254, 1212, true, { w: 62, h: 62, hp: 350, maxHp: 350, selectable: false });
+  createBuilding("blacksmith", 420, 1360, true, { w: 134, h: 104, hp: 650, maxHp: 650, selectable: false });
+  createBuilding("market", 118, 1450, true, { w: 118, h: 82, hp: 400, maxHp: 400, selectable: false });
+
+  addVillageRectProp("crate", 498, 1484, 22, 22);
+  addVillageRectProp("crate", 528, 1488, 20, 20);
+  addVillageCircleProp("barrel", 468, 1498, 11);
+  addVillageCircleProp("barrel", 548, 1510, 11);
+  addVillageRectProp("hay", 578, 1468, 38, 26);
+  addVillageRectProp("hay", 594, 1502, 42, 28);
+
+  trees.push(
+    { id: nextId(), x: 56, y: 1338, radius: 24, wood: 25 },
+    { id: nextId(), x: 540, y: 1188, radius: 26, wood: 25 },
+    { id: nextId(), x: 846, y: 1358, radius: 25, wood: 25 },
+    { id: nextId(), x: 722, y: 1548, radius: 24, wood: 25 }
+  );
 }
 
 function createUnit(kind, x, y, isPlayer) {
@@ -401,6 +501,7 @@ function createEnemyHero(x, y) {
   return {
     id: nextId(),
     kind: "enemyHero",
+    displayName: DEFAULT_ENEMY_NAME,
     isPlayer: false,
     x,
     y,
@@ -419,6 +520,24 @@ function createEnemyHero(x, y) {
   };
 }
 
+function sanitizePlayerName(value) {
+  return value.replace(/\s+/g, " ").trim().slice(0, 18);
+}
+
+function confirmPlayerName() {
+  const submittedName = sanitizePlayerName(playerNameInputEl.value);
+  if (!submittedName) {
+    playerNameInputEl.focus();
+    statusTextEl.textContent = "Enter a player name before choosing a hero.";
+    return;
+  }
+
+  player.displayName = submittedName;
+  nameStepEl.classList.add("hidden");
+  classStepEl.classList.remove("hidden");
+  statusTextEl.textContent = `Welcome, ${player.displayName}. Choose your hero.`;
+}
+
 function resizeCanvas() {
   canvas.width = window.innerWidth;
   canvas.height = window.innerHeight;
@@ -428,8 +547,8 @@ window.addEventListener("resize", resizeCanvas);
 resizeCanvas();
 
 function getCharacterStatus() {
-  if (player.upgradePoints > 0) {
-    return "Level up available. Spend your upgrade point before continuing.";
+  if (player.inDodgeArena) {
+    return "Dodge Arena active. Survive the bullet rain.";
   }
 
   if (player.isPlacingBuilding) {
@@ -473,6 +592,10 @@ function getCharacterStatus() {
 
   if (isHeroOnSpawnStreamTile()) {
     return "Standing on Spawn Stream.";
+  }
+
+  if (isHeroOnDodgeArenaTile()) {
+    return "Step onto Dodge Arena to teleport in.";
   }
 
   const tree = getNearbyTree();
@@ -568,11 +691,18 @@ function getHeroSpeed(selected = getSelectedClassConfig()) {
 function updateUpgradeUI() {
   upgradePointsEl.textContent = `Upgrade Points: ${player.upgradePoints}`;
   upgradePointsEl.classList.toggle("hidden", player.upgradePoints <= 0);
-  upgradePanelEl.classList.toggle("hidden", player.upgradePoints <= 0 || !player.hasSelectedCharacter);
-  upgradePanelCopyEl.textContent = player.upgradePoints === 1
-    ? "Spend your upgrade point on a permanent stat boost."
-    : `Spend your ${player.upgradePoints} upgrade points on permanent stat boosts.`;
+  upgradeActionEls.forEach((element) => {
+    element.classList.toggle("hidden", player.upgradePoints <= 0);
+  });
 }
+
+upgradeActionEls.forEach((element) => {
+  element.addEventListener("click", (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    applyUpgrade(element.dataset.upgrade);
+  });
+});
 
 function updateStatsUI() {
   const selected = getSelectedClassConfig();
@@ -708,7 +838,6 @@ function awardPlayerXp(amount, sourceX = hero.x, sourceY = hero.y) {
   }
 
   if (leveledUp) {
-    spawnTextPopup(hero.x, hero.y - 42, `Level ${player.level}!`, "rgba(255, 235, 150, 1)", 1.6);
     statusTextEl.textContent = `Level up! You are now level ${player.level}.`;
   }
 
@@ -753,21 +882,6 @@ function applyUpgrade(upgradeId) {
   updateXpUI();
 }
 
-function initializeUpgradeChoices() {
-  upgradeChoicesEl.textContent = "";
-
-  for (const option of UPGRADE_OPTIONS) {
-    const button = document.createElement("button");
-    button.type = "button";
-    button.className = "upgrade-option";
-    button.innerHTML = `<strong>${option.label}</strong><span>${option.description}</span>`;
-    button.addEventListener("click", () => {
-      applyUpgrade(option.id);
-    });
-    upgradeChoicesEl.appendChild(button);
-  }
-}
-
 function getShopBuilding() {
   return buildings.find((building) => building.type === "shop" && building.isPlayer) || null;
 }
@@ -802,6 +916,91 @@ function isHeroOnSpawnStreamTile() {
     hero.y >= SPAWN_STREAM_TILE.y &&
     hero.y <= SPAWN_STREAM_TILE.y + SPAWN_STREAM_TILE.size
   );
+}
+
+function isHeroOnDodgeArenaTile() {
+  return (
+    hero.x >= DODGE_ARENA_TILE.x &&
+    hero.x <= DODGE_ARENA_TILE.x + DODGE_ARENA_TILE.size &&
+    hero.y >= DODGE_ARENA_TILE.y &&
+    hero.y <= DODGE_ARENA_TILE.y + DODGE_ARENA_TILE.size
+  );
+}
+
+function isPointInsideDodgeArena(x, y) {
+  return (
+    x >= DODGE_ARENA.x &&
+    x <= DODGE_ARENA.x + DODGE_ARENA.w &&
+    y >= DODGE_ARENA.y &&
+    y <= DODGE_ARENA.y + DODGE_ARENA.h
+  );
+}
+
+function enterDodgeArena() {
+  if (player.inDodgeArena) {
+    return;
+  }
+
+  player.inDodgeArena = true;
+  player.dodgeArenaReturnX = PLAYER_BASE_SPAWN.x + 40;
+  player.dodgeArenaReturnY = PLAYER_BASE_SPAWN.y;
+  hero.x = DODGE_ARENA.spawnX;
+  hero.y = DODGE_ARENA.spawnY;
+  hero.hp = hero.maxHp;
+  dodgeArenaBullets.length = 0;
+  DODGE_ARENA.timer = 0;
+  statusTextEl.textContent = "Dodge Arena entered. Survive the bullet rain.";
+  spawnTextPopup(hero.x, hero.y - 28, "Dodge Arena", "rgba(172, 225, 255, 1)", 1.4);
+}
+
+function leaveDodgeArena(message = "Returned from the Dodge Arena.") {
+  player.inDodgeArena = false;
+  dodgeArenaBullets.length = 0;
+  hero.hp = hero.maxHp;
+  hero.x = player.dodgeArenaReturnX;
+  hero.y = player.dodgeArenaReturnY;
+  hero.targetPos = null;
+  statusTextEl.textContent = message;
+  spawnTextPopup(hero.x, hero.y - 28, "Returned", "rgba(196, 234, 255, 1)", 1.2);
+}
+
+function spawnDodgeArenaBullet() {
+  dodgeArenaBullets.push({
+    x: DODGE_ARENA.x + 24 + Math.random() * (DODGE_ARENA.w - 48),
+    y: DODGE_ARENA.y - 18,
+    radius: 7 + Math.random() * 2,
+    speed: 260 + Math.random() * 90,
+    damage: 14,
+  });
+}
+
+function updateDodgeArena(dt) {
+  if (!player.inDodgeArena) {
+    return;
+  }
+
+  DODGE_ARENA.timer = (DODGE_ARENA.timer || 0) + dt;
+  while (DODGE_ARENA.timer >= DODGE_ARENA.bulletInterval) {
+    spawnDodgeArenaBullet();
+    if (Math.random() > 0.55) {
+      spawnDodgeArenaBullet();
+    }
+    DODGE_ARENA.timer -= DODGE_ARENA.bulletInterval;
+  }
+
+  for (let index = dodgeArenaBullets.length - 1; index >= 0; index -= 1) {
+    const bullet = dodgeArenaBullets[index];
+    bullet.y += bullet.speed * dt;
+    if (distance(hero, bullet) <= hero.radius + bullet.radius) {
+      hero.hp -= bullet.damage;
+      spawnDamagePopup(hero, bullet.damage);
+      dodgeArenaBullets.splice(index, 1);
+      continue;
+    }
+    if (bullet.y > DODGE_ARENA.y + DODGE_ARENA.h + 24) {
+      dodgeArenaBullets.splice(index, 1);
+    }
+  }
 }
 
 function spawnSingleSkeleton(x = 200 + Math.random() * 650, y = 90 + Math.random() * 30) {
@@ -874,6 +1073,9 @@ function dropLatestPickupFromEnemyHero() {
 function respawnHero() {
   dropLatestPickupFromHero();
   const selectedClass = hero.selectedClass ? CHARACTER_OPTIONS[hero.selectedClass] : null;
+  player.inDodgeArena = false;
+  dodgeArenaBullets.length = 0;
+  DODGE_ARENA.timer = 0;
   hero.equippedArmorValue = 0;
   hero.equippedHelmetType = null;
   hero.speed = getHeroSpeed(selectedClass);
@@ -1173,6 +1375,43 @@ function intersectsStone(point, radius, stone) {
   return Math.hypot(point.x - stone.x, point.y - stone.y) <= radius + stone.radius;
 }
 
+function resolveCircleAgainstRect(entity, radius, rect) {
+  const closestX = clamp(entity.x, rect.x, rect.x + rect.w);
+  const closestY = clamp(entity.y, rect.y, rect.y + rect.h);
+  const dx = entity.x - closestX;
+  const dy = entity.y - closestY;
+  const distanceToRect = Math.hypot(dx, dy);
+
+  if (distanceToRect > 0 && distanceToRect < radius) {
+    const overlap = radius - distanceToRect;
+    entity.x = clamp(entity.x + (dx / distanceToRect) * overlap, radius, WORLD.width - radius);
+    entity.y = clamp(entity.y + (dy / distanceToRect) * overlap, radius, WORLD.height - radius);
+    return;
+  }
+
+  if (distanceToRect === 0) {
+    const distances = [
+      { axis: "left", value: Math.abs(entity.x - rect.x) },
+      { axis: "right", value: Math.abs(rect.x + rect.w - entity.x) },
+      { axis: "top", value: Math.abs(entity.y - rect.y) },
+      { axis: "bottom", value: Math.abs(rect.y + rect.h - entity.y) },
+    ];
+    distances.sort((a, b) => a.value - b.value);
+    const nearest = distances[0];
+    if (nearest.axis === "left") {
+      entity.x = rect.x - radius;
+    } else if (nearest.axis === "right") {
+      entity.x = rect.x + rect.w + radius;
+    } else if (nearest.axis === "top") {
+      entity.y = rect.y - radius;
+    } else {
+      entity.y = rect.y + rect.h + radius;
+    }
+    entity.x = clamp(entity.x, radius, WORLD.width - radius);
+    entity.y = clamp(entity.y, radius, WORLD.height - radius);
+  }
+}
+
 function resolveHeroObstacleCollisions() {
   const obstacles = [...trees, ...stones];
   for (const obstacle of obstacles) {
@@ -1190,6 +1429,30 @@ function resolveHeroObstacleCollisions() {
       const overlap = minDistance - distanceToObstacle;
       hero.x = clamp(hero.x + (dx / distanceToObstacle) * overlap, hero.radius, WORLD.width - hero.radius);
       hero.y = clamp(hero.y + (dy / distanceToObstacle) * overlap, hero.radius, WORLD.height - hero.radius);
+    }
+  }
+
+  for (const building of buildings) {
+    resolveCircleAgainstRect(hero, hero.radius, building);
+  }
+
+  for (const prop of villageProps) {
+    if (!prop.collidable) {
+      continue;
+    }
+    if (prop.shape === "rect") {
+      resolveCircleAgainstRect(hero, hero.radius, prop);
+      continue;
+    }
+
+    const dx = hero.x - prop.x;
+    const dy = hero.y - prop.y;
+    const minDistance = hero.radius + prop.radius;
+    const dist = Math.hypot(dx, dy);
+    if (dist > 0 && dist < minDistance) {
+      const overlap = minDistance - dist;
+      hero.x = clamp(hero.x + (dx / dist) * overlap, hero.radius, WORLD.width - hero.radius);
+      hero.y = clamp(hero.y + (dy / dist) * overlap, hero.radius, WORLD.height - hero.radius);
     }
   }
 }
@@ -1564,6 +1827,20 @@ function isValidBarracksPlacement(x, y) {
     }
   }
 
+  for (const prop of villageProps) {
+    if (!prop.collidable || prop.shape !== "rect") {
+      continue;
+    }
+    if (
+      preview.x < prop.x + prop.w + 12 &&
+      preview.x + preview.w > prop.x - 12 &&
+      preview.y < prop.y + prop.h + 12 &&
+      preview.y + preview.h > prop.y - 12
+    ) {
+      return false;
+    }
+  }
+
   return true;
 }
 
@@ -1832,7 +2109,7 @@ function updateHero(dt) {
     }
   }
   hero.isMoving = false;
-  if (mouse.leftDown && !player.isPlacingBuilding && !player.shopOpen && !player.traderOpen && player.upgradePoints <= 0) {
+  if (mouse.leftDown && !player.isPlacingBuilding && !player.shopOpen && !player.traderOpen) {
     if (hero.hasRifle) {
       spawnHeroBullet(mouse.worldX, mouse.worldY);
     } else if (hero.hasBow) {
@@ -1927,6 +2204,10 @@ function updateHero(dt) {
     SPAWN_STREAM_TILE.timer = 0;
   }
 
+  if (!player.inDodgeArena && isHeroOnDodgeArenaTile()) {
+    enterDodgeArena();
+  }
+
   if (hero.isHarvesting) {
     const tree = trees.find((t) => t.id === harvestTreeId);
     if (!tree || distance(hero, tree) > hero.radius + tree.radius + 26) {
@@ -1970,6 +2251,11 @@ function updateHero(dt) {
 
   if (hero.hp <= 0) {
     hero.hp = 0;
+    if (player.inDodgeArena) {
+      leaveDodgeArena("Arena down. Sent back to the main area.");
+      updateAbilityUI();
+      return;
+    }
     hero.isDead = true;
     hero.deathTimer = hero.deathDuration;
   }
@@ -2192,6 +2478,7 @@ function update(dt) {
   }
   updateCamera(dt);
   updateHero(dt);
+  updateDodgeArena(dt);
   updateHeroProjectiles(dt);
   updateUnits(dt, units, enemies, buildings.filter((b) => !b.isPlayer));
   updateUnits(dt, enemies, [hero, ...units], buildings.filter((b) => b.isPlayer));
@@ -2217,7 +2504,7 @@ function drawBackground() {
   ctx.fillRect(0, 0, WORLD.width, WORLD.height);
 
   ctx.fillStyle = COLORS.path;
-  ctx.fillRect(0, WORLD.height / 2 - 90, WORLD.width, 180);
+  ctx.fillRect(0, MAIN_LANE_Y - 90, WORLD.width, 180);
 
   ctx.fillStyle = "rgba(255,255,255,0.08)";
   for (let x = 0; x < WORLD.width; x += 120) {
@@ -2252,6 +2539,180 @@ function drawBackground() {
   ctx.fillStyle = "#f1ffd2";
   ctx.fillText("SPAWN", SPAWN_STREAM_TILE.x + SPAWN_STREAM_TILE.size / 2, SPAWN_STREAM_TILE.y + 36);
   ctx.fillText("FLOW", SPAWN_STREAM_TILE.x + SPAWN_STREAM_TILE.size / 2, SPAWN_STREAM_TILE.y + 56);
+
+  ctx.fillStyle = COLORS.dodgeArena;
+  ctx.fillRect(DODGE_ARENA_TILE.x, DODGE_ARENA_TILE.y, DODGE_ARENA_TILE.size, DODGE_ARENA_TILE.size);
+  ctx.strokeStyle = "rgba(205, 234, 255, 0.6)";
+  ctx.lineWidth = 3;
+  ctx.strokeRect(DODGE_ARENA_TILE.x, DODGE_ARENA_TILE.y, DODGE_ARENA_TILE.size, DODGE_ARENA_TILE.size);
+  ctx.fillStyle = "#e3f3ff";
+  ctx.fillText("DODGE", DODGE_ARENA_TILE.x + DODGE_ARENA_TILE.size / 2, DODGE_ARENA_TILE.y + 34);
+  ctx.fillText("ARENA", DODGE_ARENA_TILE.x + DODGE_ARENA_TILE.size / 2, DODGE_ARENA_TILE.y + 54);
+
+  ctx.fillStyle = "rgba(27, 54, 76, 0.92)";
+  ctx.fillRect(DODGE_ARENA.x, DODGE_ARENA.y, DODGE_ARENA.w, DODGE_ARENA.h);
+  ctx.strokeStyle = "rgba(168, 225, 255, 0.55)";
+  ctx.lineWidth = 4;
+  ctx.strokeRect(DODGE_ARENA.x, DODGE_ARENA.y, DODGE_ARENA.w, DODGE_ARENA.h);
+  ctx.fillStyle = "#eaf7ff";
+  ctx.font = "700 22px Chakra Petch";
+  ctx.fillText("DODGE ARENA", DODGE_ARENA.x + DODGE_ARENA.w / 2, DODGE_ARENA.y + 34);
+  ctx.font = "700 14px Chakra Petch";
+  ctx.fillText("Bullets rain from above", DODGE_ARENA.x + DODGE_ARENA.w / 2, DODGE_ARENA.y + 58);
+
+  for (const path of villagePaths) {
+    ctx.fillStyle = COLORS.path;
+    ctx.fillRect(path.x, path.y, path.w, path.h);
+  }
+
+  for (const field of villageFields) {
+    ctx.fillStyle = COLORS.villageField;
+    ctx.fillRect(field.x, field.y, field.w, field.h);
+    ctx.strokeStyle = "rgba(54, 35, 17, 0.35)";
+    ctx.lineWidth = 2;
+    for (let row = 10; row < field.h; row += 14) {
+      ctx.beginPath();
+      ctx.moveTo(field.x + 6, field.y + row);
+      ctx.lineTo(field.x + field.w - 6, field.y + row);
+      ctx.stroke();
+    }
+    ctx.fillStyle = COLORS.villageCrop;
+    for (let x = field.x + 10; x < field.x + field.w - 8; x += 18) {
+      for (let y = field.y + 10; y < field.y + field.h - 8; y += 18) {
+        ctx.fillRect(x, y, 6, 6);
+      }
+    }
+  }
+
+  ctx.strokeStyle = COLORS.villageFence;
+  ctx.lineWidth = 4;
+  ctx.lineCap = "round";
+  for (const fence of villageFences) {
+    ctx.beginPath();
+    ctx.moveTo(fence.x1, fence.y1);
+    ctx.lineTo(fence.x2, fence.y2);
+    ctx.stroke();
+    const posts = Math.max(2, Math.floor(distance({ x: fence.x1, y: fence.y1 }, { x: fence.x2, y: fence.y2 }) / 22));
+    for (let index = 0; index <= posts; index += 1) {
+      const t = index / posts;
+      const px = fence.x1 + (fence.x2 - fence.x1) * t;
+      const py = fence.y1 + (fence.y2 - fence.y1) * t;
+      ctx.fillStyle = "#8b6941";
+      ctx.fillRect(px - 2, py - 2, 4, 4);
+    }
+  }
+}
+
+function drawMinimap() {
+  const mapWidth = minimapCanvas.width;
+  const mapHeight = minimapCanvas.height;
+  const scaleX = mapWidth / WORLD.width;
+  const scaleY = mapHeight / WORLD.height;
+  const toMapX = (x) => x * scaleX;
+  const toMapY = (y) => y * scaleY;
+
+  minimapCtx.clearRect(0, 0, mapWidth, mapHeight);
+  minimapCtx.fillStyle = "#19301f";
+  minimapCtx.fillRect(0, 0, mapWidth, mapHeight);
+
+  minimapCtx.fillStyle = "rgba(208, 188, 132, 0.36)";
+  minimapCtx.fillRect(0, toMapY(MAIN_LANE_Y - 90), mapWidth, Math.max(10, 180 * scaleY));
+
+  minimapCtx.fillStyle = "rgba(122, 90, 50, 0.7)";
+  minimapCtx.fillRect(toMapX(SPAWN_WAVE_TILE.x), toMapY(SPAWN_WAVE_TILE.y), SPAWN_WAVE_TILE.size * scaleX, SPAWN_WAVE_TILE.size * scaleY);
+  minimapCtx.fillStyle = "rgba(93, 111, 46, 0.72)";
+  minimapCtx.fillRect(toMapX(SPAWN_STREAM_TILE.x), toMapY(SPAWN_STREAM_TILE.y), SPAWN_STREAM_TILE.size * scaleX, SPAWN_STREAM_TILE.size * scaleY);
+  minimapCtx.fillStyle = "rgba(62, 111, 151, 0.8)";
+  minimapCtx.fillRect(toMapX(DODGE_ARENA_TILE.x), toMapY(DODGE_ARENA_TILE.y), DODGE_ARENA_TILE.size * scaleX, DODGE_ARENA_TILE.size * scaleY);
+  minimapCtx.fillStyle = "rgba(108, 32, 48, 0.72)";
+  minimapCtx.fillRect(toMapX(DEATH_ZONE.x), toMapY(DEATH_ZONE.y), DEATH_ZONE.size * scaleX, DEATH_ZONE.size * scaleY);
+  minimapCtx.strokeStyle = "rgba(168, 225, 255, 0.55)";
+  minimapCtx.strokeRect(toMapX(DODGE_ARENA.x), toMapY(DODGE_ARENA.y), DODGE_ARENA.w * scaleX, DODGE_ARENA.h * scaleY);
+
+  minimapCtx.fillStyle = "rgba(64, 120, 67, 0.85)";
+  for (const tree of trees) {
+    if (distance(hero, tree) > MINIMAP_NEARBY_RADIUS) {
+      continue;
+    }
+    minimapCtx.fillRect(toMapX(tree.x) - 1, toMapY(tree.y) - 1, 3, 3);
+  }
+
+  minimapCtx.fillStyle = "rgba(158, 170, 184, 0.8)";
+  for (const stone of stones) {
+    if (distance(hero, stone) > MINIMAP_NEARBY_RADIUS) {
+      continue;
+    }
+    minimapCtx.fillRect(toMapX(stone.x) - 1, toMapY(stone.y) - 1, 3, 3);
+  }
+
+  for (const building of buildings) {
+    minimapCtx.fillStyle = building.type === "enemyBase"
+      ? "#d56464"
+      : building.type === "playerBase"
+        ? "#6fd58a"
+        : building.type === "shop"
+          ? "#d9b56c"
+          : "#ab8bdf";
+    minimapCtx.fillRect(
+      toMapX(building.x),
+      toMapY(building.y),
+      Math.max(3, building.w * scaleX),
+      Math.max(3, building.h * scaleY)
+    );
+  }
+
+  minimapCtx.fillStyle = "#f6e1a8";
+  minimapCtx.beginPath();
+  minimapCtx.arc(toMapX(trader.x), toMapY(trader.y), 3, 0, Math.PI * 2);
+  minimapCtx.fill();
+
+  for (const pickup of pickups) {
+    if (pickup.collected || distance(hero, pickup) > MINIMAP_NEARBY_RADIUS * 1.25) {
+      continue;
+    }
+    minimapCtx.fillStyle = pickup.type === "rareHelmet"
+      ? "#6db5ff"
+      : pickup.type === "healthBuff"
+        ? "#ff9a9a"
+        : pickup.type === "weaponBuff"
+          ? "#ffd36d"
+          : "#dfe8f2";
+    minimapCtx.fillRect(toMapX(pickup.x) - 1, toMapY(pickup.y) - 1, 3, 3);
+  }
+
+  minimapCtx.fillStyle = "#6aa8ff";
+  minimapCtx.beginPath();
+  minimapCtx.arc(toMapX(hero.x), toMapY(hero.y), 3.5, 0, Math.PI * 2);
+  minimapCtx.fill();
+
+  if (enemyHero.active) {
+    minimapCtx.fillStyle = "#ff7f7f";
+    minimapCtx.beginPath();
+    minimapCtx.arc(toMapX(enemyHero.x), toMapY(enemyHero.y), 3.5, 0, Math.PI * 2);
+    minimapCtx.fill();
+  }
+
+  minimapCtx.fillStyle = "rgba(143, 183, 255, 0.95)";
+  for (const unit of units) {
+    minimapCtx.fillRect(toMapX(unit.x) - 1, toMapY(unit.y) - 1, 2, 2);
+  }
+
+  minimapCtx.fillStyle = "rgba(239, 148, 148, 0.9)";
+  for (const enemy of enemies) {
+    minimapCtx.fillRect(toMapX(enemy.x) - 1, toMapY(enemy.y) - 1, 2, 2);
+  }
+
+  minimapCtx.strokeStyle = "rgba(255, 245, 210, 0.75)";
+  minimapCtx.lineWidth = 1;
+  minimapCtx.strokeRect(
+    toMapX(camera.x),
+    toMapY(camera.y),
+    Math.max(8, canvas.width * scaleX),
+    Math.max(8, canvas.height * scaleY)
+  );
+
+  minimapCtx.strokeStyle = "rgba(255, 255, 255, 0.22)";
+  minimapCtx.strokeRect(0.5, 0.5, mapWidth - 1, mapHeight - 1);
 }
 
 function drawTree(tree) {
@@ -2388,6 +2849,53 @@ function drawTrader() {
   ctx.font = "700 14px Chakra Petch";
   ctx.textAlign = "center";
   ctx.fillText("TRADER", trader.x, trader.y - 34);
+}
+
+function drawVillageProp(prop) {
+  if (prop.type === "crate") {
+    ctx.fillStyle = "#8f643c";
+    ctx.fillRect(prop.x, prop.y, prop.w, prop.h);
+    ctx.strokeStyle = "rgba(58, 35, 16, 0.65)";
+    ctx.lineWidth = 2;
+    ctx.strokeRect(prop.x, prop.y, prop.w, prop.h);
+    ctx.beginPath();
+    ctx.moveTo(prop.x, prop.y);
+    ctx.lineTo(prop.x + prop.w, prop.y + prop.h);
+    ctx.moveTo(prop.x + prop.w, prop.y);
+    ctx.lineTo(prop.x, prop.y + prop.h);
+    ctx.stroke();
+    return;
+  }
+
+  if (prop.type === "hay") {
+    ctx.fillStyle = COLORS.villageHay;
+    ctx.fillRect(prop.x, prop.y, prop.w, prop.h);
+    ctx.strokeStyle = "rgba(122, 90, 35, 0.45)";
+    ctx.lineWidth = 2;
+    for (let y = prop.y + 4; y < prop.y + prop.h; y += 6) {
+      ctx.beginPath();
+      ctx.moveTo(prop.x + 4, y);
+      ctx.lineTo(prop.x + prop.w - 4, y);
+      ctx.stroke();
+    }
+    return;
+  }
+
+  if (prop.type === "barrel") {
+    ctx.fillStyle = "#825737";
+    ctx.beginPath();
+    ctx.arc(prop.x, prop.y, prop.radius, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = "#d4b08a";
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(prop.x, prop.y - 1, prop.radius * 0.75, 0, Math.PI * 2);
+    ctx.stroke();
+  }
+}
+
+function isVillageBuildingType(type) {
+  return type === "villageHouse" || type === "blacksmith" || type === "market" || type === "well";
 }
 
 function drawEntityCircle(entity, fill, accent) {
@@ -2620,6 +3128,74 @@ function drawArcherHero() {
 }
 
 function drawBuilding(building) {
+  if (building.type === "villageHouse") {
+    ctx.fillStyle = COLORS.villageWall;
+    ctx.fillRect(building.x, building.y + 22, building.w, building.h - 22);
+    ctx.fillStyle = COLORS.villageRoof;
+    ctx.beginPath();
+    ctx.moveTo(building.x - 6, building.y + 26);
+    ctx.lineTo(building.x + building.w / 2, building.y - 8);
+    ctx.lineTo(building.x + building.w + 6, building.y + 26);
+    ctx.closePath();
+    ctx.fill();
+    ctx.fillStyle = "#6b472b";
+    ctx.fillRect(building.x + building.w * 0.42, building.y + building.h - 28, 16, 28);
+    ctx.fillStyle = "#9ec4de";
+    ctx.fillRect(building.x + 18, building.y + 40, 18, 14);
+    ctx.fillRect(building.x + building.w - 36, building.y + 40, 18, 14);
+    return;
+  }
+
+  if (building.type === "blacksmith") {
+    ctx.fillStyle = "#6f5f58";
+    ctx.fillRect(building.x, building.y + 18, building.w, building.h - 18);
+    ctx.fillStyle = "#4e3730";
+    ctx.fillRect(building.x + 10, building.y + 10, building.w - 20, 24);
+    ctx.fillStyle = "#8f643c";
+    ctx.fillRect(building.x + building.w - 36, building.y + 18, 18, 42);
+    ctx.fillStyle = "#c86f43";
+    ctx.fillRect(building.x + building.w - 34, building.y + 2, 14, 18);
+    ctx.fillStyle = "#d7dfe6";
+    ctx.fillRect(building.x + 22, building.y + 46, 26, 18);
+    ctx.fillStyle = "#33231d";
+    ctx.fillRect(building.x + building.w * 0.42, building.y + building.h - 30, 18, 30);
+    return;
+  }
+
+  if (building.type === "market") {
+    ctx.fillStyle = "#8f643c";
+    ctx.fillRect(building.x + 8, building.y + 24, building.w - 16, building.h - 24);
+    ctx.fillStyle = "#d7efe6";
+    ctx.fillRect(building.x, building.y, building.w, 24);
+    ctx.fillStyle = "#b94d4d";
+    for (let x = building.x; x < building.x + building.w; x += 22) {
+      ctx.fillRect(x, building.y, 12, 24);
+    }
+    ctx.fillStyle = "#6b472b";
+    ctx.fillRect(building.x + 14, building.y + building.h - 24, 10, 24);
+    ctx.fillRect(building.x + building.w - 24, building.y + building.h - 24, 10, 24);
+    return;
+  }
+
+  if (building.type === "well") {
+    const centerX = building.x + building.w / 2;
+    const centerY = building.y + building.h / 2;
+    ctx.fillStyle = "#8d9aa5";
+    ctx.beginPath();
+    ctx.arc(centerX, centerY, building.w * 0.48, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = "#273947";
+    ctx.beginPath();
+    ctx.arc(centerX, centerY, building.w * 0.28, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = "#dbe8ef";
+    ctx.lineWidth = 4;
+    ctx.beginPath();
+    ctx.arc(centerX, centerY, building.w * 0.48, 0, Math.PI * 2);
+    ctx.stroke();
+    return;
+  }
+
   ctx.fillStyle = building.type === "enemyBase"
     ? COLORS.enemyBase
     : building.type === "playerBase"
@@ -2646,7 +3222,9 @@ function drawBuilding(building) {
       ? "SHOP"
       : "BARRACKS";
   ctx.fillText(label, building.x + building.w / 2, building.y + building.h / 2 + 6);
-  drawHealthBar(building.x + building.w / 2, building.y - 14, 120, building.hp / building.maxHp);
+  if (!isVillageBuildingType(building.type)) {
+    drawHealthBar(building.x + building.w / 2, building.y - 14, 120, building.hp / building.maxHp);
+  }
 }
 
 function drawHealthBar(x, y, width, ratio) {
@@ -2655,6 +3233,28 @@ function drawHealthBar(x, y, width, ratio) {
   ctx.fillRect(x - width / 2, y, width, 10);
   ctx.fillStyle = clamped > 0.45 ? COLORS.healthGood : COLORS.healthBad;
   ctx.fillRect(x - width / 2 + 1, y + 1, (width - 2) * clamped, 8);
+}
+
+function drawNameplate(x, y, name, fillStyle = "rgba(15, 33, 24, 0.88)") {
+  if (!name) {
+    return;
+  }
+
+  ctx.font = "700 14px Chakra Petch";
+  ctx.textAlign = "center";
+  const paddingX = 10;
+  const width = ctx.measureText(name).width + paddingX * 2;
+  const height = 22;
+  const left = x - width / 2;
+  const top = y - height / 2;
+
+  ctx.fillStyle = fillStyle;
+  ctx.fillRect(left, top, width, height);
+  ctx.strokeStyle = "rgba(255, 245, 210, 0.28)";
+  ctx.lineWidth = 1;
+  ctx.strokeRect(left, top, width, height);
+  ctx.fillStyle = "#fff5d2";
+  ctx.fillText(name, x, top + 15);
 }
 
 function drawHarvestProgress() {
@@ -2822,6 +3422,17 @@ function drawBulletProjectile(projectile) {
   ctx.restore();
 }
 
+function drawDodgeArenaBullets() {
+  for (const bullet of dodgeArenaBullets) {
+    ctx.fillStyle = "#ffe391";
+    ctx.beginPath();
+    ctx.arc(bullet.x, bullet.y, bullet.radius, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = "rgba(255, 243, 193, 0.45)";
+    ctx.fillRect(bullet.x - 1.5, bullet.y - 18, 3, 12);
+  }
+}
+
 function drawHeroProjectiles() {
   for (const projectile of heroProjectiles) {
     if (projectile.style === "arrow") {
@@ -2930,6 +3541,10 @@ function render() {
     drawPickup(pickup);
   }
 
+  for (const prop of villageProps) {
+    drawVillageProp(prop);
+  }
+
   drawTrader();
 
   for (const building of buildings) {
@@ -2945,7 +3560,9 @@ function render() {
   } else {
     drawEntityCircle(hero, COLORS.hero, COLORS.heroAccent);
   }
+  drawDodgeArenaBullets();
   drawHealthBar(hero.x, hero.y - 34, 60, hero.hp / hero.maxHp);
+  drawNameplate(hero.x, hero.y - 50, player.displayName || "Player");
   drawHarvestProgress();
   drawSlashArc();
   drawHeroProjectiles();
@@ -2983,6 +3600,7 @@ function render() {
   if (enemyHero.active) {
     drawEntityCircle(enemyHero, COLORS.enemy, enemyHero.equippedArmorValue >= 80 ? "#86db7e" : "#f2b0b0");
     drawHealthBar(enemyHero.x, enemyHero.y - 34, 60, enemyHero.hp / enemyHero.maxHp);
+    drawNameplate(enemyHero.x, enemyHero.y - 50, enemyHero.displayName || DEFAULT_ENEMY_NAME, "rgba(56, 18, 18, 0.9)");
   }
 
   drawDamagePopups();
@@ -2991,6 +3609,7 @@ function render() {
   drawModeHint();
 
   ctx.restore();
+  drawMinimap();
 }
 
 function gameLoop(timestamp) {
@@ -3006,13 +3625,6 @@ window.addEventListener("keydown", (event) => {
   keys.add(key);
 
   if (!player.hasSelectedCharacter) {
-    return;
-  }
-
-  if (player.upgradePoints > 0) {
-    if (event.key === "Escape") {
-      event.preventDefault();
-    }
     return;
   }
 
@@ -3099,9 +3711,6 @@ canvas.addEventListener("mousedown", (event) => {
   if (!player.hasSelectedCharacter) {
     return;
   }
-  if (player.upgradePoints > 0) {
-    return;
-  }
   if (player.shopOpen || player.traderOpen) {
     return;
   }
@@ -3149,7 +3758,7 @@ canvas.addEventListener("mousedown", (event) => {
     }
 
     const clickedBuilding = getBuildingAt(point, buildings.filter((b) => b.isPlayer));
-    if (clickedBuilding) {
+    if (clickedBuilding?.selectable !== false) {
       selectBuilding(clickedBuilding);
       return;
     }
@@ -3168,9 +3777,6 @@ canvas.addEventListener("mouseup", (event) => {
     mouse.leftDown = false;
   }
   if (player.shopOpen || player.traderOpen) {
-    return;
-  }
-  if (player.upgradePoints > 0) {
     return;
   }
   if (event.button === 0 && selectionBox) {
@@ -3200,9 +3806,6 @@ window.addEventListener("mouseup", (event) => {
 canvas.addEventListener("contextmenu", (event) => {
   event.preventDefault();
   if (!player.hasSelectedCharacter) {
-    return;
-  }
-  if (player.upgradePoints > 0) {
     return;
   }
   if (player.shopOpen || player.traderOpen) {
@@ -3325,7 +3928,7 @@ closeTraderBtn.addEventListener("click", () => {
 
 function selectCharacter(classId) {
   const selectedClass = CHARACTER_OPTIONS[classId];
-  if (!selectedClass) {
+  if (!selectedClass || !player.displayName) {
     return;
   }
 
@@ -3419,18 +4022,29 @@ function initializeCharacterCards() {
   }
 }
 
+confirmPlayerNameBtn.addEventListener("click", () => {
+  confirmPlayerName();
+});
+
+playerNameInputEl.addEventListener("keydown", (event) => {
+  if (event.key === "Enter") {
+    event.preventDefault();
+    confirmPlayerName();
+  }
+});
+
 async function initializeGame() {
   try {
     await loadCharacterOptions();
     await loadEnemyOptions();
     initializeEnemyForces();
     initializeCharacterCards();
-    initializeUpgradeChoices();
     updateAbilityUI();
     updateStatsUI();
     updateXpUI();
     updateShopUI();
     updateTraderUI();
+    playerNameInputEl.focus();
     requestAnimationFrame(gameLoop);
   } catch (error) {
     console.error(error);

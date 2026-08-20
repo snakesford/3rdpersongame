@@ -40,33 +40,39 @@
       </div>
 
       <div class="hud-right">
+        <div class="minimap-panel">
+          <div class="minimap-head">
+            <span class="stats-kicker minimap-kicker">Mini Map</span>
+          </div>
+          <canvas id="minimapCanvas" class="minimap-canvas" width="220" height="140"></canvas>
+        </div>
         <div class="stats-panel">
           <span class="stats-kicker">Player Stats</span>
           <div class="stats-grid">
             <div class="stat-row">
               <div class="stat-head">
-                <span>Armor</span>
+                <span>Armor <button class="upgrade-action hidden" data-upgrade="armor" type="button" aria-label="Upgrade armor">+</button></span>
                 <strong id="armorValue">0</strong>
               </div>
               <div class="stat-bar"><div id="armorFill" class="stat-fill armor-fill"></div></div>
             </div>
             <div class="stat-row">
               <div class="stat-head">
-                <span>Health</span>
+                <span>Health <button class="upgrade-action hidden" data-upgrade="health" type="button" aria-label="Upgrade health">+</button></span>
                 <strong id="healthValue">0</strong>
               </div>
               <div class="stat-bar"><div id="healthFill" class="stat-fill health-fill"></div></div>
             </div>
             <div class="stat-row">
               <div class="stat-head">
-                <span>Damage</span>
+                <span>Damage <button class="upgrade-action hidden" data-upgrade="damage" type="button" aria-label="Upgrade damage">+</button></span>
                 <strong id="weaponValue">0</strong>
               </div>
               <div class="stat-bar"><div id="weaponFill" class="stat-fill weapon-fill"></div></div>
             </div>
             <div class="stat-row">
               <div class="stat-head">
-                <span>Speed</span>
+                <span>Speed <button class="upgrade-action hidden" data-upgrade="speed" type="button" aria-label="Upgrade speed">+</button></span>
                 <strong id="speedValue">0</strong>
               </div>
               <div class="stat-bar"><div id="speedFill" class="stat-fill speed-fill"></div></div>
@@ -76,7 +82,7 @@
             <span class="stats-kicker equipment-kicker">Equipment</span>
             <div class="equipment-grid">
               <div class="equipment-slot">
-                <span class="equipment-label">Helmet</span>
+                <span class="equipment-label">Helmet <button class="upgrade-action hidden" data-upgrade="helmet" type="button" aria-label="Upgrade helmet">+</button></span>
                 <div class="equipment-content">
                   <img id="equipmentHelmetIcon" class="equipment-icon" alt="Equipped helmet icon">
                   <div class="equipment-copy">
@@ -91,7 +97,7 @@
                 <span id="equipmentBodyArmorMeta" class="equipment-meta">No body armor equipped</span>
               </div>
               <div class="equipment-slot">
-                <span class="equipment-label">Weapon</span>
+                <span class="equipment-label">Weapon <button class="upgrade-action hidden" data-upgrade="damage" type="button" aria-label="Upgrade weapon">+</button></span>
                 <div class="equipment-content">
                   <img id="equipmentWeaponIcon" class="equipment-icon" src="./images/rifle.png" alt="Equipped weapon icon">
                   <div class="equipment-copy">
@@ -101,7 +107,7 @@
                 </div>
               </div>
               <div class="equipment-slot">
-                <span class="equipment-label">F Ability</span>
+                <span class="equipment-label">F Ability <button class="upgrade-action hidden" data-upgrade="ability" type="button" aria-label="Upgrade ability">+</button></span>
                 <strong id="equipmentAbilityName">None</strong>
                 <span id="equipmentAbilityMeta" class="equipment-meta">Choose a class</span>
               </div>
@@ -162,20 +168,21 @@
     </div>
   </div>
 
-  <div id="upgradePanel" class="shop-panel hidden">
-    <div class="shop-card upgrade-card">
-      <span class="shop-kicker">Level Up</span>
-      <h3>Choose an upgrade</h3>
-      <p id="upgradePanelCopy">Spend your upgrade point on a permanent stat boost.</p>
-      <div id="upgradeChoices" class="upgrade-grid"></div>
-    </div>
-  </div>
-
   <div id="characterSelect" class="start-screen">
     <div class="start-panel">
-      <span class="start-kicker">Choose Your Hero</span>
-      <h2>Pick a character before the match starts</h2>
-      <div class="class-grid"></div>
+      <div id="nameStep">
+        <span class="start-kicker">Enter Your Name</span>
+        <h2>Name your player before choosing a hero</h2>
+        <div class="name-entry">
+          <input id="playerNameInput" class="name-input" type="text" maxlength="18" placeholder="Player name" autocomplete="off">
+          <button id="confirmPlayerNameBtn" type="button">Continue</button>
+        </div>
+      </div>
+      <div id="classStep" class="hidden">
+        <span class="start-kicker">Choose Your Hero</span>
+        <h2>Pick a character before the match starts</h2>
+        <div class="class-grid"></div>
+      </div>
     </div>
   </div>
 
