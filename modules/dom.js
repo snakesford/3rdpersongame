@@ -62,6 +62,7 @@ const classGridEl = document.querySelector(".class-grid");
 const dialoguePanelEl = document.getElementById("dialoguePanel");
 const dialogueSpeakerEl = document.getElementById("dialogueSpeaker");
 const dialogueTextEl = document.getElementById("dialogueText");
+const dialogueOptionsEl = document.getElementById("dialogueOptions");
 const dialogueHintEl = document.getElementById("dialogueHint");
 
 export {
@@ -84,6 +85,7 @@ export {
   dashAbilityNameEl,
   dashCooldownTextEl,
   dialogueHintEl,
+  dialogueOptionsEl,
   dialoguePanelEl,
   dialogueSpeakerEl,
   dialogueTextEl,

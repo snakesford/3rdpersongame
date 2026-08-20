@@ -524,6 +524,34 @@ button.hidden {
   line-height: 1.5;
 }
 
+.dialogue-options {
+  margin-top: 14px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  pointer-events: auto;
+}
+
+.dialogue-options.hidden {
+  display: none;
+}
+
+.dialogue-option {
+  border: 1px solid rgba(255, 245, 210, 0.18);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff5d2;
+  padding: 8px 14px;
+  font: 600 13px "Chakra Petch", sans-serif;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.dialogue-option:hover {
+  background: rgba(255, 226, 148, 0.16);
+}
+
 .dialogue-hint {
   margin-top: 12px;
   color: var(--accent);

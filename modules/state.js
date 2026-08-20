@@ -31,6 +31,12 @@ const player = {
   bonusSpeed: 0,
   bonusAbilityDamage: 0,
   helmetBonusArmor: 0,
+  tutorialResources: {
+    seeds: 0,
+    wheat: 0,
+    ore: 0,
+    arcaneDust: 0,
+  },
 };
 
 const camera = { x: 0, y: 0 };

@@ -69,6 +69,7 @@ import {
   dashAbilityNameEl,
   dashCooldownTextEl,
   dialogueHintEl,
+  dialogueOptionsEl,
   dialoguePanelEl,
   dialogueSpeakerEl,
   dialogueTextEl,
@@ -154,6 +155,77 @@ let playerBase = null;
 let enemyBase = null;
 let enemyHero = null;
 const BATTLE_MEDICINE_USE_DURATION = 0.9;
+const tutorialNpcs = [];
+const tutorialPlots = [];
+const tutorialSites = [];
+const tutorialDialogue = {
+  npcId: null,
+  text: "",
+  options: [],
+};
+const TUTORIAL_PROFESSIONS = {
+  farmer: {
+    label: "Farmer",
+    color: "#b8d86b",
+    intro: "I teach farming. Start with seeds, learn to plant, then harvest for better crops and better rewards later.",
+    workText: "Farming grows from simple seed plots into better crops, rarer harvests, and stronger farm rewards.",
+    taskTitle: "Plant and harvest 1 crop",
+    rewardText: "Seed stock increased and farming progress gained.",
+  },
+  mercenary: {
+    label: "Mercenary",
+    color: "#d98969",
+    intro: "I post combat contracts. The first one is simple: kill a nearby target and come back alive.",
+    workText: "Mercenary work scales into area clears, escorts, hunts, and harder contracts with gold and gear.",
+    taskTitle: "Defeat the training raider",
+    rewardText: "Gold paid and Mercenary reputation improved.",
+  },
+  explorer: {
+    label: "Explorer",
+    color: "#7fd0c5",
+    intro: "I map the wilds. Find the marked landmark nearby and you will understand how discovery work begins.",
+    workText: "Exploration unlocks landmarks, ruins, treasure routes, and deeper resource finds the farther you roam.",
+    taskTitle: "Discover the old waypoint",
+    rewardText: "Explorer progress increased.",
+  },
+  merchant: {
+    label: "Merchant",
+    color: "#e0b766",
+    intro: "I teach trade. Bring me gathered materials and I turn them into deals, gold, and better prices.",
+    workText: "Trading grows through deliveries, buying low, selling high, and unlocking stronger market opportunities.",
+    taskTitle: "Deliver 25 wood",
+    rewardText: "Gold earned and Merchant standing improved.",
+  },
+  craftsman: {
+    label: "Craftsman",
+    color: "#aab6cb",
+    intro: "I teach crafting. Gather ore, bring it back, and I will show you how raw material becomes equipment.",
+    workText: "Crafting expands into recipes, forging, upgrades, and stronger equipment options over time.",
+    taskTitle: "Collect 1 ore sample",
+    rewardText: "Crafting progress increased and a forge bonus granted.",
+  },
+  scholar: {
+    label: "Scholar",
+    color: "#c794ff",
+    intro: "I study artifacts and enchantment. Bring me an arcane shard and I will introduce the magical path.",
+    workText: "Scholar work opens enchanting, artifacts, magical materials, and stronger ability growth.",
+    taskTitle: "Recover 1 arcane shard",
+    rewardText: "Scholar progress increased and magical insight granted.",
+  },
+};
+const tutorialProfessionState = Object.fromEntries(
+  Object.keys(TUTORIAL_PROFESSIONS).map((professionId) => [
+    professionId,
+    {
+      level: 1,
+      xp: 0,
+      reputation: 0,
+      completed: 0,
+      introSeen: false,
+      activeTask: null,
+    },
+  ])
+);
 
 function initializeEnemyForces() {
   createUnit("boss", WORLD.width / 2, MAIN_LANE_Y, false);
@@ -184,6 +256,9 @@ function clearWorldEntities() {
   villagePaths.length = 0;
   villageFences.length = 0;
   villageProps.length = 0;
+  tutorialNpcs.length = 0;
+  tutorialPlots.length = 0;
+  tutorialSites.length = 0;
 }
 
 function initializeMainWorld() {
@@ -214,6 +289,156 @@ function initializeMainWorld() {
   if (quest.stage === "active") {
     spawnQuestGoblin();
   }
+}
+
+function getTutorialProfessionState(professionId) {
+  return tutorialProfessionState[professionId];
+}
+
+function getProfessionXpRequired(level) {
+  return 20 + (level - 1) * 10;
+}
+
+function awardTutorialProfessionProgress(professionId, xp, reputation, rewardMessage) {
+  const state = getTutorialProfessionState(professionId);
+  state.xp += xp;
+  state.reputation += reputation;
+  state.completed += 1;
+
+  while (state.xp >= getProfessionXpRequired(state.level)) {
+    state.xp -= getProfessionXpRequired(state.level);
+    state.level += 1;
+  }
+
+  if (rewardMessage) {
+    statusTextEl.textContent = rewardMessage;
+  }
+}
+
+function createTutorialNpc(professionId, x, y) {
+  const profession = TUTORIAL_PROFESSIONS[professionId];
+  tutorialNpcs.push({
+    id: professionId,
+    professionId,
+    name: profession.label,
+    x,
+    y,
+    radius: 22,
+    color: profession.color,
+  });
+}
+
+function resetTutorialObjects() {
+  tutorialPlots.length = 0;
+  tutorialSites.length = 0;
+
+  tutorialPlots.push({
+    id: "farmerPlot",
+    x: TUTORIAL_WORLD.spawnX - 300,
+    y: TUTORIAL_WORLD.spawnY + 80,
+    w: 92,
+    h: 92,
+    state: "empty",
+    timer: 0,
+    active: false,
+  });
+
+  tutorialSites.push(
+    {
+      id: "explorerWaypoint",
+      professionId: "explorer",
+      kind: "landmark",
+      x: TUTORIAL_WORLD.spawnX - 420,
+      y: TUTORIAL_WORLD.spawnY - 260,
+      radius: 26,
+      active: false,
+      discovered: false,
+      label: "Old Waypoint",
+    },
+    {
+      id: "craftsmanOre",
+      professionId: "craftsman",
+      kind: "pickup",
+      x: TUTORIAL_WORLD.rockX + 56,
+      y: TUTORIAL_WORLD.rockY - 18,
+      radius: 14,
+      active: false,
+      collected: false,
+      resourceKey: "ore",
+      label: "Ore Sample",
+    },
+    {
+      id: "scholarShard",
+      professionId: "scholar",
+      kind: "pickup",
+      x: TUTORIAL_WORLD.spawnX + 70,
+      y: TUTORIAL_WORLD.spawnY - 310,
+      radius: 14,
+      active: false,
+      collected: false,
+      resourceKey: "arcaneDust",
+      label: "Arcane Shard",
+    }
+  );
+}
+
+function populateTutorialWorld() {
+  tutorialNpcs.length = 0;
+  createTutorialNpc("farmer", TUTORIAL_WORLD.spawnX - 260, TUTORIAL_WORLD.spawnY + 18);
+  createTutorialNpc("mercenary", TUTORIAL_WORLD.spawnX + 280, TUTORIAL_WORLD.spawnY - 20);
+  createTutorialNpc("explorer", TUTORIAL_WORLD.spawnX - 250, TUTORIAL_WORLD.spawnY - 220);
+  createTutorialNpc("merchant", TUTORIAL_WORLD.spawnX + 10, TUTORIAL_WORLD.spawnY + 250);
+  createTutorialNpc("craftsman", TUTORIAL_WORLD.spawnX + 260, TUTORIAL_WORLD.spawnY + 185);
+  createTutorialNpc("scholar", TUTORIAL_WORLD.spawnX + 20, TUTORIAL_WORLD.spawnY - 240);
+  resetTutorialObjects();
+}
+
+function startTutorialProfessionTask(professionId) {
+  const state = getTutorialProfessionState(professionId);
+  if (state.activeTask && state.activeTask.status !== "completed") {
+    return false;
+  }
+
+  if (professionId === "farmer") {
+    player.tutorialResources.seeds += 1;
+    const plot = tutorialPlots.find((entry) => entry.id === "farmerPlot");
+    if (plot) {
+      plot.active = true;
+      plot.state = "empty";
+      plot.timer = 0;
+    }
+    state.activeTask = { id: "farmerStarter", status: "active" };
+  } else if (professionId === "mercenary") {
+    const raider = createUnit("skeleton", TUTORIAL_WORLD.spawnX + 400, TUTORIAL_WORLD.spawnY + 10, false);
+    raider.displayName = "Training Raider";
+    raider.tutorialProfessionId = "mercenary";
+    state.activeTask = { id: "mercenaryStarter", status: "active", enemyId: raider.id };
+  } else if (professionId === "explorer") {
+    const site = tutorialSites.find((entry) => entry.id === "explorerWaypoint");
+    if (site) {
+      site.active = true;
+      site.discovered = false;
+    }
+    state.activeTask = { id: "explorerStarter", status: "active" };
+  } else if (professionId === "merchant") {
+    state.activeTask = { id: "merchantStarter", status: "active" };
+  } else if (professionId === "craftsman") {
+    const site = tutorialSites.find((entry) => entry.id === "craftsmanOre");
+    if (site) {
+      site.active = true;
+      site.collected = false;
+    }
+    state.activeTask = { id: "craftsmanStarter", status: "active" };
+  } else if (professionId === "scholar") {
+    const site = tutorialSites.find((entry) => entry.id === "scholarShard");
+    if (site) {
+      site.active = true;
+      site.collected = false;
+    }
+    state.activeTask = { id: "scholarStarter", status: "active" };
+  }
+
+  return true;
 }
 
 function spawnTrees() {
@@ -388,7 +613,10 @@ function spawnQuestGoblin() {
 
 function getQuestObjectiveText() {
   if (player.inTutorialWorld) {
-    return "Tutorial world active.";
+    const activeTasks = Object.entries(tutorialProfessionState)
+      .filter(([, state]) => state.activeTask && state.activeTask.status !== "completed")
+      .map(([professionId]) => `${TUTORIAL_PROFESSIONS[professionId].label}: ${TUTORIAL_PROFESSIONS[professionId].taskTitle}`);
+    return activeTasks.length ? activeTasks.slice(0, 2).join(" • ") : "Talk to the guides to learn each career path.";
   }
   if (quest.stage === "available") {
     return "Talk to the villager.";
@@ -404,7 +632,9 @@ function getQuestObjectiveText() {
 
 function updateQuestUI() {
   if (player.inTutorialWorld) {
-    questPanelEl.classList.add("hidden");
+    questPanelEl.classList.remove("hidden");
+    questTitleEl.textContent = "Tutorial Paths";
+    questObjectiveEl.textContent = getQuestObjectiveText();
     return;
   }
   const visible = quest.stage === "active" || quest.stage === "readyToTurnIn";
@@ -419,9 +649,16 @@ function updateInventoryUI() {
   const resources = [
     { label: "Wood", value: player.wood },
     { label: "Gold", value: player.money },
+    { label: "Seeds", value: player.tutorialResources.seeds },
+    { label: "Wheat", value: player.tutorialResources.wheat },
+    { label: "Ore", value: player.tutorialResources.ore },
+    { label: "Arcane Dust", value: player.tutorialResources.arcaneDust },
   ];
 
   for (const resource of resources) {
+    if (resource.value <= 0 && resource.label !== "Wood" && resource.label !== "Gold") {
+      continue;
+    }
     const itemEl = document.createElement("div");
     itemEl.className = "inventory-item resource-item";
     itemEl.innerHTML = `<span>${resource.label}</span><strong>${resource.value}</strong>`;
@@ -449,7 +686,145 @@ function isHeroNearVillager() {
 }
 
 function isDialogueOpen() {
-  return Boolean(quest.activeDialogue);
+  return Boolean(quest.activeDialogue || tutorialDialogue.npcId);
+}
+
+function getNearbyTutorialNpc() {
+  let closest = null;
+  let closestDistance = Infinity;
+
+  for (const npc of tutorialNpcs) {
+    const dist = distance(hero, npc);
+    if (dist <= 90 && dist < closestDistance) {
+      closest = npc;
+      closestDistance = dist;
+    }
+  }
+
+  return closest;
+}
+
+function closeTutorialDialogue() {
+  tutorialDialogue.npcId = null;
+  tutorialDialogue.text = "";
+  tutorialDialogue.options = [];
+}
+
+function getTutorialNpcById(npcId) {
+  return tutorialNpcs.find((npc) => npc.id === npcId) || null;
+}
+
+function buildTutorialDialogueOptions(npc) {
+  const state = getTutorialProfessionState(npc.professionId);
+  return [
+    { id: "work", label: "Ask About Work" },
+    { id: state.activeTask?.status === "readyToTurnIn" ? "turnIn" : "accept", label: state.activeTask ? (state.activeTask.status === "readyToTurnIn" ? "Turn In Task" : "Accept Task") : "Accept Task" },
+    { id: "progress", label: "View Progress" },
+    { id: "leave", label: "Leave" },
+  ];
+}
+
+function openTutorialNpcMenu(npc, text = null) {
+  const profession = TUTORIAL_PROFESSIONS[npc.professionId];
+  const state = getTutorialProfessionState(npc.professionId);
+  tutorialDialogue.npcId = npc.id;
+  tutorialDialogue.text = text || (!state.introSeen ? profession.intro : profession.workText);
+  tutorialDialogue.options = buildTutorialDialogueOptions(npc);
+  state.introSeen = true;
+  updateDialogueUI();
+}
+
+function completeTutorialProfessionTask(professionId) {
+  const state = getTutorialProfessionState(professionId);
+  if (!state.activeTask || state.activeTask.status !== "active") {
+    return;
+  }
+  state.activeTask.status = "readyToTurnIn";
+  spawnTextPopup(hero.x, hero.y - 26, `${TUTORIAL_PROFESSIONS[professionId].label} task ready`, "rgba(255, 238, 196, 1)", 1.1);
+  updateQuestUI();
+}
+
+function turnInTutorialProfessionTask(professionId) {
+  const state = getTutorialProfessionState(professionId);
+  if (!state.activeTask || state.activeTask.status !== "readyToTurnIn") {
+    return false;
+  }
+
+  if (professionId === "farmer" && player.tutorialResources.wheat > 0) {
+    player.tutorialResources.wheat -= 1;
+    player.tutorialResources.seeds += 2;
+  } else if (professionId === "merchant") {
+    player.wood = Math.max(0, player.wood - 25);
+    player.money += 35;
+  } else if (professionId === "craftsman" && player.tutorialResources.ore > 0) {
+    player.tutorialResources.ore -= 1;
+    player.weaponBonusStat += 4;
+  } else if (professionId === "scholar" && player.tutorialResources.arcaneDust > 0) {
+    player.tutorialResources.arcaneDust -= 1;
+    player.bonusAbilityDamage += 2;
+  } else if (professionId === "mercenary") {
+    player.money += 30;
+  } else if (professionId === "explorer") {
+    player.money += 15;
+  }
+
+  awardTutorialProfessionProgress(professionId, 12, 1, `${TUTORIAL_PROFESSIONS[professionId].label}: ${TUTORIAL_PROFESSIONS[professionId].rewardText}`);
+  state.activeTask.status = "completed";
+  state.activeTask = null;
+  updateInventoryUI();
+  updateStatsUI();
+  updateQuestUI();
+  return true;
+}
+
+function handleTutorialNpcOption(optionId) {
+  const npc = getTutorialNpcById(tutorialDialogue.npcId);
+  if (!npc) {
+    return;
+  }
+
+  const profession = TUTORIAL_PROFESSIONS[npc.professionId];
+  const state = getTutorialProfessionState(npc.professionId);
+  if (optionId === "leave") {
+    closeTutorialDialogue();
+    updateDialogueUI();
+    statusTextEl.textContent = getCharacterStatus();
+    return;
+  }
+
+  if (optionId === "work") {
+    openTutorialNpcMenu(npc, profession.workText);
+    return;
+  }
+
+  if (optionId === "progress") {
+    openTutorialNpcMenu(
+      npc,
+      `${profession.label} Level ${state.level}. XP ${state.xp}/${getProfessionXpRequired(state.level)}. Reputation ${state.reputation}. Completed tasks ${state.completed}.`
+    );
+    return;
+  }
+
+  if (optionId === "turnIn") {
+    if (turnInTutorialProfessionTask(npc.professionId)) {
+      openTutorialNpcMenu(npc, `Good work. ${profession.rewardText}`);
+    } else {
+      openTutorialNpcMenu(npc, `You still need to finish: ${profession.taskTitle}.`);
+    }
+    return;
+  }
+
+  if (!state.activeTask) {
+    startTutorialProfessionTask(npc.professionId);
+    openTutorialNpcMenu(npc, `Task accepted: ${profession.taskTitle}.`);
+  } else if (npc.professionId === "merchant" && player.wood >= 25) {
+    completeTutorialProfessionTask("merchant");
+    openTutorialNpcMenu(npc, "You have the wood. Turn it in for your first trade reward.");
+  } else {
+    openTutorialNpcMenu(npc, `Current task: ${profession.taskTitle}.`);
+  }
+  updateInventoryUI();
+  updateQuestUI();
 }
 
 function openQuestDialogue(dialogueKey) {
@@ -468,10 +843,34 @@ function updateDialogueUI() {
   const open = isDialogueOpen();
   dialoguePanelEl.classList.toggle("hidden", !open);
   if (!open) {
+    dialogueOptionsEl.classList.add("hidden");
+    dialogueOptionsEl.textContent = "";
+    return;
+  }
+
+  if (tutorialDialogue.npcId) {
+    const npc = getTutorialNpcById(tutorialDialogue.npcId);
+    dialogueSpeakerEl.textContent = npc?.name || "Guide";
+    dialogueTextEl.textContent = tutorialDialogue.text;
+    dialogueHintEl.textContent = "Choose an option";
+    dialogueOptionsEl.textContent = "";
+    dialogueOptionsEl.classList.remove("hidden");
+    for (const option of tutorialDialogue.options) {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "dialogue-option";
+      button.textContent = option.label;
+      button.addEventListener("click", () => {
+        handleTutorialNpcOption(option.id);
+      });
+      dialogueOptionsEl.appendChild(button);
+    }
     return;
   }
 
   const lines = QUEST_DIALOGUES[quest.activeDialogue] || [];
+  dialogueOptionsEl.classList.add("hidden");
+  dialogueOptionsEl.textContent = "";
   dialogueSpeakerEl.textContent = villager.name;
   dialogueTextEl.textContent = lines[quest.dialogueIndex] || "";
   const isLastLine = quest.dialogueIndex >= lines.length - 1;
@@ -499,6 +898,16 @@ function beginVillagerInteraction() {
     openQuestDialogue("completed");
   }
 
+  return true;
+}
+
+function beginTutorialNpcInteraction() {
+  const npc = getNearbyTutorialNpc();
+  if (!npc) {
+    return false;
+  }
+
+  openTutorialNpcMenu(npc);
   return true;
 }
 
@@ -1230,6 +1639,7 @@ function activateTutorialWorld() {
   hero.targetPos = null;
   hero.lastMoveAngle = null;
   hero.abilityEffect = null;
+  populateTutorialWorld();
 
   overlayMessageEl.classList.add("hidden");
   statusTextEl.textContent = "Entered the tutorial world.";
@@ -1261,6 +1671,83 @@ function leaveTutorialWorld() {
   updateAbilityUI();
   updateTrainButton();
   updateBuildBarracksButton();
+}
+
+function getNearbyTutorialPlot() {
+  return tutorialPlots.find((plot) =>
+    plot.active &&
+    hero.x >= plot.x - 18 &&
+    hero.x <= plot.x + plot.w + 18 &&
+    hero.y >= plot.y - 18 &&
+    hero.y <= plot.y + plot.h + 18
+  ) || null;
+}
+
+function getNearbyTutorialSite() {
+  return tutorialSites.find((site) => site.active && !site.collected && distance(hero, site) <= hero.radius + site.radius + 18) || null;
+}
+
+function handleTutorialInteraction() {
+  const plot = getNearbyTutorialPlot();
+  if (plot) {
+    const farmerState = getTutorialProfessionState("farmer");
+    if (plot.state === "empty" && player.tutorialResources.seeds > 0) {
+      player.tutorialResources.seeds -= 1;
+      plot.state = "growing";
+      plot.timer = 4;
+      statusTextEl.textContent = "Seeds planted. Wait for the crop to grow.";
+      updateInventoryUI();
+      return true;
+    }
+    if (plot.state === "ready") {
+      plot.state = "harvested";
+      player.tutorialResources.wheat += 1;
+      if (farmerState.activeTask?.status === "active") {
+        completeTutorialProfessionTask("farmer");
+      }
+      statusTextEl.textContent = "Crop harvested. Return to the Farmer.";
+      updateInventoryUI();
+      return true;
+    }
+  }
+
+  const site = getNearbyTutorialSite();
+  if (site?.kind === "pickup") {
+    player.tutorialResources[site.resourceKey] += 1;
+    site.collected = true;
+    const professionId = site.professionId;
+    if (getTutorialProfessionState(professionId).activeTask?.status === "active") {
+      completeTutorialProfessionTask(professionId);
+    }
+    statusTextEl.textContent = `${site.label} collected.`;
+    updateInventoryUI();
+    return true;
+  }
+
+  return false;
+}
+
+function updateTutorialWorldSystems(dt) {
+  for (const plot of tutorialPlots) {
+    if (!plot.active || plot.state !== "growing") {
+      continue;
+    }
+    plot.timer = Math.max(0, plot.timer - dt);
+    if (plot.timer === 0) {
+      plot.state = "ready";
+    }
+  }
+
+  const waypoint = tutorialSites.find((site) => site.id === "explorerWaypoint");
+  if (
+    waypoint?.active &&
+    !waypoint.discovered &&
+    distance(hero, waypoint) <= hero.radius + waypoint.radius + 22
+  ) {
+    waypoint.discovered = true;
+    completeTutorialProfessionTask("explorer");
+    statusTextEl.textContent = "Landmark discovered. Return to the Explorer.";
+  }
 }
 
 function spawnDodgeArenaBullet() {
@@ -2830,6 +3317,10 @@ function updateHero(dt) {
     return;
   }
 
+  if (player.inTutorialWorld) {
+    updateTutorialWorldSystems(dt);
+  }
+
   if (hero.isHarvesting) {
     const tree = trees.find((t) => t.id === harvestTreeId);
     if (!tree || distance(hero, tree) > hero.radius + tree.radius + 26) {
@@ -3085,6 +3576,10 @@ function cleanupDefeatedEnemies() {
 
     if (isQuestGoblin(enemy)) {
       completeQuestGoblinObjective(enemy.x, enemy.y);
+    }
+
+    if (enemy.tutorialProfessionId === "mercenary") {
+      completeTutorialProfessionTask("mercenary");
     }
 
     awardPlayerXp(enemy.xpReward || 0, enemy.x, enemy.y);
@@ -3569,6 +4064,54 @@ function drawVillager() {
   ctx.font = "700 14px Chakra Petch";
   ctx.textAlign = "center";
   ctx.fillText("VILLAGER", villager.x, villager.y - 34);
+}
+
+function drawTutorialNpcs() {
+  for (const npc of tutorialNpcs) {
+    ctx.fillStyle = npc.color;
+    ctx.beginPath();
+    ctx.arc(npc.x, npc.y, npc.radius, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = "#f3ead0";
+    ctx.beginPath();
+    ctx.arc(npc.x, npc.y - 8, npc.radius * 0.42, 0, Math.PI * 2);
+    ctx.fill();
+    drawNameplate(npc.x, npc.y - 40, npc.name, "rgba(15, 33, 24, 0.9)");
+  }
+}
+
+function drawTutorialObjects() {
+  for (const plot of tutorialPlots) {
+    if (!plot.active) {
+      continue;
+    }
+    ctx.fillStyle = plot.state === "ready" ? "#91c95f" : plot.state === "growing" ? "#7c5b34" : "#6b4c2f";
+    ctx.fillRect(plot.x, plot.y, plot.w, plot.h);
+    ctx.strokeStyle = "rgba(255, 240, 210, 0.28)";
+    ctx.strokeRect(plot.x, plot.y, plot.w, plot.h);
+    if (plot.state === "growing") {
+      ctx.fillStyle = "#8fd46d";
+      ctx.fillRect(plot.x + 18, plot.y + 20, 10, 34);
+      ctx.fillRect(plot.x + 42, plot.y + 16, 10, 38);
+      ctx.fillRect(plot.x + 64, plot.y + 22, 10, 30);
+    } else if (plot.state === "ready") {
+      ctx.fillStyle = "#dfcb6a";
+      for (let x = plot.x + 16; x < plot.x + plot.w - 12; x += 16) {
+        ctx.fillRect(x, plot.y + 14, 8, 52);
+      }
+    }
+  }
+
+  for (const site of tutorialSites) {
+    if (!site.active || site.collected) {
+      continue;
+    }
+    ctx.beginPath();
+    ctx.fillStyle = site.kind === "landmark" ? "rgba(108, 214, 208, 0.9)" : site.resourceKey === "ore" ? "rgba(188, 200, 218, 0.95)" : "rgba(205, 148, 255, 0.95)";
+    ctx.arc(site.x, site.y, site.radius, 0, Math.PI * 2);
+    ctx.fill();
+    drawNameplate(site.x, site.y - 30, site.label, "rgba(20, 24, 30, 0.88)");
+  }
 }
 
 function drawVillageProp(prop) {
@@ -4321,6 +4864,39 @@ function drawBuildPreview() {
 }
 
 function drawModeHint() {
+  const nearbyTutorialNpc = getNearbyTutorialNpc();
+  if (nearbyTutorialNpc && !isDialogueOpen()) {
+    ctx.fillStyle = "rgba(15, 33, 24, 0.82)";
+    ctx.fillRect(nearbyTutorialNpc.x - 58, nearbyTutorialNpc.y - 72, 116, 26);
+    ctx.fillStyle = "#fff5d2";
+    ctx.font = "600 16px Chakra Petch";
+    ctx.textAlign = "center";
+    ctx.fillText("Press Space", nearbyTutorialNpc.x, nearbyTutorialNpc.y - 54);
+    return;
+  }
+
+  const tutorialPlot = getNearbyTutorialPlot();
+  if (tutorialPlot && !isDialogueOpen()) {
+    ctx.fillStyle = "rgba(15, 33, 24, 0.82)";
+    ctx.fillRect(tutorialPlot.x - 8, tutorialPlot.y - 38, 116, 26);
+    ctx.fillStyle = "#fff5d2";
+    ctx.font = "600 16px Chakra Petch";
+    ctx.textAlign = "center";
+    ctx.fillText("Press E", tutorialPlot.x + tutorialPlot.w / 2, tutorialPlot.y - 20);
+    return;
+  }
+
+  const tutorialSite = getNearbyTutorialSite();
+  if (tutorialSite && !isDialogueOpen()) {
+    ctx.fillStyle = "rgba(15, 33, 24, 0.82)";
+    ctx.fillRect(tutorialSite.x - 52, tutorialSite.y - 68, 104, 26);
+    ctx.fillStyle = "#fff5d2";
+    ctx.font = "600 16px Chakra Petch";
+    ctx.textAlign = "center";
+    ctx.fillText("Press E", tutorialSite.x, tutorialSite.y - 50);
+    return;
+  }
+
   if (isHeroNearVillager() && !isDialogueOpen()) {
     ctx.fillStyle = "rgba(15, 33, 24, 0.82)";
     ctx.fillRect(villager.x - 58, villager.y - 72, 116, 26);
@@ -4375,6 +4951,9 @@ function render() {
   for (const prop of villageProps) {
     drawVillageProp(prop);
   }
+
+  drawTutorialObjects();
+  drawTutorialNpcs();
 
   drawTrader();
   drawVillager();
@@ -4469,6 +5048,14 @@ window.addEventListener("keydown", (event) => {
   }
 
   if (isDialogueOpen()) {
+    if (tutorialDialogue.npcId) {
+      if (event.key === "Escape") {
+        closeTutorialDialogue();
+        updateDialogueUI();
+        statusTextEl.textContent = getCharacterStatus();
+      }
+      return;
+    }
     if (event.code === "Space") {
       event.preventDefault();
       advanceQuestDialogue();
@@ -4483,6 +5070,9 @@ window.addEventListener("keydown", (event) => {
 
   if (event.code === "Space") {
     event.preventDefault();
+    if (beginTutorialNpcInteraction()) {
+      return;
+    }
     if (beginVillagerInteraction()) {
       return;
     }
@@ -4541,6 +5131,9 @@ window.addEventListener("keydown", (event) => {
   }
 
   if (key === "e") {
+    if (player.inTutorialWorld && handleTutorialInteraction()) {
+      return;
+    }
     const nearbyPickup = getNearbyPickup();
     if (nearbyPickup) {
       nearbyPickup.collected = true;
