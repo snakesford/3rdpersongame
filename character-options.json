@@ -80,6 +80,14 @@
     "radius": 96,
     "halfAngle": 2.670353755551324
   },
+  "player": {
+    "name": "Player Randy",
+    "agility": 150,
+    "stats": {
+      "armor": 0,
+      "health": 100
+    }
+  },
   "archer": {
     "name": "Archer",
     "abilityName": "Arrow Shot",
