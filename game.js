@@ -67,6 +67,8 @@ const weaponBuffImage = new Image();
 weaponBuffImage.src = "./images/sword.jpg";
 const soldierRunningImage = new Image();
 soldierRunningImage.src = "./images/soldierRunning.png";
+const soldierRunningTransitionImage = new Image();
+soldierRunningTransitionImage.src = "./images/soldierRunningTransition.png";
 const soldierRunningRightFootImage = new Image();
 soldierRunningRightFootImage.src = "./images/soldierRunningRightFoot.png";
 const soldierIdleImage = new Image();
@@ -1060,17 +1062,18 @@ function updateStatsUI() {
   const stats = selected?.stats || { armor: 0, health: 0, weapon: 0, regen: 0 };
   const armor = getTotalArmor(selected);
   const damage = getDisplayedWeaponStat(selected);
-  const health = hero.maxHp || stats.health;
+  const maxHealth = hero.maxHp || stats.health;
+  const currentHealth = Math.max(0, Math.round(hero.hp || 0));
   const speed = getHeroSpeed(selected);
   const regen = getHeroRegen(selected);
 
   armorValueEl.textContent = String(armor);
-  healthValueEl.textContent = String(health);
+  healthValueEl.textContent = `${currentHealth}/${Math.round(maxHealth)}`;
   weaponValueEl.textContent = String(damage);
   speedValueEl.textContent = String(speed);
   regenValueEl.textContent = `${regen.toFixed(1)}/s`;
   armorFillEl.style.width = `${armor}%`;
-  healthFillEl.style.width = `${Math.min(100, (health / 200) * 100)}%`;
+  healthFillEl.style.width = maxHealth > 0 ? `${Math.min(100, Math.max(0, (hero.hp / maxHealth) * 100))}%` : "0%";
   weaponFillEl.style.width = `${Math.min(100, damage * 2)}%`;
   speedFillEl.style.width = `${Math.min(100, (speed / 300) * 100)}%`;
   regenFillEl.style.width = `${Math.min(100, regen * 20)}%`;
@@ -2773,6 +2776,7 @@ function updateHero(dt) {
 
   if (player.shopOpen || player.traderOpen) {
     updateInventoryUI();
+    updateStatsUI();
     updateAbilityUI();
     return;
   }
@@ -2876,6 +2880,7 @@ function updateHero(dt) {
 
   updateInventoryUI();
   statusTextEl.textContent = getCharacterStatus();
+  updateStatsUI();
   updateAbilityUI();
 }
 
@@ -3715,9 +3720,13 @@ function drawSoldierHero() {
   const isBurstShooting = hero.abilityEffect?.effect === "burst" &&
     Boolean(hero.abilityEffect?.pendingShots && hero.abilityEffect.pendingShots.length > 0);
   const isRifleShooting = hero.hasRifle && mouse.leftDown && !hero.isReloading;
-  const runningFrame = Math.floor(hero.runAnimationTimer / 0.3) % 2 === 0
-    ? soldierRunningImage
-    : soldierRunningRightFootImage;
+  const runningFrames = [
+    soldierRunningImage,
+    soldierRunningTransitionImage,
+    soldierRunningRightFootImage,
+    soldierRunningTransitionImage,
+  ];
+  const runningFrame = runningFrames[Math.floor(hero.runAnimationTimer / 0.3) % runningFrames.length];
   const image = hero.isMoving
     ? runningFrame
     : (isBurstShooting || isRifleShooting)
@@ -3733,7 +3742,11 @@ function drawSoldierHero() {
   const size = 54;
   ctx.save();
   ctx.translate(hero.x, hero.y);
-  if (image === soldierRunningImage || image === soldierRunningRightFootImage) {
+  if (
+    image === soldierRunningImage ||
+    image === soldierRunningTransitionImage ||
+    image === soldierRunningRightFootImage
+  ) {
     if (isFacingLeft) {
       ctx.scale(-1, 1);
     }
