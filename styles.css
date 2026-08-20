@@ -146,8 +146,17 @@ canvas {
 }
 
 .minimap-panel {
+  position: fixed;
+  left: 18px;
+  bottom: 18px;
   width: 236px;
   padding: 12px;
+}
+
+.controls-panel {
+  position: fixed;
+  right: 18px;
+  bottom: 18px;
 }
 
 .minimap-head {
@@ -244,19 +253,19 @@ canvas {
 .equipment-content {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
   min-width: 0;
 }
 
 .equipment-icon {
-  width: 42px;
-  height: 42px;
-  flex: 0 0 42px;
+  width: 56px;
+  height: 56px;
+  flex: 0 0 56px;
   object-fit: contain;
   border-radius: 10px;
   background: rgba(255, 255, 255, 0.08);
   border: 1px solid rgba(255, 255, 255, 0.1);
-  padding: 6px;
+  padding: 3px;
 }
 
 .equipment-copy {
@@ -678,6 +687,11 @@ button.hidden {
   .status-panel,
   .controls-panel {
     width: 100%;
+  }
+
+  .minimap-panel,
+  .controls-panel {
+    position: static;
   }
 
   .resource-panel {

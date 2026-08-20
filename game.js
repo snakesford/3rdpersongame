@@ -20,16 +20,12 @@ const minimapCtx = minimapCanvas.getContext("2d");
 const equipmentWeaponNameEl = document.getElementById("equipmentWeaponName");
 const equipmentWeaponMetaEl = document.getElementById("equipmentWeaponMeta");
 const equipmentWeaponIconEl = document.getElementById("equipmentWeaponIcon");
-const equipmentAbilityNameEl = document.getElementById("equipmentAbilityName");
-const equipmentAbilityMetaEl = document.getElementById("equipmentAbilityMeta");
-const equipmentGrenadeSlotEl = document.getElementById("equipmentGrenadeSlot");
-const equipmentGrenadeNameEl = document.getElementById("equipmentGrenadeName");
-const equipmentGrenadeMetaEl = document.getElementById("equipmentGrenadeMeta");
 const equipmentHelmetNameEl = document.getElementById("equipmentHelmetName");
 const equipmentHelmetMetaEl = document.getElementById("equipmentHelmetMeta");
 const equipmentHelmetIconEl = document.getElementById("equipmentHelmetIcon");
 const equipmentBodyArmorNameEl = document.getElementById("equipmentBodyArmorName");
 const equipmentBodyArmorMetaEl = document.getElementById("equipmentBodyArmorMeta");
+const equipmentBodyArmorIconEl = document.getElementById("equipmentBodyArmorIcon");
 const statusTextEl = document.getElementById("statusText");
 const overlayMessageEl = document.getElementById("overlayMessage");
 const buildBarracksBtn = document.getElementById("buildBarracksBtn");
@@ -824,12 +820,40 @@ function updateStatsUI() {
 }
 
 function buildHelmetIcon(fill, stroke) {
+  const detailStroke = stroke === "#000000" ? "rgba(0,0,0,0.9)" : "rgba(255,255,255,0.35)";
   const svg = `
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
       <rect width="64" height="64" rx="14" fill="rgba(10,18,14,0.88)"/>
       <path d="M16 31c0-10 7-18 16-18s16 8 16 18v8c0 2-2 4-4 4H20c-2 0-4-2-4-4z" fill="${fill}" stroke="${stroke}" stroke-width="3" stroke-linejoin="round"/>
       <path d="M23 43v6h18v-6" fill="none" stroke="${stroke}" stroke-width="3" stroke-linecap="round"/>
-      <path d="M24 29h16" stroke="rgba(255,255,255,0.35)" stroke-width="3" stroke-linecap="round"/>
+      <path d="M24 29h16" stroke="${detailStroke}" stroke-width="3" stroke-linecap="round"/>
+    </svg>
+  `;
+
+  return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
+}
+
+function buildBodyArmorIcon(fill, stroke) {
+  const svg = `
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+      <rect width="64" height="64" rx="14" fill="rgba(10,18,14,0.88)"/>
+      <path d="M22 14h20l6 8-4 26H20l-4-26 6-8z" fill="${fill}" stroke="${stroke}" stroke-width="3" stroke-linejoin="round"/>
+      <path d="M26 14l6 8 6-8" fill="none" stroke="${stroke}" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+      <path d="M24 30h16" stroke="rgba(255,255,255,0.2)" stroke-width="3" stroke-linecap="round"/>
+    </svg>
+  `;
+
+  return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
+}
+
+function buildWeaponOutlineIcon(stroke) {
+  const svg = `
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+      <rect width="64" height="64" rx="14" fill="rgba(10,18,14,0.88)"/>
+      <path d="M20 45l8-8 3 3-8 8h-7v-7l8-8 3 3" fill="none" stroke="${stroke}" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+      <path d="M31 34l14-14 4 4-14 14" fill="none" stroke="${stroke}" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+      <path d="M47 18l3-3 1 1-3 3" fill="none" stroke="${stroke}" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+      <path d="M23 41l-5 5" stroke="${stroke}" stroke-width="3" stroke-linecap="round"/>
     </svg>
   `;
 
@@ -858,30 +882,12 @@ function updateEquipmentUI(selected, stats) {
     equipmentWeaponNameEl.textContent = "Axe";
     equipmentWeaponMetaEl.textContent = "Melee weapon";
   } else {
-    equipmentWeaponIconEl.src = "./images/rifle.png";
-    equipmentWeaponNameEl.textContent = "None";
-    equipmentWeaponMetaEl.textContent = "No weapon equipped";
+    equipmentWeaponIconEl.src = buildWeaponOutlineIcon("#000000");
+    equipmentWeaponNameEl.textContent = "";
+    equipmentWeaponMetaEl.textContent = "";
   }
 
   equipmentWeaponIconEl.style.opacity = equippedWeaponType ? "1" : "0.35";
-
-  if (selected) {
-    equipmentAbilityNameEl.textContent = selected.abilityName;
-    equipmentAbilityMetaEl.textContent = "Bound to F";
-  } else {
-    equipmentAbilityNameEl.textContent = "None";
-    equipmentAbilityMetaEl.textContent = "Choose a class";
-  }
-
-  const showGrenadeAbility = hero.selectedClass === "soldier";
-  equipmentGrenadeSlotEl.classList.toggle("hidden", !showGrenadeAbility);
-  if (showGrenadeAbility) {
-    equipmentGrenadeNameEl.textContent = "Grenade";
-    equipmentGrenadeMetaEl.textContent = "Bound to G";
-  } else {
-    equipmentGrenadeNameEl.textContent = "None";
-    equipmentGrenadeMetaEl.textContent = "Unavailable";
-  }
 
   const equippedHelmetType = hero.latestPickup?.type === "helmet" ||
     hero.latestPickup?.type === "rareHelmet" ||
@@ -904,7 +910,7 @@ function updateEquipmentUI(selected, stats) {
     equipmentHelmetNameEl.textContent = "Helmet";
     equipmentHelmetMetaEl.textContent = `Armor ${helmetArmorValue}`;
   } else {
-    equipmentHelmetIconEl.src = buildHelmetIcon("#56615d", "#aeb8b3");
+    equipmentHelmetIconEl.src = buildHelmetIcon("rgba(0,0,0,0)", "#000000");
     equipmentHelmetNameEl.textContent = "None";
     equipmentHelmetMetaEl.textContent = "No helmet equipped";
   }
@@ -912,11 +918,15 @@ function updateEquipmentUI(selected, stats) {
   equipmentHelmetIconEl.style.opacity = equippedHelmetType ? "1" : "0.35";
 
   if (selected && stats.armor > 0) {
+    equipmentBodyArmorIconEl.src = buildBodyArmorIcon("#87a8bf", "#eef6ff");
     equipmentBodyArmorNameEl.textContent = "Standard Armor";
     equipmentBodyArmorMetaEl.textContent = `Base armor ${stats.armor + player.bonusArmor}`;
+    equipmentBodyArmorIconEl.style.opacity = "1";
   } else {
-    equipmentBodyArmorNameEl.textContent = "None";
-    equipmentBodyArmorMetaEl.textContent = "No body armor equipped";
+    equipmentBodyArmorIconEl.src = buildBodyArmorIcon("rgba(0,0,0,0)", "#111111");
+    equipmentBodyArmorNameEl.textContent = "";
+    equipmentBodyArmorMetaEl.textContent = "";
+    equipmentBodyArmorIconEl.style.opacity = "0.9";
   }
 }
 
