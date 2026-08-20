@@ -2015,9 +2015,14 @@ function tryHitTutorialRangeTarget(projectile) {
       projectile.y - projectile.radius <= postBottom
     );
     if (hitsPost) {
-      projectile.active = false;
-      spawnTextPopup(target.x, target.y - 28, "Miss!", "rgba(255, 214, 148, 1)", 0.9);
-      return true;
+      spawnTextPopup(
+        target.x + (Math.random() - 0.5) * 18,
+        target.y - 28 + (Math.random() - 0.5) * 14,
+        "Miss!",
+        "rgba(255, 214, 148, 1)",
+        0.9
+      );
+      continue;
     }
     if (distance(projectile, target) > projectile.radius + target.radius) {
       continue;
