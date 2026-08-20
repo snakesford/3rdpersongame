@@ -705,12 +705,14 @@ function startBarracksPlacement() {
 }
 
 function updateAbilityUI() {
-  const abilityName = hero.selectedClass ? CHARACTER_OPTIONS[hero.selectedClass].abilityName : "Choose Class";
+  const selectedAbilityName = hero.selectedClass ? CHARACTER_OPTIONS[hero.selectedClass].abilityName : "";
+  const showSlashAbility = Boolean(selectedAbilityName);
   const ready = hero.slashTimer <= 0;
-  abilityNameEl.textContent = abilityName;
-  slashAbilityEl.classList.toggle("ready", ready);
-  slashAbilityEl.classList.toggle("cooldown", !ready);
-  slashCooldownTextEl.textContent = player.hasSelectedCharacter
+  abilityNameEl.textContent = selectedAbilityName || "Choose Class";
+  slashAbilityEl.classList.toggle("hidden", !showSlashAbility);
+  slashAbilityEl.classList.toggle("ready", showSlashAbility && ready);
+  slashAbilityEl.classList.toggle("cooldown", !showSlashAbility || !ready);
+  slashCooldownTextEl.textContent = showSlashAbility && player.hasSelectedCharacter
     ? (ready ? "Ready" : `${hero.slashTimer.toFixed(1)}s`)
     : "Pick Hero";
 
@@ -4376,12 +4378,15 @@ function initializeCharacterCards() {
     const nameEl = document.createElement("strong");
     nameEl.textContent = selectedClass.name;
 
-    const abilityEl = document.createElement("span");
-    abilityEl.textContent = classId === "soldier"
-      ? `F: ${selectedClass.abilityName} | G: Grenade`
-      : `F: ${selectedClass.abilityName}`;
+    classCardEl.append(portraitEl, nameEl);
 
-    classCardEl.append(portraitEl, nameEl, abilityEl);
+    if (selectedClass.abilityName) {
+      const abilityEl = document.createElement("span");
+      abilityEl.textContent = classId === "soldier"
+        ? `F: ${selectedClass.abilityName} | G: Grenade`
+        : `F: ${selectedClass.abilityName}`;
+      classCardEl.appendChild(abilityEl);
+    }
 
     if (selectedClass.portrait) {
       portraitEl.src = selectedClass.portrait;
