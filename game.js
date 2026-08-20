@@ -245,6 +245,7 @@ const UPGRADE_OPTIONS = [
 
 const DEFAULT_ENEMY_NAME = "Enemy Hero";
 const MINIMAP_NEARBY_RADIUS = 360;
+const PLAYER_NAME_STORAGE_KEY = "timberlineCommandPlayerName";
 
 const trees = [];
 const stones = [];
@@ -525,6 +526,14 @@ function sanitizePlayerName(value) {
   return value.replace(/\s+/g, " ").trim().slice(0, 18);
 }
 
+function savePlayerName(name) {
+  localStorage.setItem(PLAYER_NAME_STORAGE_KEY, name);
+}
+
+function loadSavedPlayerName() {
+  return sanitizePlayerName(localStorage.getItem(PLAYER_NAME_STORAGE_KEY) || "");
+}
+
 function confirmPlayerName() {
   const submittedName = sanitizePlayerName(playerNameInputEl.value);
   if (!submittedName) {
@@ -534,6 +543,7 @@ function confirmPlayerName() {
   }
 
   player.displayName = submittedName;
+  savePlayerName(submittedName);
   nameStepEl.classList.add("hidden");
   classStepEl.classList.remove("hidden");
   statusTextEl.textContent = `Welcome, ${player.displayName}. Choose your hero.`;
@@ -4108,6 +4118,14 @@ async function initializeGame() {
     updateTraderUI();
     updateTrainButton();
     updateBuildBarracksButton();
+    const savedPlayerName = loadSavedPlayerName();
+    if (savedPlayerName) {
+      player.displayName = savedPlayerName;
+      playerNameInputEl.value = savedPlayerName;
+      nameStepEl.classList.add("hidden");
+      classStepEl.classList.remove("hidden");
+      statusTextEl.textContent = `Welcome back, ${player.displayName}. Choose your hero.`;
+    }
     playerNameInputEl.focus();
     requestAnimationFrame(gameLoop);
   } catch (error) {
