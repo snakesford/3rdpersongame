@@ -185,6 +185,7 @@ const player = {
 const camera = { x: 0, y: 0 };
 const mouse = { x: 0, y: 0, worldX: 0, worldY: 0, leftDown: false };
 const keys = new Set();
+const grenadeAim = { active: false, primed: false };
 
 let entityId = 1;
 let selectionBox = null;
@@ -575,6 +576,10 @@ function getCharacterStatus() {
     return "Dodge Arena active. Survive the bullet rain.";
   }
 
+  if (grenadeAim.active) {
+    return "Grenade readied. Hold G, then left-click release to throw.";
+  }
+
   if (player.isPlacingBuilding) {
     return "Place the Barracks on open ground. Right-click or press Escape to cancel.";
   }
@@ -650,6 +655,32 @@ function isPlayerBaseSelected() {
 
 function updateBuildBarracksButton() {
   buildBarracksBtn.disabled = !isPlayerBaseSelected() || player.isPlacingBuilding;
+}
+
+function canAimSoldierGrenade() {
+  return player.hasSelectedCharacter &&
+    !player.victory &&
+    !player.loss &&
+    !player.shopOpen &&
+    !player.traderOpen &&
+    !player.isPlacingBuilding &&
+    hero.selectedClass === "soldier" &&
+    hero.grenadeCooldownRemaining <= 0;
+}
+
+function startGrenadeAim() {
+  if (!canAimSoldierGrenade()) {
+    return false;
+  }
+  grenadeAim.active = true;
+  grenadeAim.primed = false;
+  statusTextEl.textContent = "Grenade readied. Hold G, then left-click release to throw.";
+  return true;
+}
+
+function cancelGrenadeAim() {
+  grenadeAim.active = false;
+  grenadeAim.primed = false;
 }
 
 function startBarracksPlacement() {
@@ -1175,6 +1206,7 @@ function respawnHero() {
   hero.dashTimer = 0;
   hero.dashCooldown = selectedClass?.dashCooldown || 0;
   hero.dashCooldownRemaining = 0;
+  cancelGrenadeAim();
   heroProjectiles.length = 0;
   heroGrenades.length = 0;
   grenadeShockwaves.length = 0;
@@ -1466,7 +1498,9 @@ function useSoldierGrenade(targetX, targetY) {
     maxTtl: travelTime,
     arcHeight: Math.max(26, Math.min(70, target.distance * 0.12)),
   });
+  cancelGrenadeAim();
   statusTextEl.textContent = "Grenade out.";
+  updateAbilityUI();
   return true;
 }
 
@@ -2309,7 +2343,7 @@ function updateHero(dt) {
     }
   }
   hero.isMoving = false;
-  if (mouse.leftDown && !player.isPlacingBuilding && !player.shopOpen && !player.traderOpen) {
+  if (mouse.leftDown && !grenadeAim.active && !player.isPlacingBuilding && !player.shopOpen && !player.traderOpen) {
     if (hero.hasRifle) {
       spawnHeroBullet(mouse.worldX, mouse.worldY);
     } else if (hero.hasBow) {
@@ -3614,6 +3648,46 @@ function drawGrenadeShockwaves() {
   }
 }
 
+function drawGrenadeAimArc() {
+  if (!grenadeAim.active) {
+    return;
+  }
+
+  const target = getClampedGrenadeTarget(mouse.worldX, mouse.worldY);
+  if (target.distance < 24) {
+    return;
+  }
+
+  const midX = (hero.x + target.x) / 2;
+  const midY = (hero.y + target.y) / 2;
+  const arcHeight = Math.max(26, Math.min(70, target.distance * 0.12));
+  const controlY = midY - arcHeight * 2.2;
+
+  ctx.beginPath();
+  ctx.setLineDash([10, 8]);
+  ctx.strokeStyle = grenadeAim.primed ? "rgba(255, 226, 170, 0.95)" : "rgba(255, 214, 138, 0.82)";
+  ctx.lineWidth = 3;
+  ctx.moveTo(hero.x, hero.y - 10);
+  ctx.quadraticCurveTo(midX, controlY, target.x, target.y);
+  ctx.stroke();
+  ctx.setLineDash([]);
+
+  ctx.beginPath();
+  ctx.fillStyle = "rgba(255, 186, 86, 0.16)";
+  ctx.arc(target.x, target.y, SOLDIER_GRENADE_RADIUS, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.strokeStyle = "rgba(255, 227, 168, 0.8)";
+  ctx.lineWidth = 2;
+  ctx.arc(target.x, target.y, SOLDIER_GRENADE_RADIUS, 0, Math.PI * 2);
+  ctx.stroke();
+
+  ctx.beginPath();
+  ctx.fillStyle = "rgba(255, 244, 210, 0.95)";
+  ctx.arc(target.x, target.y, 6, 0, Math.PI * 2);
+  ctx.fill();
+}
+
 function drawBulletProjectile(projectile) {
   const bodyLength = Math.max(14, projectile.radius * 3.8);
   const bodyRadius = Math.max(3, projectile.radius * 0.72);
@@ -3800,6 +3874,7 @@ function render() {
   drawNameplate(hero.x, hero.y - 50, player.displayName || "Player");
   drawHarvestProgress();
   drawSlashArc();
+  drawGrenadeAimArc();
   drawGrenadeShockwaves();
   drawHeroGrenades();
   drawHeroProjectiles();
@@ -3908,7 +3983,9 @@ window.addEventListener("keydown", (event) => {
   }
 
   if (key === "g") {
-    useSoldierGrenade(mouse.worldX, mouse.worldY);
+    if (!event.repeat) {
+      startGrenadeAim();
+    }
     return;
   }
 
@@ -3938,6 +4015,7 @@ window.addEventListener("keydown", (event) => {
 
   if (event.key === "Escape") {
     player.isPlacingBuilding = false;
+    cancelGrenadeAim();
     updateBuildBarracksButton();
     statusTextEl.textContent = getCharacterStatus();
   }
@@ -3946,6 +4024,10 @@ window.addEventListener("keydown", (event) => {
 window.addEventListener("keyup", (event) => {
   const key = event.key.length === 1 ? event.key.toLowerCase() : event.key;
   keys.delete(key);
+  if (key === "g" && grenadeAim.active && !grenadeAim.primed) {
+    cancelGrenadeAim();
+    statusTextEl.textContent = getCharacterStatus();
+  }
 });
 
 canvas.addEventListener("mousemove", (event) => {
@@ -3974,6 +4056,11 @@ canvas.addEventListener("mousedown", (event) => {
   mouse.worldY = point.y;
 
   if (event.button === 0) {
+    if (grenadeAim.active) {
+      mouse.leftDown = true;
+      grenadeAim.primed = true;
+      return;
+    }
     mouse.leftDown = true;
     if (player.isPlacingBuilding) {
       if (!isPlayerBaseSelected()) {
@@ -4043,6 +4130,15 @@ canvas.addEventListener("mouseup", (event) => {
     mouse.leftDown = false;
   }
   if (player.shopOpen || player.traderOpen) {
+    return;
+  }
+  if (event.button === 0 && grenadeAim.active) {
+    if (grenadeAim.primed) {
+      grenadeAim.primed = false;
+      useSoldierGrenade(mouse.worldX, mouse.worldY);
+    } else {
+      cancelGrenadeAim();
+    }
     return;
   }
   if (event.button === 0 && selectionBox) {
@@ -4220,6 +4316,7 @@ function selectCharacter(classId) {
   hero.isReloading = false;
   hero.reloadTimer = 0;
   hero.shootLockTimer = 0;
+  cancelGrenadeAim();
   heroProjectiles.length = 0;
   heroGrenades.length = 0;
   grenadeShockwaves.length = 0;
