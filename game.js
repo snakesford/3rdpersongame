@@ -176,7 +176,7 @@ const TUTORIAL_PROFESSIONS = {
   },
   mercenary: {
     label: "Mercenary",
-    color: "#d98969",
+    color: "#ff5a5a",
     intro: "I post combat contracts. The first one is simple: kill a nearby target and come back alive.",
     workText: "Mercenary work scales into area clears, escorts, hunts, and harder contracts with gold and gear.",
     taskTitle: "Defeat the training raider",
@@ -811,7 +811,7 @@ function handleTutorialNpcOption(optionId) {
   if (optionId === "progress") {
     openTutorialNpcMenu(
       npc,
-      `${profession.label} Level ${state.level}. XP ${state.xp}/${getProfessionXpRequired(state.level)}. Reputation ${state.reputation}. Completed tasks ${state.completed}.`
+      `${profession.label} Reputation ${state.reputation}. Progress ${state.xp}/${getProfessionXpRequired(state.level)} to next reputation rank. Completed tasks ${state.completed}.`
     );
     return;
   }
@@ -4125,6 +4125,9 @@ function drawVillager() {
 
 function drawTutorialNpcs() {
   for (const npc of tutorialNpcs) {
+    const professionState = getTutorialProfessionState(npc.professionId);
+    const xpRequired = getProfessionXpRequired(professionState.level);
+    const reputationProgress = clamp(professionState.xp / xpRequired, 0, 1);
     ctx.fillStyle = npc.color;
     ctx.beginPath();
     ctx.arc(npc.x, npc.y, npc.radius, 0, Math.PI * 2);
@@ -4134,6 +4137,22 @@ function drawTutorialNpcs() {
     ctx.arc(npc.x, npc.y - 8, npc.radius * 0.42, 0, Math.PI * 2);
     ctx.fill();
     drawNameplate(npc.x, npc.y - 40, npc.name, "rgba(15, 33, 24, 0.9)");
+    if (distance(hero, npc) <= 90) {
+      drawNameplate(
+        npc.x,
+        npc.y - 88,
+        `${professionState.xp}/${xpRequired} XP`,
+        "rgba(33, 24, 15, 0.9)"
+      );
+      drawNameplate(
+        npc.x,
+        npc.y - 64,
+        `Reputation ${professionState.reputation}`,
+        "rgba(33, 24, 15, 0.9)",
+        reputationProgress,
+        npc.color
+      );
+    }
   }
 }
 
@@ -4610,7 +4629,14 @@ function drawHealthBar(x, y, width, ratio) {
   ctx.fillRect(x - width / 2 + 1, y + 1, (width - 2) * clamped, 8);
 }
 
-function drawNameplate(x, y, name, fillStyle = "rgba(15, 33, 24, 0.88)") {
+function drawNameplate(
+  x,
+  y,
+  name,
+  fillStyle = "rgba(15, 33, 24, 0.88)",
+  textFillRatio = null,
+  progressColor = "#ffd36b"
+) {
   if (!name) {
     return;
   }
@@ -4625,6 +4651,13 @@ function drawNameplate(x, y, name, fillStyle = "rgba(15, 33, 24, 0.88)") {
 
   ctx.fillStyle = fillStyle;
   ctx.fillRect(left, top, width, height);
+  if (typeof textFillRatio === "number") {
+    const clampedRatio = clamp(textFillRatio, 0, 1);
+    if (clampedRatio > 0) {
+      ctx.fillStyle = progressColor;
+      ctx.fillRect(left, top, width * clampedRatio, height);
+    }
+  }
   ctx.strokeStyle = "rgba(255, 245, 210, 0.28)";
   ctx.lineWidth = 1;
   ctx.strokeRect(left, top, width, height);
@@ -4958,11 +4991,11 @@ function drawModeHint() {
   const nearbyTutorialNpc = getNearbyTutorialNpc();
   if (nearbyTutorialNpc && !isDialogueOpen()) {
     ctx.fillStyle = "rgba(15, 33, 24, 0.82)";
-    ctx.fillRect(nearbyTutorialNpc.x - 58, nearbyTutorialNpc.y - 72, 116, 26);
+    ctx.fillRect(nearbyTutorialNpc.x - 58, nearbyTutorialNpc.y + 34, 116, 26);
     ctx.fillStyle = "#fff5d2";
     ctx.font = "600 16px Chakra Petch";
     ctx.textAlign = "center";
-    ctx.fillText("Press Space", nearbyTutorialNpc.x, nearbyTutorialNpc.y - 54);
+    ctx.fillText("Press Space", nearbyTutorialNpc.x, nearbyTutorialNpc.y + 52);
     return;
   }
 
@@ -4990,11 +5023,11 @@ function drawModeHint() {
 
   if (isHeroNearVillager() && !isDialogueOpen()) {
     ctx.fillStyle = "rgba(15, 33, 24, 0.82)";
-    ctx.fillRect(villager.x - 58, villager.y - 72, 116, 26);
+    ctx.fillRect(villager.x - 58, villager.y + 34, 116, 26);
     ctx.fillStyle = "#fff5d2";
     ctx.font = "600 16px Chakra Petch";
     ctx.textAlign = "center";
-    ctx.fillText("Press Space", villager.x, villager.y - 54);
+    ctx.fillText("Press Space", villager.x, villager.y + 52);
     return;
   }
 
