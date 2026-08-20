@@ -163,6 +163,7 @@ const tutorialDialogue = {
   npcId: null,
   text: "",
   options: [],
+  taskOffered: false,
 };
 const TUTORIAL_PROFESSIONS = {
   farmer: {
@@ -709,6 +710,7 @@ function closeTutorialDialogue() {
   tutorialDialogue.npcId = null;
   tutorialDialogue.text = "";
   tutorialDialogue.options = [];
+  tutorialDialogue.taskOffered = false;
 }
 
 function getTutorialNpcById(npcId) {
@@ -717,19 +719,27 @@ function getTutorialNpcById(npcId) {
 
 function buildTutorialDialogueOptions(npc) {
   const state = getTutorialProfessionState(npc.professionId);
-  return [
-    { id: "work", label: "Ask About Work" },
-    { id: state.activeTask?.status === "readyToTurnIn" ? "turnIn" : "accept", label: state.activeTask ? (state.activeTask.status === "readyToTurnIn" ? "Turn In Task" : "Accept Task") : "Accept Task" },
-    { id: "progress", label: "View Progress" },
-    { id: "leave", label: "Leave" },
+  const options = [
+    { id: "work", label: "1. Ask About Work" },
+    { id: "progress", label: "3. View Progress" },
+    { id: "leave", label: "4. Leave" },
   ];
+
+  if (state.activeTask?.status === "readyToTurnIn") {
+    options.splice(1, 0, { id: "turnIn", label: "2. Turn In Task" });
+  } else if (tutorialDialogue.taskOffered && !state.activeTask) {
+    options.splice(1, 0, { id: "accept", label: "2. Accept Task" });
+  }
+
+  return options;
 }
 
-function openTutorialNpcMenu(npc, text = null) {
+function openTutorialNpcMenu(npc, text = null, taskOffered = false) {
   const profession = TUTORIAL_PROFESSIONS[npc.professionId];
   const state = getTutorialProfessionState(npc.professionId);
   tutorialDialogue.npcId = npc.id;
   tutorialDialogue.text = text || (!state.introSeen ? profession.intro : profession.workText);
+  tutorialDialogue.taskOffered = taskOffered;
   tutorialDialogue.options = buildTutorialDialogueOptions(npc);
   state.introSeen = true;
   updateDialogueUI();
@@ -794,7 +804,7 @@ function handleTutorialNpcOption(optionId) {
   }
 
   if (optionId === "work") {
-    openTutorialNpcMenu(npc, profession.workText);
+    openTutorialNpcMenu(npc, `${profession.workText} Task available: ${profession.taskTitle}.`, !state.activeTask);
     return;
   }
 
@@ -817,10 +827,12 @@ function handleTutorialNpcOption(optionId) {
 
   if (!state.activeTask) {
     startTutorialProfessionTask(npc.professionId);
-    openTutorialNpcMenu(npc, `Task accepted: ${profession.taskTitle}.`);
+    closeTutorialDialogue();
+    updateDialogueUI();
+    statusTextEl.textContent = `Task accepted: ${profession.taskTitle}.`;
   } else if (npc.professionId === "merchant" && player.wood >= 25) {
     completeTutorialProfessionTask("merchant");
-    openTutorialNpcMenu(npc, "You have the wood. Turn it in for your first trade reward.");
+    openTutorialNpcMenu(npc, "You have the wood. Ask about work again to turn it in.");
   } else {
     openTutorialNpcMenu(npc, `Current task: ${profession.taskTitle}.`);
   }
@@ -853,7 +865,8 @@ function updateDialogueUI() {
     const npc = getTutorialNpcById(tutorialDialogue.npcId);
     dialogueSpeakerEl.textContent = npc?.name || "Guide";
     dialogueTextEl.textContent = tutorialDialogue.text;
-    dialogueHintEl.textContent = "Choose an option";
+    dialogueHintEl.textContent = "";
+    dialogueHintEl.classList.add("hidden");
     dialogueOptionsEl.textContent = "";
     dialogueOptionsEl.classList.remove("hidden");
     for (const option of tutorialDialogue.options) {
@@ -872,6 +885,7 @@ function updateDialogueUI() {
   const lines = QUEST_DIALOGUES[quest.activeDialogue] || [];
   dialogueOptionsEl.classList.add("hidden");
   dialogueOptionsEl.textContent = "";
+  dialogueHintEl.classList.remove("hidden");
   dialogueSpeakerEl.textContent = villager.name;
   dialogueTextEl.textContent = lines[quest.dialogueIndex] || "";
   const isLastLine = quest.dialogueIndex >= lines.length - 1;
@@ -5126,6 +5140,14 @@ window.addEventListener("keydown", (event) => {
 
   if (isDialogueOpen()) {
     if (tutorialDialogue.npcId) {
+      if (["1", "2", "3", "4"].includes(event.key)) {
+        event.preventDefault();
+        const option = tutorialDialogue.options.find((entry) => entry.label.startsWith(`${event.key}.`));
+        if (option) {
+          handleTutorialNpcOption(option.id);
+        }
+        return;
+      }
       if (event.key === "Escape") {
         closeTutorialDialogue();
         updateDialogueUI();
