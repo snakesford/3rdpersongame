@@ -8,7 +8,8 @@
     "stats": {
       "armor": 70,
       "health": 150,
-      "weapon": 85
+      "weapon": 85,
+      "regen": 1.8
     },
     "effect": "cone",
     "damage": 35,
@@ -24,7 +25,8 @@
     "stats": {
       "armor": 45,
       "health": 120,
-      "weapon": 78
+      "weapon": 78,
+      "regen": 1.2
     },
     "effect": "burst",
     "damage": 8,
@@ -42,7 +44,8 @@
     "stats": {
       "armor": 25,
       "health": 100,
-      "weapon": 92
+      "weapon": 92,
+      "regen": 1.6
     },
     "effect": "nova",
     "damage": 30,
@@ -58,7 +61,8 @@
     "stats": {
       "armor": 90,
       "health": 180,
-      "weapon": 70
+      "weapon": 70,
+      "regen": 2.4
     },
     "effect": "cone",
     "damage": 25,
@@ -73,7 +77,8 @@
     "stats": {
       "armor": 55,
       "health": 140,
-      "weapon": 80
+      "weapon": 80,
+      "regen": 1.5
     },
     "effect": "cone",
     "damage": 28,
@@ -85,7 +90,8 @@
     "agility": 150,
     "stats": {
       "armor": 0,
-      "health": 100
+      "health": 100,
+      "regen": 1
     }
   },
   "archer": {
@@ -94,7 +100,7 @@
     "cooldown": 3,
     "agility": 255,
     "portrait": "./images/archer.png",
-    "stats": { "armor": 35, "health": 105, "weapon": 88 },
+    "stats": { "armor": 35, "health": 105, "weapon": 88, "regen": 1.1 },
     "effect": "projectile",
     "damage": 42,
     "range": 0,

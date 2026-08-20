@@ -5,10 +5,12 @@ const armorValueEl = document.getElementById("armorValue");
 const healthValueEl = document.getElementById("healthValue");
 const weaponValueEl = document.getElementById("weaponValue");
 const speedValueEl = document.getElementById("speedValue");
+const regenValueEl = document.getElementById("regenValue");
 const armorFillEl = document.getElementById("armorFill");
 const healthFillEl = document.getElementById("healthFill");
 const weaponFillEl = document.getElementById("weaponFill");
 const speedFillEl = document.getElementById("speedFill");
+const regenFillEl = document.getElementById("regenFill");
 const xpLevelEl = document.getElementById("xpLevel");
 const xpFillEl = document.getElementById("xpFill");
 const upgradePointsEl = document.getElementById("upgradePoints");
@@ -237,6 +239,7 @@ const hero = {
   isDead: false,
   deathTimer: 0,
   deathDuration: 0.7,
+  regenProgress: 0,
   ammo: 0,
   maxAmmo: 30,
   isReloading: false,
@@ -260,6 +263,7 @@ const SOLDIER_GRENADE_RANGE = GRID_SIZE * 4;
 const SOLDIER_GRENADE_RADIUS = 110;
 const SOLDIER_GRENADE_DAMAGE = 42;
 const SOLDIER_GRENADE_COOLDOWN = 6;
+const DODGE_ARENA_DODGE_XP = 1;
 const QUEST_ID = "goblinTrouble";
 const GOLD_HELMET_ARMOR = 95;
 const villager = {
@@ -978,6 +982,10 @@ function getHeroSpeed(selected = getSelectedClassConfig()) {
   return (selected?.agility || hero.speed || 0) + player.bonusSpeed;
 }
 
+function getHeroRegen(selected = getSelectedClassConfig()) {
+  return selected?.stats?.regen || 0;
+}
+
 function updateUpgradeUI() {
   upgradePointsEl.textContent = `Upgrade Points: ${player.upgradePoints}`;
   upgradePointsEl.classList.toggle("hidden", player.upgradePoints <= 0);
@@ -996,20 +1004,23 @@ upgradeActionEls.forEach((element) => {
 
 function updateStatsUI() {
   const selected = getSelectedClassConfig();
-  const stats = selected?.stats || { armor: 0, health: 0, weapon: 0 };
+  const stats = selected?.stats || { armor: 0, health: 0, weapon: 0, regen: 0 };
   const armor = getTotalArmor(selected);
   const damage = getDisplayedWeaponStat(selected);
   const health = hero.maxHp || stats.health;
   const speed = getHeroSpeed(selected);
+  const regen = getHeroRegen(selected);
 
   armorValueEl.textContent = String(armor);
   healthValueEl.textContent = String(health);
   weaponValueEl.textContent = String(damage);
   speedValueEl.textContent = String(speed);
+  regenValueEl.textContent = `${regen.toFixed(1)}/s`;
   armorFillEl.style.width = `${armor}%`;
   healthFillEl.style.width = `${Math.min(100, (health / 200) * 100)}%`;
   weaponFillEl.style.width = `${Math.min(100, damage * 2)}%`;
   speedFillEl.style.width = `${Math.min(100, (speed / 300) * 100)}%`;
+  regenFillEl.style.width = `${Math.min(100, regen * 20)}%`;
   updateEquipmentUI(selected, stats);
 }
 
@@ -1317,6 +1328,7 @@ function updateDodgeArena(dt) {
       continue;
     }
     if (bullet.y > DODGE_ARENA.y + DODGE_ARENA.h + 24) {
+      awardPlayerXp(DODGE_ARENA_DODGE_XP, bullet.x, bullet.y);
       dodgeArenaBullets.splice(index, 1);
     }
   }
@@ -1413,6 +1425,7 @@ function respawnHero() {
   hero.isDead = false;
   hero.deathTimer = 0;
   hero.dashTimer = 0;
+  hero.regenProgress = 0;
   hero.dashCooldown = selectedClass?.dashCooldown || 0;
   hero.dashCooldownRemaining = 0;
   cancelGrenadeAim();
@@ -2627,6 +2640,19 @@ function updateHero(dt) {
       hero.ammo = hero.maxAmmo;
     }
   }
+  const regenRate = getHeroRegen();
+  if (regenRate > 0 && hero.hp > 0 && hero.hp < hero.maxHp) {
+    hero.regenProgress += regenRate * dt;
+    const missingHp = hero.maxHp - hero.hp;
+    const wholeHpRestored = Math.min(Math.floor(hero.regenProgress), Math.floor(missingHp));
+    if (wholeHpRestored > 0) {
+      hero.hp = Math.min(hero.maxHp, hero.hp + wholeHpRestored);
+      hero.regenProgress -= wholeHpRestored;
+      spawnTextPopup(hero.x, hero.y - hero.radius - 18, `+${wholeHpRestored} HP`, "rgba(156, 245, 164, 1)", 0.9);
+    }
+  } else if (hero.hp >= hero.maxHp) {
+    hero.regenProgress = 0;
+  }
   hero.isMoving = false;
   if (isDialogueOpen()) {
     updateInventoryUI();
@@ -3626,11 +3652,13 @@ function drawSoldierHero() {
   const isBurstShooting = hero.abilityEffect?.effect === "burst" &&
     Boolean(hero.abilityEffect?.pendingShots && hero.abilityEffect.pendingShots.length > 0);
   const isRifleShooting = hero.hasRifle && mouse.leftDown && !hero.isReloading;
-  const image = (isBurstShooting || isRifleShooting)
-    ? soldierShootingImage
-    : hero.isMoving
-      ? soldierRunningImage
+  const image = hero.isMoving
+    ? soldierRunningImage
+    : (isBurstShooting || isRifleShooting)
+      ? soldierShootingImage
       : soldierIdleImage;
+  const facingAngle = hero.lastMoveAngle ?? hero.facingAngle ?? 0;
+  const isFacingLeft = Math.cos(facingAngle) < 0;
   if (!image.complete || image.naturalWidth <= 0) {
     drawEntityCircle(hero, COLORS.hero, COLORS.heroAccent);
     return;
@@ -3640,8 +3668,11 @@ function drawSoldierHero() {
   ctx.save();
   ctx.translate(hero.x, hero.y);
   if (image === soldierRunningImage) {
-    const runAngle = hero.lastMoveAngle ?? hero.facingAngle;
-    if (Math.cos(runAngle) < 0) {
+    if (isFacingLeft) {
+      ctx.scale(-1, 1);
+    }
+  } else if (image === soldierIdleImage) {
+    if (isFacingLeft) {
       ctx.scale(-1, 1);
     }
   } else {
@@ -4656,6 +4687,7 @@ function selectCharacter(classId) {
   hero.lastMoveAngle = null;
   hero.maxHp = selectedClass.stats.health + player.bonusHealth;
   hero.hp = hero.maxHp;
+  hero.regenProgress = 0;
   hero.dashTimer = 0;
   hero.dashCooldown = selectedClass.dashCooldown || 0;
   hero.dashCooldownRemaining = 0;

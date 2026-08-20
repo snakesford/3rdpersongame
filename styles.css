@@ -407,6 +407,10 @@ canvas {
   background: linear-gradient(90deg, #3e8fb0, #8ce3ff);
 }
 
+.regen-fill {
+  background: linear-gradient(90deg, #78b94f, #b9f27f);
+}
+
 .controls-panel,
 .status-panel {
   padding: 14px;
