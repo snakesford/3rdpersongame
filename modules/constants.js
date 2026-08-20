@@ -26,6 +26,22 @@ const DODGE_ARENA_TILE = {
   y: PLAYER_BASE_SPAWN.y + 110,
   size: 90,
 };
+const TUTORIAL_TILE = {
+  x: PLAYER_BASE_SPAWN.x + 420,
+  y: PLAYER_BASE_SPAWN.y + 110,
+  size: 90,
+};
+const TUTORIAL_WORLD = {
+  spawnX: WORLD.width / 2,
+  spawnY: WORLD.height / 2 + 140,
+  treeX: WORLD.width / 2 - 150,
+  treeY: WORLD.height / 2,
+  rockX: WORLD.width / 2 + 160,
+  rockY: WORLD.height / 2 + 30,
+  returnTileX: WORLD.width / 2,
+  returnTileY: WORLD.height / 2 + 320,
+  returnTileSize: 96,
+};
 const DODGE_ARENA = {
   x: WORLD.width - 520,
   y: 120,
@@ -56,6 +72,7 @@ const COLORS = {
   barracks: "#6f4d96",
   shop: "#7a5230",
   dodgeArena: "#3e6f97",
+  tutorialTile: "#5f4d2f",
   villageRoof: "#8c5b3b",
   villageWall: "#d7bf97",
   villageWell: "#7f8f9d",
@@ -159,6 +176,8 @@ export {
   SOLDIER_GRENADE_RANGE,
   SPAWN_STREAM_TILE,
   SPAWN_WAVE_TILE,
+  TUTORIAL_TILE,
+  TUTORIAL_WORLD,
   UPGRADE_OPTIONS,
   VILLAGE_ROAD_WIDTH,
   WORLD,

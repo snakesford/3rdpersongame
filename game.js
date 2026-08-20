@@ -6,6 +6,7 @@ import {
   bowImage,
   skeletonImage,
   soldierIdleImage,
+  soldierReloadingImage,
   soldierRunningImage,
   soldierRunningRightFootImage,
   soldierRunningTransitionImage,
@@ -40,6 +41,8 @@ import {
   SOLDIER_GRENADE_RANGE,
   SPAWN_STREAM_TILE,
   SPAWN_WAVE_TILE,
+  TUTORIAL_TILE,
+  TUTORIAL_WORLD,
   UPGRADE_OPTIONS,
   VILLAGE_ROAD_WIDTH,
   WORLD,
@@ -146,21 +149,8 @@ let ENEMY_OPTIONS = {};
 let selectionBox = null;
 let harvestTreeId = null;
 let lastTimestamp = 0;
-
-spawnTrees();
-spawnStones();
-const playerBase = createBuilding("playerBase", 60, MAIN_LANE_Y - 100, true);
-playerBase.hp = 900;
-playerBase.maxHp = 900;
-playerBase.w = 180;
-playerBase.h = 200;
-createBuilding("shop", 180, MAIN_LANE_Y - 220, true);
-initializeVillage();
-const enemyBase = createBuilding("enemyBase", WORLD.width - 270, MAIN_LANE_Y - 100, false);
-enemyBase.hp = 800;
-enemyBase.maxHp = 800;
-enemyBase.w = 180;
-enemyBase.h = 200;
+let playerBase = null;
+let enemyBase = null;
 let enemyHero = null;
 
 function initializeEnemyForces() {
@@ -173,6 +163,55 @@ function initializeEnemyForces() {
   radius: 18,
   };
   createUnit("enemySoldier", WORLD.width - 470, MAIN_LANE_Y + 90, false);
+}
+
+function clearWorldEntities() {
+  trees.length = 0;
+  stones.length = 0;
+  buildings.length = 0;
+  units.length = 0;
+  enemies.length = 0;
+  pickups.length = 0;
+  heroProjectiles.length = 0;
+  heroGrenades.length = 0;
+  grenadeShockwaves.length = 0;
+  damagePopups.length = 0;
+  sparkEffects.length = 0;
+  dodgeArenaBullets.length = 0;
+  villageFields.length = 0;
+  villagePaths.length = 0;
+  villageFences.length = 0;
+  villageProps.length = 0;
+}
+
+function initializeMainWorld() {
+  clearWorldEntities();
+  SPAWN_WAVE_TILE.triggered = false;
+  SPAWN_STREAM_TILE.timer = 0;
+  DODGE_ARENA.timer = 0;
+  player.inTutorialWorld = false;
+  player.inDodgeArena = false;
+  player.selectedUnits = [];
+  player.selectedBuildingId = null;
+
+  spawnTrees();
+  spawnStones();
+  playerBase = createBuilding("playerBase", 60, MAIN_LANE_Y - 100, true);
+  playerBase.hp = 900;
+  playerBase.maxHp = 900;
+  playerBase.w = 180;
+  playerBase.h = 200;
+  initializeVillage();
+  enemyBase = createBuilding("enemyBase", WORLD.width - 270, MAIN_LANE_Y - 100, false);
+  enemyBase.hp = 800;
+  enemyBase.maxHp = 800;
+  enemyBase.w = 180;
+  enemyBase.h = 200;
+  initializeEnemyForces();
+
+  if (quest.stage === "active") {
+    spawnQuestGoblin();
+  }
 }
 
 function spawnTrees() {
@@ -346,6 +385,9 @@ function spawnQuestGoblin() {
 }
 
 function getQuestObjectiveText() {
+  if (player.inTutorialWorld) {
+    return "Tutorial world active.";
+  }
   if (quest.stage === "available") {
     return "Talk to the villager.";
   }
@@ -359,6 +401,10 @@ function getQuestObjectiveText() {
 }
 
 function updateQuestUI() {
+  if (player.inTutorialWorld) {
+    questPanelEl.classList.add("hidden");
+    return;
+  }
   const visible = quest.stage === "active" || quest.stage === "readyToTurnIn";
   questPanelEl.classList.toggle("hidden", !visible);
   questTitleEl.textContent = "Goblin Trouble";
@@ -580,6 +626,10 @@ window.addEventListener("resize", resizeCanvas);
 resizeCanvas();
 
 function getCharacterStatus() {
+  if (player.inTutorialWorld) {
+    return "Tutorial world. A tree and a rock are the only objects here.";
+  }
+
   if (isDialogueOpen()) {
     return "Talking to the villager. Press Space to continue.";
   }
@@ -1071,6 +1121,24 @@ function isHeroOnDodgeArenaTile() {
   );
 }
 
+function isHeroOnTutorialTile() {
+  return (
+    hero.x >= TUTORIAL_TILE.x &&
+    hero.x <= TUTORIAL_TILE.x + TUTORIAL_TILE.size &&
+    hero.y >= TUTORIAL_TILE.y &&
+    hero.y <= TUTORIAL_TILE.y + TUTORIAL_TILE.size
+  );
+}
+
+function isHeroOnTutorialReturnTile() {
+  return (
+    hero.x >= TUTORIAL_WORLD.returnTileX &&
+    hero.x <= TUTORIAL_WORLD.returnTileX + TUTORIAL_WORLD.returnTileSize &&
+    hero.y >= TUTORIAL_WORLD.returnTileY &&
+    hero.y <= TUTORIAL_WORLD.returnTileY + TUTORIAL_WORLD.returnTileSize
+  );
+}
+
 function isPointInsideDodgeArena(x, y) {
   return (
     x >= DODGE_ARENA.x &&
@@ -1106,6 +1174,84 @@ function leaveDodgeArena(message = "Returned from the Dodge Arena.") {
   hero.targetPos = null;
   statusTextEl.textContent = message;
   spawnTextPopup(hero.x, hero.y - 28, "Returned", "rgba(196, 234, 255, 1)", 1.2);
+}
+
+function activateTutorialWorld() {
+  if (player.inTutorialWorld) {
+    return;
+  }
+
+  player.inTutorialWorld = true;
+  player.inDodgeArena = false;
+  player.shopOpen = false;
+  player.traderOpen = false;
+  player.isPlacingBuilding = false;
+  player.selectedUnits = [];
+  player.selectedBuildingId = null;
+  clearUnitSelection();
+  cancelGrenadeAim();
+  cancelHarvest();
+  closeQuestDialogue();
+  closeShop();
+  closeTrader();
+  clearWorldEntities();
+
+  trees.push({
+    id: nextId(),
+    x: TUTORIAL_WORLD.treeX,
+    y: TUTORIAL_WORLD.treeY,
+    radius: 28,
+    wood: 25,
+  });
+  stones.push({
+    id: nextId(),
+    x: TUTORIAL_WORLD.rockX,
+    y: TUTORIAL_WORLD.rockY,
+    radius: 19,
+  });
+
+  enemyHero.active = false;
+  enemyHero.hp = 0;
+  enemyHero.x = -1000;
+  enemyHero.y = -1000;
+
+  hero.x = TUTORIAL_WORLD.spawnX;
+  hero.y = TUTORIAL_WORLD.spawnY;
+  hero.hp = hero.maxHp;
+  hero.targetPos = null;
+  hero.lastMoveAngle = null;
+  hero.abilityEffect = null;
+
+  overlayMessageEl.classList.add("hidden");
+  statusTextEl.textContent = "Entered the tutorial world.";
+  updateQuestUI();
+  updateInventoryUI();
+  updateStatsUI();
+  updateAbilityUI();
+  updateTrainButton();
+  updateBuildBarracksButton();
+}
+
+function leaveTutorialWorld() {
+  if (!player.inTutorialWorld) {
+    return;
+  }
+
+  initializeMainWorld();
+  hero.x = PLAYER_BASE_SPAWN.x;
+  hero.y = PLAYER_BASE_SPAWN.y;
+  hero.hp = hero.maxHp;
+  hero.targetPos = null;
+  hero.lastMoveAngle = null;
+  hero.abilityEffect = null;
+  overlayMessageEl.classList.add("hidden");
+  statusTextEl.textContent = "Returned to the main world.";
+  updateQuestUI();
+  updateInventoryUI();
+  updateStatsUI();
+  updateAbilityUI();
+  updateTrainButton();
+  updateBuildBarracksButton();
 }
 
 function spawnDodgeArenaBullet() {
@@ -1255,14 +1401,14 @@ function respawnHero() {
   grenadeShockwaves.length = 0;
   hero.maxHp = (selectedClass?.stats?.health || 150) + player.bonusHealth;
   hero.hp = hero.maxHp;
-  hero.x = PLAYER_BASE_SPAWN.x;
-  hero.y = PLAYER_BASE_SPAWN.y;
+  hero.x = player.inTutorialWorld ? TUTORIAL_WORLD.spawnX : PLAYER_BASE_SPAWN.x;
+  hero.y = player.inTutorialWorld ? TUTORIAL_WORLD.spawnY : PLAYER_BASE_SPAWN.y;
   hero.targetPos = null;
   cancelHarvest();
   closeShop();
   closeTrader();
   updateStatsUI();
-  statusTextEl.textContent = "You respawned at base.";
+  statusTextEl.textContent = player.inTutorialWorld ? "You respawned in the tutorial world." : "You respawned at base.";
   spawnTextPopup(hero.x, hero.y - 30, "Respawned!", "rgba(196, 234, 255, 1)", 1.4);
 }
 
@@ -2661,6 +2807,16 @@ function updateHero(dt) {
     enterDodgeArena();
   }
 
+  if (!player.inTutorialWorld && isHeroOnTutorialTile()) {
+    activateTutorialWorld();
+    return;
+  }
+
+  if (player.inTutorialWorld && isHeroOnTutorialReturnTile()) {
+    leaveTutorialWorld();
+    return;
+  }
+
   if (hero.isHarvesting) {
     const tree = trees.find((t) => t.id === harvestTreeId);
     if (!tree || distance(hero, tree) > hero.radius + tree.radius + 26) {
@@ -2941,11 +3097,15 @@ function update(dt) {
   }
   updateCamera(dt);
   updateHero(dt);
-  updateDodgeArena(dt);
+  if (!player.inTutorialWorld) {
+    updateDodgeArena(dt);
+  }
   updateHeroProjectiles(dt);
   updateUnits(dt, units, enemies, buildings.filter((b) => !b.isPlayer));
   updateUnits(dt, enemies, [hero, ...units], buildings.filter((b) => b.isPlayer));
-  cleanupDeathZoneEntities();
+  if (!player.inTutorialWorld) {
+    cleanupDeathZoneEntities();
+  }
   updateDamagePopups(dt);
   updateSparkEffects(dt);
   cleanupDefeatedEnemies();
@@ -2966,6 +3126,20 @@ function update(dt) {
 function drawBackground() {
   ctx.fillStyle = COLORS.ground;
   ctx.fillRect(0, 0, WORLD.width, WORLD.height);
+
+  if (player.inTutorialWorld) {
+    ctx.fillStyle = COLORS.tutorialTile;
+    ctx.fillRect(TUTORIAL_WORLD.returnTileX, TUTORIAL_WORLD.returnTileY, TUTORIAL_WORLD.returnTileSize, TUTORIAL_WORLD.returnTileSize);
+    ctx.strokeStyle = "rgba(255, 234, 193, 0.6)";
+    ctx.lineWidth = 3;
+    ctx.strokeRect(TUTORIAL_WORLD.returnTileX, TUTORIAL_WORLD.returnTileY, TUTORIAL_WORLD.returnTileSize, TUTORIAL_WORLD.returnTileSize);
+    ctx.fillStyle = "#fff4da";
+    ctx.font = "700 16px Chakra Petch";
+    ctx.textAlign = "center";
+    ctx.fillText("MAIN", TUTORIAL_WORLD.returnTileX + TUTORIAL_WORLD.returnTileSize / 2, TUTORIAL_WORLD.returnTileY + 38);
+    ctx.fillText("WORLD", TUTORIAL_WORLD.returnTileX + TUTORIAL_WORLD.returnTileSize / 2, TUTORIAL_WORLD.returnTileY + 60);
+    return;
+  }
 
   ctx.fillStyle = COLORS.path;
   ctx.fillRect(0, MAIN_LANE_Y - 90, WORLD.width, 180);
@@ -3012,6 +3186,15 @@ function drawBackground() {
   ctx.fillStyle = "#e3f3ff";
   ctx.fillText("DODGE", DODGE_ARENA_TILE.x + DODGE_ARENA_TILE.size / 2, DODGE_ARENA_TILE.y + 34);
   ctx.fillText("ARENA", DODGE_ARENA_TILE.x + DODGE_ARENA_TILE.size / 2, DODGE_ARENA_TILE.y + 54);
+
+  ctx.fillStyle = COLORS.tutorialTile;
+  ctx.fillRect(TUTORIAL_TILE.x, TUTORIAL_TILE.y, TUTORIAL_TILE.size, TUTORIAL_TILE.size);
+  ctx.strokeStyle = "rgba(255, 234, 193, 0.6)";
+  ctx.lineWidth = 3;
+  ctx.strokeRect(TUTORIAL_TILE.x, TUTORIAL_TILE.y, TUTORIAL_TILE.size, TUTORIAL_TILE.size);
+  ctx.fillStyle = "#fff4da";
+  ctx.fillText("TUTOR", TUTORIAL_TILE.x + TUTORIAL_TILE.size / 2, TUTORIAL_TILE.y + 34);
+  ctx.fillText("IAL", TUTORIAL_TILE.x + TUTORIAL_TILE.size / 2, TUTORIAL_TILE.y + 54);
 
   ctx.fillStyle = "rgba(27, 54, 76, 0.92)";
   ctx.fillRect(DODGE_ARENA.x, DODGE_ARENA.y, DODGE_ARENA.w, DODGE_ARENA.h);
@@ -3078,6 +3261,32 @@ function drawMinimap() {
   minimapCtx.clearRect(0, 0, mapWidth, mapHeight);
   minimapCtx.fillStyle = "#19301f";
   minimapCtx.fillRect(0, 0, mapWidth, mapHeight);
+
+  if (player.inTutorialWorld) {
+    minimapCtx.fillStyle = "rgba(95, 77, 47, 0.95)";
+    minimapCtx.fillRect(
+      toMapX(TUTORIAL_WORLD.returnTileX),
+      toMapY(TUTORIAL_WORLD.returnTileY),
+      TUTORIAL_WORLD.returnTileSize * scaleX,
+      TUTORIAL_WORLD.returnTileSize * scaleY
+    );
+
+    minimapCtx.fillStyle = "rgba(64, 120, 67, 0.85)";
+    for (const tree of trees) {
+      minimapCtx.fillRect(toMapX(tree.x) - 1, toMapY(tree.y) - 1, 3, 3);
+    }
+
+    minimapCtx.fillStyle = "rgba(158, 170, 184, 0.8)";
+    for (const stone of stones) {
+      minimapCtx.fillRect(toMapX(stone.x) - 1, toMapY(stone.y) - 1, 3, 3);
+    }
+
+    minimapCtx.fillStyle = "#9de0ff";
+    minimapCtx.beginPath();
+    minimapCtx.arc(toMapX(hero.x), toMapY(hero.y), 3, 0, Math.PI * 2);
+    minimapCtx.fill();
+    return;
+  }
 
   minimapCtx.fillStyle = "rgba(208, 188, 132, 0.36)";
   minimapCtx.fillRect(0, toMapY(MAIN_LANE_Y - 90), mapWidth, Math.max(10, 180 * scaleY));
@@ -3555,6 +3764,7 @@ function drawSoldierHero() {
   const isBurstShooting = hero.abilityEffect?.effect === "burst" &&
     Boolean(hero.abilityEffect?.pendingShots && hero.abilityEffect.pendingShots.length > 0);
   const isRifleShooting = hero.hasRifle && mouse.leftDown && !hero.isReloading;
+  const isReloading = hero.hasRifle && hero.isReloading && hero.ammo === 0;
   const runningFrames = [
     soldierRunningImage,
     soldierRunningTransitionImage,
@@ -3564,6 +3774,8 @@ function drawSoldierHero() {
   const runningFrame = runningFrames[Math.floor(hero.runAnimationTimer / 0.3) % runningFrames.length];
   const image = hero.isMoving
     ? runningFrame
+    : isReloading
+      ? soldierReloadingImage
     : (isBurstShooting || isRifleShooting)
       ? soldierShootingImage
       : soldierIdleImage;
@@ -3585,7 +3797,7 @@ function drawSoldierHero() {
     if (isFacingLeft) {
       ctx.scale(-1, 1);
     }
-  } else if (image === soldierIdleImage) {
+  } else if (image === soldierIdleImage || image === soldierReloadingImage) {
     if (isFacingLeft) {
       ctx.scale(-1, 1);
     }
@@ -4721,7 +4933,7 @@ async function initializeGame() {
   try {
     await loadCharacterOptions();
     await loadEnemyOptions();
-    initializeEnemyForces();
+    initializeMainWorld();
     initializeCharacterCards();
     updateAbilityUI();
     updateStatsUI();
