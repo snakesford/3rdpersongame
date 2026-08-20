@@ -154,6 +154,7 @@ let lastTimestamp = 0;
 let playerBase = null;
 let enemyBase = null;
 let enemyHero = null;
+let lastSoldierAnimationName = null;
 const BATTLE_MEDICINE_USE_DURATION = 0.9;
 const tutorialNpcs = [];
 const tutorialPlots = [];
@@ -4345,12 +4346,19 @@ function drawSoldierHero() {
   const isUsingMedicine = isUsingBattleMedicine();
   const isReloading = hero.hasRifle && hero.isReloading && hero.ammo === 0;
   const runningFrames = [
+    soldierRunningTransitionImage,
     soldierRunningImage,
     soldierRunningTransitionImage,
     soldierRunningRightFootImage,
-    soldierRunningTransitionImage,
+  ];
+  const runningFrameNames = [
+    "soldierRunningTransition",
+    "soldierRunning",
+    "soldierRunningTransition",
+    "soldierRunningRightFoot",
   ];
   const runningFrame = runningFrames[Math.floor(hero.runAnimationTimer / 0.3) % runningFrames.length];
+  const runningFrameName = runningFrameNames[Math.floor(hero.runAnimationTimer / 0.3) % runningFrameNames.length];
   const image = isUsingMedicine
     ? soldierMedkitImage
     : (isBurstShooting || isRifleShooting)
@@ -4360,11 +4368,24 @@ function drawSoldierHero() {
     : isReloading
       ? soldierReloadingImage
       : soldierIdleImage;
+  const animationName = isUsingMedicine
+    ? "soldierMedkit"
+    : (isBurstShooting || isRifleShooting)
+      ? "soldierShooting"
+      : hero.isMoving
+        ? runningFrameName
+      : isReloading
+        ? "soldierReloading"
+        : "soldierIdle";
   const shootingAngle = isRifleShooting
     ? Math.atan2(mouse.worldY - hero.y, mouse.worldX - hero.x)
     : hero.facingAngle;
   const facingAngle = hero.lastMoveAngle ?? shootingAngle ?? hero.facingAngle ?? 0;
   const isFacingLeft = Math.cos(facingAngle) < 0;
+  if (animationName !== lastSoldierAnimationName) {
+    console.log("Soldier animation changed:", animationName);
+    lastSoldierAnimationName = animationName;
+  }
   if (!image.complete || image.naturalWidth <= 0) {
     drawEntityCircle(hero, COLORS.hero, COLORS.heroAccent);
     return;

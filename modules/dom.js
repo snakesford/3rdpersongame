@@ -1,5 +1,7 @@
 const canvas = document.getElementById("gameCanvas");
 const ctx = canvas.getContext("2d");
+ctx.imageSmoothingEnabled = true;
+ctx.imageSmoothingQuality = "high";
 
 const armorValueEl = document.getElementById("armorValue");
 const healthValueEl = document.getElementById("healthValue");
@@ -17,6 +19,8 @@ const upgradePointsEl = document.getElementById("upgradePoints");
 const upgradeActionEls = document.querySelectorAll(".upgrade-action");
 const minimapCanvas = document.getElementById("minimapCanvas");
 const minimapCtx = minimapCanvas.getContext("2d");
+minimapCtx.imageSmoothingEnabled = true;
+minimapCtx.imageSmoothingQuality = "high";
 const equipmentWeaponNameEl = document.getElementById("equipmentWeaponName");
 const equipmentWeaponMetaEl = document.getElementById("equipmentWeaponMeta");
 const equipmentWeaponIconEl = document.getElementById("equipmentWeaponIcon");
