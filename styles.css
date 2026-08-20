@@ -130,7 +130,6 @@ canvas {
 
 .brand,
 .quest-panel,
-.resource-panel,
 .minimap-panel,
 .stats-panel,
 .controls-panel,
@@ -190,31 +189,6 @@ canvas {
   margin: 6px 0 0;
   font-size: 24px;
   line-height: 1;
-}
-
-.resource-panel {
-  min-width: 120px;
-  padding: 14px 18px;
-  text-align: left;
-}
-
-.resource-row + .resource-row {
-  margin-top: 10px;
-}
-
-.resource-panel span {
-  display: block;
-  font-size: 12px;
-  color: var(--muted);
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-}
-
-.resource-panel strong {
-  display: block;
-  margin-top: 4px;
-  font-size: 28px;
-  color: #fff5d2;
 }
 
 .quest-panel {
@@ -285,6 +259,17 @@ canvas {
 
 .inventory-empty {
   color: var(--muted);
+}
+
+.inventory-item.resource-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.inventory-item.resource-item strong {
+  font-size: 18px;
+  color: #fff5d2;
 }
 
 .equipment-slot {
@@ -772,7 +757,6 @@ button.hidden {
     flex-direction: column;
   }
 
-  .resource-panel,
   .stats-panel,
   .status-panel,
   .minimap-panel {
@@ -781,10 +765,6 @@ button.hidden {
 
   .controls-panel {
     width: auto;
-  }
-
-  .resource-panel {
-    text-align: left;
   }
 
   .controls-panel {

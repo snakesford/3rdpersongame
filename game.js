@@ -1,8 +1,6 @@
 const canvas = document.getElementById("gameCanvas");
 const ctx = canvas.getContext("2d");
 
-const woodCountEl = document.getElementById("woodCount");
-const moneyCountEl = document.getElementById("moneyCount");
 const armorValueEl = document.getElementById("armorValue");
 const healthValueEl = document.getElementById("healthValue");
 const weaponValueEl = document.getElementById("weaponValue");
@@ -585,7 +583,7 @@ function getQuestObjectiveText() {
 }
 
 function updateQuestUI() {
-  const visible = player.hasSelectedCharacter || quest.stage !== "available";
+  const visible = quest.stage === "active" || quest.stage === "readyToTurnIn";
   questPanelEl.classList.toggle("hidden", !visible);
   questTitleEl.textContent = "Goblin Trouble";
   questObjectiveEl.textContent = getQuestObjectiveText();
@@ -593,6 +591,19 @@ function updateQuestUI() {
 
 function updateInventoryUI() {
   inventoryListEl.textContent = "";
+
+  const resources = [
+    { label: "Wood", value: player.wood },
+    { label: "Gold", value: player.money },
+  ];
+
+  for (const resource of resources) {
+    const itemEl = document.createElement("div");
+    itemEl.className = "inventory-item resource-item";
+    itemEl.innerHTML = `<span>${resource.label}</span><strong>${resource.value}</strong>`;
+    inventoryListEl.appendChild(itemEl);
+  }
+
   if (!inventory.length) {
     const emptyEl = document.createElement("span");
     emptyEl.className = "inventory-empty";
@@ -2618,8 +2629,7 @@ function updateHero(dt) {
   }
   hero.isMoving = false;
   if (isDialogueOpen()) {
-    woodCountEl.textContent = String(player.wood);
-    moneyCountEl.textContent = String(player.money);
+    updateInventoryUI();
     statusTextEl.textContent = getCharacterStatus();
     updateAbilityUI();
     return;
@@ -2679,8 +2689,7 @@ function updateHero(dt) {
   }
 
   if (player.shopOpen || player.traderOpen) {
-    woodCountEl.textContent = String(player.wood);
-    moneyCountEl.textContent = String(player.money);
+    updateInventoryUI();
     updateAbilityUI();
     return;
   }
@@ -2776,8 +2785,7 @@ function updateHero(dt) {
     hero.deathTimer = hero.deathDuration;
   }
 
-  woodCountEl.textContent = String(player.wood);
-  moneyCountEl.textContent = String(player.money);
+  updateInventoryUI();
   statusTextEl.textContent = getCharacterStatus();
   updateAbilityUI();
 }
@@ -4432,7 +4440,7 @@ canvas.addEventListener("mousedown", (event) => {
         player.hasBuiltBarracks = true;
         player.isPlacingBuilding = false;
         hero.shootLockTimer = 0.8;
-        woodCountEl.textContent = String(player.wood);
+        updateInventoryUI();
         updateBuildBarracksButton();
         statusTextEl.textContent = "Barracks built. Select it to train soldiers.";
       }
@@ -4579,8 +4587,7 @@ shopSellWoodBtn.addEventListener("click", () => {
   }
   player.wood -= 25;
   player.money += 25;
-  woodCountEl.textContent = String(player.wood);
-  moneyCountEl.textContent = String(player.money);
+  updateInventoryUI();
   updateTrainButton();
   statusTextEl.textContent = "Sold 25 wood for 25 gold.";
   updateShopUI();
@@ -4598,7 +4605,7 @@ trainSoldierBtn.addEventListener("click", () => {
     return;
   }
   player.money -= 50;
-  moneyCountEl.textContent = String(player.money);
+  updateInventoryUI();
   createUnit("soldier", barracks.x + barracks.w + 24, barracks.y + barracks.h / 2, true);
   trainSoldierBtn.disabled = player.money < 50;
   statusTextEl.textContent = "Soldier trained. Select it and issue orders with the mouse.";
@@ -4624,7 +4631,7 @@ buyWeaponUpgradeBtn.addEventListener("click", () => {
   player.money -= 50;
   player.weaponBonusStat += 10;
   player.weaponBonusDamage += 5;
-  moneyCountEl.textContent = String(player.money);
+  updateInventoryUI();
   updateStatsUI();
   updateTraderUI();
   statusTextEl.textContent = "Weapon enhanced. +10 weapon, +5 ability damage.";
