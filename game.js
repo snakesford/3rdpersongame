@@ -185,7 +185,7 @@ const player = {
 const camera = { x: 0, y: 0 };
 const mouse = { x: 0, y: 0, worldX: 0, worldY: 0, leftDown: false };
 const keys = new Set();
-const grenadeAim = { active: false, primed: false };
+const grenadeAim = { active: false };
 
 let entityId = 1;
 let selectionBox = null;
@@ -577,7 +577,7 @@ function getCharacterStatus() {
   }
 
   if (grenadeAim.active) {
-    return "Grenade readied. Hold G, then left-click release to throw.";
+    return "Grenade readied. Release G to throw.";
   }
 
   if (player.isPlacingBuilding) {
@@ -673,14 +673,12 @@ function startGrenadeAim() {
     return false;
   }
   grenadeAim.active = true;
-  grenadeAim.primed = false;
-  statusTextEl.textContent = "Grenade readied. Hold G, then left-click release to throw.";
+  statusTextEl.textContent = "Grenade readied. Release G to throw.";
   return true;
 }
 
 function cancelGrenadeAim() {
   grenadeAim.active = false;
-  grenadeAim.primed = false;
 }
 
 function startBarracksPlacement() {
@@ -2343,7 +2341,7 @@ function updateHero(dt) {
     }
   }
   hero.isMoving = false;
-  if (mouse.leftDown && !grenadeAim.active && !player.isPlacingBuilding && !player.shopOpen && !player.traderOpen) {
+  if (mouse.leftDown && !player.isPlacingBuilding && !player.shopOpen && !player.traderOpen) {
     if (hero.hasRifle) {
       spawnHeroBullet(mouse.worldX, mouse.worldY);
     } else if (hero.hasBow) {
@@ -4024,9 +4022,11 @@ window.addEventListener("keydown", (event) => {
 window.addEventListener("keyup", (event) => {
   const key = event.key.length === 1 ? event.key.toLowerCase() : event.key;
   keys.delete(key);
-  if (key === "g" && grenadeAim.active && !grenadeAim.primed) {
-    cancelGrenadeAim();
-    statusTextEl.textContent = getCharacterStatus();
+  if (key === "g" && grenadeAim.active) {
+    if (!useSoldierGrenade(mouse.worldX, mouse.worldY)) {
+      cancelGrenadeAim();
+      statusTextEl.textContent = getCharacterStatus();
+    }
   }
 });
 
@@ -4056,11 +4056,6 @@ canvas.addEventListener("mousedown", (event) => {
   mouse.worldY = point.y;
 
   if (event.button === 0) {
-    if (grenadeAim.active) {
-      mouse.leftDown = true;
-      grenadeAim.primed = true;
-      return;
-    }
     mouse.leftDown = true;
     if (player.isPlacingBuilding) {
       if (!isPlayerBaseSelected()) {
@@ -4130,15 +4125,6 @@ canvas.addEventListener("mouseup", (event) => {
     mouse.leftDown = false;
   }
   if (player.shopOpen || player.traderOpen) {
-    return;
-  }
-  if (event.button === 0 && grenadeAim.active) {
-    if (grenadeAim.primed) {
-      grenadeAim.primed = false;
-      useSoldierGrenade(mouse.worldX, mouse.worldY);
-    } else {
-      cancelGrenadeAim();
-    }
     return;
   }
   if (event.button === 0 && selectionBox) {
