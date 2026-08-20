@@ -278,6 +278,22 @@ const SOLDIER_BATTLE_MEDICINE_REGEN_BONUS = 2;
 const SOLDIER_BATTLE_MEDICINE_DURATION = 10;
 const SOLDIER_BATTLE_MEDICINE_COOLDOWN = 20;
 const DODGE_ARENA_DODGE_XP = 1;
+const RANGED_HEADSHOT_CONFIG = {
+  bullet: {
+    headshotChance: 0.18,
+    headshotMultiplier: 2,
+  },
+  arrow: {
+    headshotChance: 0.22,
+    headshotMultiplier: 2,
+  },
+};
+const HELMET_HEADSHOT_PROTECTION = {
+  helmet: 0.2,
+  rareHelmet: 0.45,
+  enemyHelmet: 0.6,
+  goldHelmet: 0.75,
+};
 const QUEST_ID = "goblinTrouble";
 const GOLD_HELMET_ARMOR = 95;
 const villager = {
@@ -1651,6 +1667,63 @@ function spawnTextPopup(x, y, text, color = "rgba(255, 230, 140, 1)", ttl = 0.9)
   });
 }
 
+function getEntityHelmetType(target) {
+  if (!target) {
+    return null;
+  }
+
+  if (target.equippedHelmetType) {
+    return target.equippedHelmetType;
+  }
+
+  const latestPickupType = target.latestPickup?.type;
+  if (latestPickupType === "helmet" || latestPickupType === "rareHelmet" || latestPickupType === "goldHelmet" || latestPickupType === "enemyHelmet") {
+    return latestPickupType;
+  }
+
+  if (target === enemyHero && target.equippedArmorValue > 0) {
+    return "enemyHelmet";
+  }
+
+  return null;
+}
+
+function getHeadshotProtectionForTarget(target) {
+  const helmetType = getEntityHelmetType(target);
+  return helmetType ? (HELMET_HEADSHOT_PROTECTION[helmetType] || 0) : 0;
+}
+
+function buildProjectileHeadshotConfig(projectileType) {
+  const config = RANGED_HEADSHOT_CONFIG[projectileType] || {};
+  return {
+    headshotChance: config.headshotChance ?? 0,
+    headshotMultiplier: config.headshotMultiplier ?? 2,
+  };
+}
+
+function applyRangedProjectileHit(target, projectile) {
+  const baseDamage = projectile.baseDamage ?? projectile.damage;
+  const projectileType = projectile.projectileType || "bullet";
+  const headshotChance = projectile.headshotChance ?? buildProjectileHeadshotConfig(projectileType).headshotChance;
+  const headshotMultiplier = projectile.headshotMultiplier ?? buildProjectileHeadshotConfig(projectileType).headshotMultiplier;
+  const isHeadshot = Boolean(projectile.canHeadshot) && Math.random() < headshotChance;
+
+  let finalDamage = baseDamage;
+  if (isHeadshot) {
+    const helmetProtection = getHeadshotProtectionForTarget(target);
+    const extraDamage = baseDamage * Math.max(0, headshotMultiplier - 1);
+    finalDamage = baseDamage + (extraDamage * (1 - helmetProtection));
+  }
+
+  finalDamage = Math.max(1, Math.round(finalDamage));
+  dealDamage(target, finalDamage, true);
+
+  if (isHeadshot) {
+    const popupPoint = getDamagePopupPoint(target);
+    spawnTextPopup(popupPoint.x, popupPoint.y - 22, "HEADSHOT", "rgba(255, 132, 132, 1)", 0.8);
+  }
+}
+
 function dealDamage(target, amount, showPopup = false) {
   target.hp -= amount;
   if (showPopup) {
@@ -1879,6 +1952,7 @@ function updateGrenades(dt) {
 
 function spawnBurstProjectile(shot, damage, width) {
   const angle = (shot.baseAngle ?? hero.facingAngle) + shot.angleOffset;
+  const headshotConfig = buildProjectileHeadshotConfig("bullet");
   return {
     x: hero.x,
     y: hero.y,
@@ -1886,6 +1960,7 @@ function spawnBurstProjectile(shot, damage, width) {
     speed: 720,
     radius: Math.max(4, width * 0.45),
     damage,
+    baseDamage: damage,
     width,
     traveled: 0,
     maxDistance: shot.range,
@@ -1893,10 +1968,16 @@ function spawnBurstProjectile(shot, damage, width) {
     hitIds: new Set(),
     ricochetCount: 0,
     ricochetTimer: 0,
+    projectileType: "bullet",
+    canHeadshot: true,
+    headshotChance: headshotConfig.headshotChance,
+    headshotMultiplier: headshotConfig.headshotMultiplier,
   };
 }
 
 function spawnAbilityProjectile(config) {
+  const projectileType = config.projectileType || "arrow";
+  const headshotConfig = buildProjectileHeadshotConfig(projectileType);
   return {
     x: hero.x,
     y: hero.y,
@@ -1904,12 +1985,17 @@ function spawnAbilityProjectile(config) {
     speed: config.speed || 820,
     radius: Math.max(4, (config.width || 10) * 0.45),
     damage: config.damage,
+    baseDamage: config.damage,
     width: config.width || 10,
     traveled: 0,
     maxDistance: config.range,
     active: true,
     stopOnHit: true,
     style: config.style || "arrow",
+    projectileType,
+    canHeadshot: config.canHeadshot ?? true,
+    headshotChance: config.headshotChance ?? headshotConfig.headshotChance,
+    headshotMultiplier: config.headshotMultiplier ?? headshotConfig.headshotMultiplier,
   };
 }
 
@@ -1921,6 +2007,8 @@ function buildArcherArrowProjectile(damageOverride = null) {
     range: canvas.width * 0.5,
     style: "arrow",
     speed: 820,
+    projectileType: "arrow",
+    canHeadshot: true,
   });
 }
 
@@ -2088,13 +2176,13 @@ function updateBurstProjectile(projectile, dt) {
 
   for (let i = enemies.length - 1; i >= 0; i -= 1) {
     if (!projectile.hitIds.has(enemies[i].id) && distance(projectile, enemies[i]) <= projectile.radius + enemies[i].radius) {
-      dealDamage(enemies[i], projectile.damage, true);
+      applyRangedProjectileHit(enemies[i], projectile);
       projectile.hitIds.add(enemies[i].id);
     }
   }
 
   if (!projectile.hitIds.has(enemyHero.id) && distance(projectile, enemyHero) <= projectile.radius + enemyHero.radius) {
-    dealDamage(enemyHero, projectile.damage, true);
+    applyRangedProjectileHit(enemyHero, projectile);
     projectile.hitIds.add(enemyHero.id);
   }
 
@@ -2139,14 +2227,14 @@ function updateAbilityProjectile(projectile, dt) {
 
   for (let i = enemies.length - 1; i >= 0; i -= 1) {
     if (distance(projectile, enemies[i]) <= projectile.radius + enemies[i].radius) {
-      dealDamage(enemies[i], projectile.damage, true);
+      applyRangedProjectileHit(enemies[i], projectile);
       projectile.active = false;
       return;
     }
   }
 
   if (distance(projectile, enemyHero) <= projectile.radius + enemyHero.radius) {
-    dealDamage(enemyHero, projectile.damage, true);
+    applyRangedProjectileHit(enemyHero, projectile);
     projectile.active = false;
     return;
   }
