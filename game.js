@@ -219,6 +219,7 @@ const hero = {
   axeSwingDuration: 0.22,
   hasBow: false,
   bowCooldown: 0,
+  shootLockTimer: 0,
   weaponPickupCooldown: 0,
   hasRifle: false,
   rifleCooldown: 0,
@@ -616,6 +617,37 @@ function updateTrainButton() {
   const show = Boolean(selected);
   trainSoldierBtn.classList.toggle("hidden", !show);
   trainSoldierBtn.disabled = player.money < 50 || !show;
+}
+
+function isPlayerBaseSelected() {
+  return player.selectedBuildingId === playerBase.id;
+}
+
+function updateBuildBarracksButton() {
+  buildBarracksBtn.disabled = !isPlayerBaseSelected() || player.isPlacingBuilding;
+}
+
+function startBarracksPlacement() {
+  if (!player.hasSelectedCharacter) {
+    return;
+  }
+  if (player.shopOpen || player.traderOpen) {
+    return;
+  }
+  if (!isPlayerBaseSelected()) {
+    statusTextEl.textContent = "Select the player base first. Press H or click the base.";
+    return;
+  }
+  if (player.wood < 100) {
+    statusTextEl.textContent = "Not enough wood to build a Barracks.";
+    return;
+  }
+  player.isPlacingBuilding = true;
+  clearUnitSelection();
+  player.selectedUnits = [];
+  updateTrainButton();
+  updateBuildBarracksButton();
+  statusTextEl.textContent = "Place the Barracks on open ground. Right-click or press Escape to cancel.";
 }
 
 function updateAbilityUI() {
@@ -1627,6 +1659,7 @@ function selectUnitsInBox(box) {
   }
   player.selectedBuildingId = null;
   updateTrainButton();
+  updateBuildBarracksButton();
 }
 
 function selectSingleUnit(unit) {
@@ -1635,6 +1668,7 @@ function selectSingleUnit(unit) {
   unit.selected = true;
   player.selectedBuildingId = null;
   updateTrainButton();
+  updateBuildBarracksButton();
 }
 
 function selectBuilding(building) {
@@ -1642,8 +1676,11 @@ function selectBuilding(building) {
   player.selectedUnits = [];
   player.selectedBuildingId = building.id;
   updateTrainButton();
+  updateBuildBarracksButton();
   if (building.type === "barracks") {
     statusTextEl.textContent = "Barracks selected. Train a soldier for 50 gold.";
+  } else if (building.type === "playerBase") {
+    statusTextEl.textContent = "Base selected. Build a Barracks from here.";
   } else if (building.type === "shop") {
     statusTextEl.textContent = "Shop selected. Sell 25 wood for 25 gold.";
   }
@@ -2002,7 +2039,7 @@ function startReload(force = false) {
 }
 
 function spawnHeroBullet(targetX, targetY) {
-  if (!hero.hasRifle || hero.isReloading || hero.rifleCooldown > 0 || hero.ammo <= 0) {
+  if (!hero.hasRifle || hero.isReloading || hero.rifleCooldown > 0 || hero.ammo <= 0 || hero.shootLockTimer > 0) {
     return false;
   }
 
@@ -2030,7 +2067,7 @@ function spawnHeroBullet(targetX, targetY) {
 }
 
 function spawnHeroBowShot(targetX, targetY) {
-  if (!hero.hasBow || hero.bowCooldown > 0) {
+  if (!hero.hasBow || hero.bowCooldown > 0 || hero.shootLockTimer > 0) {
     return false;
   }
 
@@ -2097,6 +2134,7 @@ function updateHero(dt) {
   hero.slashArcTimer = Math.max(0, hero.slashArcTimer - dt);
   hero.axeSwingTimer = Math.max(0, hero.axeSwingTimer - dt);
   hero.bowCooldown = Math.max(0, hero.bowCooldown - dt);
+  hero.shootLockTimer = Math.max(0, hero.shootLockTimer - dt);
   hero.weaponPickupCooldown = Math.max(0, hero.weaponPickupCooldown - dt);
   hero.rifleCooldown = Math.max(0, hero.rifleCooldown - dt);
   hero.dashTimer = Math.max(0, hero.dashTimer - dt);
@@ -2427,6 +2465,7 @@ function cleanupDestroyedBuildings() {
     if (player.selectedBuildingId === building.id) {
       player.selectedBuildingId = null;
       updateTrainButton();
+      updateBuildBarracksButton();
     }
     if (building.type === "enemyBase") {
       triggerVictory();
@@ -2487,7 +2526,8 @@ function update(dt) {
   updateSparkEffects(dt);
   cleanupDefeatedEnemies();
   cleanupDestroyedBuildings();
-  trainSoldierBtn.disabled = player.money < 50 || player.selectedBuildingId === null;
+  updateTrainButton();
+  updateBuildBarracksButton();
   if (player.shopOpen && !isHeroNearShop()) {
     closeShop();
   }
@@ -3658,6 +3698,18 @@ window.addEventListener("keydown", (event) => {
     return;
   }
 
+  if (key === "h") {
+    selectBuilding(playerBase);
+    return;
+  }
+
+  if (key === "b") {
+    if (isPlayerBaseSelected()) {
+      startBarracksPlacement();
+    }
+    return;
+  }
+
   if (key === "e") {
     const nearbyPickup = getNearbyPickup();
     if (nearbyPickup) {
@@ -3684,6 +3736,7 @@ window.addEventListener("keydown", (event) => {
 
   if (event.key === "Escape") {
     player.isPlacingBuilding = false;
+    updateBuildBarracksButton();
     statusTextEl.textContent = getCharacterStatus();
   }
 });
@@ -3721,12 +3774,20 @@ canvas.addEventListener("mousedown", (event) => {
   if (event.button === 0) {
     mouse.leftDown = true;
     if (player.isPlacingBuilding) {
+      if (!isPlayerBaseSelected()) {
+        player.isPlacingBuilding = false;
+        updateBuildBarracksButton();
+        statusTextEl.textContent = "Select the player base to build a Barracks.";
+        return;
+      }
       if (player.wood >= 100 && isValidBarracksPlacement(point.x, point.y)) {
         player.wood -= 100;
         createBuilding("barracks", point.x - 70, point.y - 70, true);
         player.hasBuiltBarracks = true;
         player.isPlacingBuilding = false;
+        hero.shootLockTimer = 0.8;
         woodCountEl.textContent = String(player.wood);
+        updateBuildBarracksButton();
         statusTextEl.textContent = "Barracks built. Select it to train soldiers.";
       }
       return;
@@ -3737,6 +3798,7 @@ canvas.addEventListener("mousedown", (event) => {
       player.selectedUnits = [];
       player.selectedBuildingId = null;
       updateTrainButton();
+      updateBuildBarracksButton();
       statusTextEl.textContent = "M4 fired.";
       return;
     }
@@ -3746,6 +3808,7 @@ canvas.addEventListener("mousedown", (event) => {
       player.selectedUnits = [];
       player.selectedBuildingId = null;
       updateTrainButton();
+      updateBuildBarracksButton();
       statusTextEl.textContent = "Bow fired.";
       return;
     }
@@ -3765,6 +3828,7 @@ canvas.addEventListener("mousedown", (event) => {
 
     player.selectedBuildingId = null;
     updateTrainButton();
+    updateBuildBarracksButton();
     selectionBox = { x1: point.x, y1: point.y, x2: point.x, y2: point.y };
   }
 });
@@ -3815,7 +3879,20 @@ canvas.addEventListener("contextmenu", (event) => {
 
   if (player.isPlacingBuilding) {
     player.isPlacingBuilding = false;
+    updateBuildBarracksButton();
     statusTextEl.textContent = getCharacterStatus();
+    return;
+  }
+
+  const clickedBuilding = getBuildingAt(point, buildings.filter(
+    (building) => building.isPlayer && (building.type === "playerBase" || building.type === "barracks")
+  ));
+  if (clickedBuilding?.selectable !== false) {
+    if (clickedBuilding.type === "playerBase") {
+      selectBuilding(clickedBuilding);
+    } else if (clickedBuilding.type === "barracks") {
+      selectBuilding(clickedBuilding);
+    }
     return;
   }
 
@@ -3838,22 +3915,7 @@ canvas.addEventListener("contextmenu", (event) => {
 });
 
 buildBarracksBtn.addEventListener("click", () => {
-  if (!player.hasSelectedCharacter) {
-    return;
-  }
-  if (player.shopOpen || player.traderOpen) {
-    return;
-  }
-  if (player.wood < 100) {
-    statusTextEl.textContent = "Not enough wood to build a Barracks.";
-    return;
-  }
-  player.isPlacingBuilding = true;
-  player.selectedBuildingId = null;
-  clearUnitSelection();
-  player.selectedUnits = [];
-  updateTrainButton();
-  statusTextEl.textContent = "Place the Barracks on open ground. Right-click or press Escape to cancel.";
+  startBarracksPlacement();
 });
 
 shopSellWoodBtn.addEventListener("click", () => {
@@ -4044,6 +4106,8 @@ async function initializeGame() {
     updateXpUI();
     updateShopUI();
     updateTraderUI();
+    updateTrainButton();
+    updateBuildBarracksButton();
     playerNameInputEl.focus();
     requestAnimationFrame(gameLoop);
   } catch (error) {
