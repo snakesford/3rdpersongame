@@ -22,6 +22,9 @@ const equipmentWeaponMetaEl = document.getElementById("equipmentWeaponMeta");
 const equipmentWeaponIconEl = document.getElementById("equipmentWeaponIcon");
 const equipmentAbilityNameEl = document.getElementById("equipmentAbilityName");
 const equipmentAbilityMetaEl = document.getElementById("equipmentAbilityMeta");
+const equipmentGrenadeSlotEl = document.getElementById("equipmentGrenadeSlot");
+const equipmentGrenadeNameEl = document.getElementById("equipmentGrenadeName");
+const equipmentGrenadeMetaEl = document.getElementById("equipmentGrenadeMeta");
 const equipmentHelmetNameEl = document.getElementById("equipmentHelmetName");
 const equipmentHelmetMetaEl = document.getElementById("equipmentHelmetMeta");
 const equipmentHelmetIconEl = document.getElementById("equipmentHelmetIcon");
@@ -41,6 +44,9 @@ const traderStatusEl = document.getElementById("traderStatus");
 const slashAbilityEl = document.getElementById("slashAbility");
 const abilityNameEl = document.getElementById("abilityName");
 const slashCooldownTextEl = document.getElementById("slashCooldownText");
+const grenadeAbilityEl = document.getElementById("grenadeAbility");
+const grenadeAbilityNameEl = document.getElementById("grenadeAbilityName");
+const grenadeCooldownTextEl = document.getElementById("grenadeCooldownText");
 const dashAbilityEl = document.getElementById("dashAbility");
 const dashAbilityNameEl = document.getElementById("dashAbilityName");
 const dashCooldownTextEl = document.getElementById("dashCooldownText");
@@ -219,6 +225,7 @@ const hero = {
   axeSwingDuration: 0.22,
   hasBow: false,
   bowCooldown: 0,
+  grenadeCooldownRemaining: 0,
   shootLockTimer: 0,
   weaponPickupCooldown: 0,
   hasRifle: false,
@@ -246,6 +253,10 @@ const UPGRADE_OPTIONS = [
 const DEFAULT_ENEMY_NAME = "Enemy Hero";
 const MINIMAP_NEARBY_RADIUS = 360;
 const PLAYER_NAME_STORAGE_KEY = "timberlineCommandPlayerName";
+const SOLDIER_GRENADE_RANGE = GRID_SIZE * 4;
+const SOLDIER_GRENADE_RADIUS = 110;
+const SOLDIER_GRENADE_DAMAGE = 42;
+const SOLDIER_GRENADE_COOLDOWN = 6;
 
 const trees = [];
 const stones = [];
@@ -253,6 +264,8 @@ const buildings = [];
 const units = [];
 const enemies = [];
 const heroProjectiles = [];
+const heroGrenades = [];
+const grenadeShockwaves = [];
 const damagePopups = [];
 const sparkEffects = [];
 const dodgeArenaBullets = [];
@@ -581,7 +594,7 @@ function getCharacterStatus() {
       return "Press E to equip the axe. Click to swing it.";
     }
     if (nearbyPickup.type === "rifle") {
-      return "Press E to equip the M4 rifle. Left-click to fire.";
+      return "Press E to equip the M4 rifle. Left-click to fire, F for Burst Shot, G for Grenade.";
     }
     if (nearbyPickup.type === "bow") {
       return "Press E to equip the bow. Hold left-click to fire arrows.";
@@ -617,7 +630,9 @@ function getCharacterStatus() {
     return "Press E to harvest this tree for 25 wood.";
   }
   if (hero.hasRifle) {
-    return "Left-click to fire the M4 rifle.";
+    return hero.selectedClass === "soldier"
+      ? "Left-click to fire the M4 rifle. Press F for Burst Shot or G for Grenade."
+      : "Left-click to fire the M4 rifle.";
   }
   return "Walk near a tree and press E to harvest wood.";
 }
@@ -669,6 +684,18 @@ function updateAbilityUI() {
   slashCooldownTextEl.textContent = player.hasSelectedCharacter
     ? (ready ? "Ready" : `${hero.slashTimer.toFixed(1)}s`)
     : "Pick Hero";
+
+  const showGrenade = hero.selectedClass === "soldier";
+  const grenadeReady = hero.grenadeCooldownRemaining <= 0;
+  grenadeAbilityEl.classList.toggle("hidden", !showGrenade);
+  grenadeAbilityNameEl.textContent = "Grenade";
+  grenadeAbilityEl.classList.toggle("ready", showGrenade && grenadeReady);
+  grenadeAbilityEl.classList.toggle("cooldown", !showGrenade || !grenadeReady);
+  grenadeCooldownTextEl.textContent = !showGrenade
+    ? "Unavailable"
+    : grenadeReady
+      ? "Ready"
+      : `${hero.grenadeCooldownRemaining.toFixed(1)}s`;
 
   const showDash = hero.selectedClass === "robot";
   const dashReady = hero.dashCooldownRemaining <= 0;
@@ -813,6 +840,16 @@ function updateEquipmentUI(selected, stats) {
   } else {
     equipmentAbilityNameEl.textContent = "None";
     equipmentAbilityMetaEl.textContent = "Choose a class";
+  }
+
+  const showGrenadeAbility = hero.selectedClass === "soldier";
+  equipmentGrenadeSlotEl.classList.toggle("hidden", !showGrenadeAbility);
+  if (showGrenadeAbility) {
+    equipmentGrenadeNameEl.textContent = "Grenade";
+    equipmentGrenadeMetaEl.textContent = "Bound to G";
+  } else {
+    equipmentGrenadeNameEl.textContent = "None";
+    equipmentGrenadeMetaEl.textContent = "Unavailable";
   }
 
   const equippedHelmetType = hero.latestPickup?.type === "helmet" ||
@@ -1126,6 +1163,7 @@ function respawnHero() {
   hero.axeSwingTimer = 0;
   hero.hasBow = hero.selectedClass === "archer";
   hero.bowCooldown = 0;
+  hero.grenadeCooldownRemaining = 0;
   hero.weaponPickupCooldown = 0;
   hero.hasRifle = hero.selectedClass === "soldier";
   hero.rifleCooldown = 0;
@@ -1138,6 +1176,8 @@ function respawnHero() {
   hero.dashCooldown = selectedClass?.dashCooldown || 0;
   hero.dashCooldownRemaining = 0;
   heroProjectiles.length = 0;
+  heroGrenades.length = 0;
+  grenadeShockwaves.length = 0;
   hero.maxHp = (selectedClass?.stats?.health || 150) + player.bonusHealth;
   hero.hp = hero.maxHp;
   hero.x = PLAYER_BASE_SPAWN.x;
@@ -1298,6 +1338,33 @@ function damageEnemiesInRadius(damage, radius) {
   }
 }
 
+function damageEnemiesInRadiusFromPoint(centerX, centerY, damage, radius) {
+  const center = { x: centerX, y: centerY };
+  for (let i = enemies.length - 1; i >= 0; i -= 1) {
+    const dist = distance(center, enemies[i]);
+    if (dist <= radius) {
+      const scaledDamage = Math.max(8, Math.round(damage * (1 - dist / radius * 0.6)));
+      dealDamage(enemies[i], scaledDamage, true);
+    }
+  }
+  if (enemyHero.active) {
+    const dist = distance(center, enemyHero);
+    if (dist <= radius) {
+      const scaledDamage = Math.max(8, Math.round(damage * (1 - dist / radius * 0.6)));
+      dealDamage(enemyHero, scaledDamage, true);
+    }
+  }
+  for (const building of buildings) {
+    if (!building.isPlayer) {
+      const dist = distance(center, getEntityTargetPoint(building));
+      if (dist <= radius + 24) {
+        const scaledDamage = Math.max(10, Math.round(damage * (1 - dist / (radius + 24) * 0.5)));
+        dealDamage(building, scaledDamage, true);
+      }
+    }
+  }
+}
+
 function damageEnemiesInLine(damage, range, width) {
   const aimAngle = getAbilityAimAngle();
   const start = { x: hero.x, y: hero.y };
@@ -1338,6 +1405,90 @@ function buildBurstShots(range, rounds, spreadAngle, shotAnglesDegrees) {
   }
 
   return shots;
+}
+
+function getClampedGrenadeTarget(targetX, targetY) {
+  const dx = targetX - hero.x;
+  const dy = targetY - hero.y;
+  const distanceToTarget = Math.hypot(dx, dy);
+  if (distanceToTarget <= 0.001) {
+    return { x: hero.x, y: hero.y, distance: 0 };
+  }
+  const clampedDistance = Math.min(distanceToTarget, SOLDIER_GRENADE_RANGE);
+  const scale = clampedDistance / distanceToTarget;
+  return {
+    x: hero.x + dx * scale,
+    y: hero.y + dy * scale,
+    distance: clampedDistance,
+  };
+}
+
+function explodeGrenade(grenade) {
+  grenadeShockwaves.push({
+    x: grenade.targetX,
+    y: grenade.targetY,
+    radius: SOLDIER_GRENADE_RADIUS,
+    ttl: 0.42,
+    maxTtl: 0.42,
+  });
+  damageEnemiesInRadiusFromPoint(grenade.targetX, grenade.targetY, SOLDIER_GRENADE_DAMAGE + player.weaponBonusDamage, SOLDIER_GRENADE_RADIUS);
+  spawnTextPopup(grenade.targetX, grenade.targetY - 18, "BOOM", "rgba(255, 210, 138, 1)", 0.5);
+}
+
+function useSoldierGrenade(targetX, targetY) {
+  if (
+    !player.hasSelectedCharacter ||
+    player.victory ||
+    player.loss ||
+    hero.selectedClass !== "soldier" ||
+    hero.grenadeCooldownRemaining > 0
+  ) {
+    return false;
+  }
+
+  const target = getClampedGrenadeTarget(targetX, targetY);
+  if (target.distance < 24) {
+    return false;
+  }
+
+  hero.facingAngle = Math.atan2(target.y - hero.y, target.x - hero.x);
+  hero.grenadeCooldownRemaining = SOLDIER_GRENADE_COOLDOWN;
+  const travelTime = clamp(0.22 + target.distance / 700, 0.22, 0.65);
+  heroGrenades.push({
+    x: hero.x,
+    y: hero.y,
+    startX: hero.x,
+    startY: hero.y,
+    targetX: target.x,
+    targetY: target.y,
+    radius: 8,
+    ttl: travelTime,
+    maxTtl: travelTime,
+    arcHeight: Math.max(26, Math.min(70, target.distance * 0.12)),
+  });
+  statusTextEl.textContent = "Grenade out.";
+  return true;
+}
+
+function updateGrenades(dt) {
+  for (let i = heroGrenades.length - 1; i >= 0; i -= 1) {
+    const grenade = heroGrenades[i];
+    grenade.ttl = Math.max(0, grenade.ttl - dt);
+    const progress = 1 - grenade.ttl / grenade.maxTtl;
+    grenade.x = grenade.startX + (grenade.targetX - grenade.startX) * progress;
+    grenade.y = grenade.startY + (grenade.targetY - grenade.startY) * progress;
+    if (grenade.ttl === 0) {
+      explodeGrenade(grenade);
+      heroGrenades.splice(i, 1);
+    }
+  }
+
+  for (let i = grenadeShockwaves.length - 1; i >= 0; i -= 1) {
+    grenadeShockwaves[i].ttl = Math.max(0, grenadeShockwaves[i].ttl - dt);
+    if (grenadeShockwaves[i].ttl === 0) {
+      grenadeShockwaves.splice(i, 1);
+    }
+  }
 }
 
 function spawnBurstProjectile(shot, damage, width) {
@@ -2144,6 +2295,7 @@ function updateHero(dt) {
   hero.slashArcTimer = Math.max(0, hero.slashArcTimer - dt);
   hero.axeSwingTimer = Math.max(0, hero.axeSwingTimer - dt);
   hero.bowCooldown = Math.max(0, hero.bowCooldown - dt);
+  hero.grenadeCooldownRemaining = Math.max(0, hero.grenadeCooldownRemaining - dt);
   hero.shootLockTimer = Math.max(0, hero.shootLockTimer - dt);
   hero.weaponPickupCooldown = Math.max(0, hero.weaponPickupCooldown - dt);
   hero.rifleCooldown = Math.max(0, hero.rifleCooldown - dt);
@@ -2164,6 +2316,7 @@ function updateHero(dt) {
       spawnHeroBowShot(mouse.worldX, mouse.worldY);
     }
   }
+  updateGrenades(dt);
   if (hero.abilityEffect?.effect === "burst") {
     const pendingShots = hero.abilityEffect.pendingShots || [];
     const projectiles = hero.abilityEffect.projectiles || [];
@@ -3429,6 +3582,38 @@ function drawArrowProjectile(projectile) {
   ctx.restore();
 }
 
+function drawHeroGrenades() {
+  for (const grenade of heroGrenades) {
+    const progress = 1 - grenade.ttl / grenade.maxTtl;
+    const arcOffset = Math.sin(progress * Math.PI) * grenade.arcHeight;
+    ctx.beginPath();
+    ctx.fillStyle = "#61726d";
+    ctx.arc(grenade.x, grenade.y - arcOffset, grenade.radius, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.fillStyle = "#c8d2cf";
+    ctx.arc(grenade.x - 2, grenade.y - arcOffset - 2, Math.max(2, grenade.radius * 0.32), 0, Math.PI * 2);
+    ctx.fill();
+  }
+}
+
+function drawGrenadeShockwaves() {
+  for (const shockwave of grenadeShockwaves) {
+    const progress = 1 - shockwave.ttl / shockwave.maxTtl;
+    const radius = shockwave.radius * (0.35 + progress * 0.65);
+    const alpha = 1 - progress;
+    ctx.beginPath();
+    ctx.fillStyle = `rgba(255, 189, 92, ${alpha * 0.18})`;
+    ctx.arc(shockwave.x, shockwave.y, radius, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.strokeStyle = `rgba(255, 232, 180, ${alpha * 0.9})`;
+    ctx.lineWidth = 7 - progress * 3;
+    ctx.arc(shockwave.x, shockwave.y, radius, 0, Math.PI * 2);
+    ctx.stroke();
+  }
+}
+
 function drawBulletProjectile(projectile) {
   const bodyLength = Math.max(14, projectile.radius * 3.8);
   const bodyRadius = Math.max(3, projectile.radius * 0.72);
@@ -3615,6 +3800,8 @@ function render() {
   drawNameplate(hero.x, hero.y - 50, player.displayName || "Player");
   drawHarvestProgress();
   drawSlashArc();
+  drawGrenadeShockwaves();
+  drawHeroGrenades();
   drawHeroProjectiles();
   drawSparkEffects();
 
@@ -3717,6 +3904,11 @@ window.addEventListener("keydown", (event) => {
     if (isPlayerBaseSelected()) {
       startBarracksPlacement();
     }
+    return;
+  }
+
+  if (key === "g") {
+    useSoldierGrenade(mouse.worldX, mouse.worldY);
     return;
   }
 
@@ -4020,15 +4212,22 @@ function selectCharacter(classId) {
   hero.axeSwingTimer = 0;
   hero.hasBow = classId === "archer";
   hero.bowCooldown = 0;
+  hero.grenadeCooldownRemaining = 0;
   hero.weaponPickupCooldown = 0;
   hero.hasRifle = classId === "soldier";
   hero.rifleCooldown = 0;
   hero.ammo = hero.hasRifle ? hero.maxAmmo : 0;
   hero.isReloading = false;
   hero.reloadTimer = 0;
+  hero.shootLockTimer = 0;
+  heroProjectiles.length = 0;
+  heroGrenades.length = 0;
+  grenadeShockwaves.length = 0;
   player.hasSelectedCharacter = true;
   characterSelectEl.classList.add("hidden");
-  statusTextEl.textContent = `${selectedClass.name} selected. Walk near a tree and press E to harvest wood.`;
+  statusTextEl.textContent = classId === "soldier"
+    ? `${selectedClass.name} selected. Walk near a tree and press E to harvest wood. Press F for Burst Shot and G for Grenade.`
+    : `${selectedClass.name} selected. Walk near a tree and press E to harvest wood.`;
   updateAbilityUI();
   updateStatsUI();
   updateXpUI();
@@ -4071,7 +4270,9 @@ function initializeCharacterCards() {
     nameEl.textContent = selectedClass.name;
 
     const abilityEl = document.createElement("span");
-    abilityEl.textContent = `F: ${selectedClass.abilityName}`;
+    abilityEl.textContent = classId === "soldier"
+      ? `F: ${selectedClass.abilityName} | G: Grenade`
+      : `F: ${selectedClass.abilityName}`;
 
     classCardEl.append(portraitEl, nameEl, abilityEl);
 
