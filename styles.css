@@ -285,10 +285,15 @@ canvas {
 }
 
 .equipment-slot-button {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
   width: 100%;
   text-align: left;
   cursor: pointer;
   font: inherit;
+  appearance: none;
+  -webkit-appearance: none;
 }
 
 .equipment-slot-button:hover {
@@ -299,6 +304,10 @@ canvas {
 .equipment-slot-button:focus-visible {
   outline: 2px solid rgba(255, 226, 148, 0.7);
   outline-offset: 2px;
+}
+
+.equipment-slot-button > * {
+  pointer-events: none;
 }
 
 .equipment-content {
