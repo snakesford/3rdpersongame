@@ -284,6 +284,23 @@ canvas {
   gap: 4px;
 }
 
+.equipment-slot-button {
+  width: 100%;
+  text-align: left;
+  cursor: pointer;
+  font: inherit;
+}
+
+.equipment-slot-button:hover {
+  border-color: rgba(255, 245, 210, 0.22);
+  background: rgba(255, 255, 255, 0.09);
+}
+
+.equipment-slot-button:focus-visible {
+  outline: 2px solid rgba(255, 226, 148, 0.7);
+  outline-offset: 2px;
+}
+
 .equipment-content {
   display: flex;
   align-items: center;
@@ -702,6 +719,35 @@ button.hidden {
   margin-top: 12px;
   color: #fff5d2;
   text-align: center;
+}
+
+.weapon-details-grid {
+  display: grid;
+  gap: 10px;
+  margin-top: 6px;
+}
+
+.weapon-detail-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.weapon-detail-row span {
+  color: var(--muted);
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.weapon-detail-row strong {
+  color: #fff5d2;
+  font-size: 15px;
 }
 
 .shop-card button {

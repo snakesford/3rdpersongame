@@ -91,7 +91,6 @@ const COLORS = {
 const UPGRADE_OPTIONS = [
   { id: "health", label: "Health", description: "+10 max HP" },
   { id: "armor", label: "Armor", description: "+3 body armor" },
-  { id: "damage", label: "Damage", description: "+2 weapon damage" },
   { id: "speed", label: "Speed", description: "+5 speed" },
   { id: "regen", label: "Regen", description: "+0.5 health regen" },
   { id: "ability", label: "Ability", description: "+3 ability damage" },

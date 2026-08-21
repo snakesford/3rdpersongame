@@ -24,6 +24,16 @@ minimapCtx.imageSmoothingQuality = "high";
 const equipmentWeaponNameEl = document.getElementById("equipmentWeaponName");
 const equipmentWeaponMetaEl = document.getElementById("equipmentWeaponMeta");
 const equipmentWeaponIconEl = document.getElementById("equipmentWeaponIcon");
+const weaponDetailsBtnEl = document.getElementById("weaponDetailsBtn");
+const weaponDetailsPanelEl = document.getElementById("weaponDetailsPanel");
+const weaponDetailsNameEl = document.getElementById("weaponDetailsName");
+const weaponDetailsMetaEl = document.getElementById("weaponDetailsMeta");
+const weaponDetailsDamageEl = document.getElementById("weaponDetailsDamage");
+const weaponDetailsAmmoEl = document.getElementById("weaponDetailsAmmo");
+const weaponDetailsReloadEl = document.getElementById("weaponDetailsReload");
+const weaponDetailsRangeEl = document.getElementById("weaponDetailsRange");
+const weaponDetailsFireRateEl = document.getElementById("weaponDetailsFireRate");
+const closeWeaponDetailsBtn = document.getElementById("closeWeaponDetailsBtn");
 const equipmentHelmetNameEl = document.getElementById("equipmentHelmetName");
 const equipmentHelmetMetaEl = document.getElementById("equipmentHelmetMeta");
 const equipmentHelmetIconEl = document.getElementById("equipmentHelmetIcon");
@@ -142,9 +152,19 @@ export {
   trainSoldierBtn,
   upgradeActionEls,
   upgradePointsEl,
+  weaponDetailsAmmoEl,
+  weaponDetailsBtnEl,
+  weaponDetailsDamageEl,
+  weaponDetailsFireRateEl,
+  weaponDetailsMetaEl,
+  weaponDetailsNameEl,
+  weaponDetailsPanelEl,
+  weaponDetailsRangeEl,
+  weaponDetailsReloadEl,
   weaponFillEl,
   weaponValueEl,
   xpFillEl,
   xpLevelEl,
   buyWeaponUpgradeBtn,
+  closeWeaponDetailsBtn,
 };

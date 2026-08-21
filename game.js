@@ -79,6 +79,7 @@ import {
   dialogueProgressValueEl,
   dialogueSpeakerEl,
   dialogueTextEl,
+  closeWeaponDetailsBtn,
   equipmentBodyArmorIconEl,
   equipmentBodyArmorMetaEl,
   equipmentBodyArmorNameEl,
@@ -116,6 +117,15 @@ import {
   trainSoldierBtn,
   upgradeActionEls,
   upgradePointsEl,
+  weaponDetailsAmmoEl,
+  weaponDetailsBtnEl,
+  weaponDetailsDamageEl,
+  weaponDetailsFireRateEl,
+  weaponDetailsMetaEl,
+  weaponDetailsNameEl,
+  weaponDetailsPanelEl,
+  weaponDetailsRangeEl,
+  weaponDetailsReloadEl,
   weaponFillEl,
   weaponValueEl,
   xpFillEl,
@@ -1842,8 +1852,7 @@ function canAimSoldierGrenade() {
   return player.hasSelectedCharacter &&
     !player.victory &&
     !player.loss &&
-    !player.shopOpen &&
-    !player.traderOpen &&
+    !isInterfacePanelOpen() &&
     !player.isPlacingBuilding &&
     hero.selectedClass === "soldier" &&
     hero.grenadeCooldownRemaining <= 0;
@@ -1864,8 +1873,7 @@ function useBattleMedicine() {
     hero.selectedClass !== "soldier" ||
     player.victory ||
     player.loss ||
-    player.shopOpen ||
-    player.traderOpen ||
+    isInterfacePanelOpen() ||
     player.isPlacingBuilding ||
     hero.isDead ||
     hero.battleMedicineCooldownRemaining > 0
@@ -1899,8 +1907,7 @@ function isSoldierRifleShooting() {
     hero.ammo > 0 &&
     hero.shootLockTimer <= 0 &&
     !player.isPlacingBuilding &&
-    !player.shopOpen &&
-    !player.traderOpen &&
+    !isInterfacePanelOpen() &&
     !isUsingBattleMedicine();
 }
 
@@ -1912,7 +1919,7 @@ function startBarracksPlacement() {
   if (!player.hasSelectedCharacter) {
     return;
   }
-  if (player.shopOpen || player.traderOpen) {
+  if (isInterfacePanelOpen()) {
     return;
   }
   if (!isPlayerBaseSelected()) {
@@ -1993,6 +2000,105 @@ function updateTraderUI() {
   traderStatusEl.textContent = `Current bonus: +${player.weaponBonusStat} weapon`;
 }
 
+function isInterfacePanelOpen() {
+  return player.shopOpen || player.traderOpen || player.weaponDetailsOpen;
+}
+
+function getCurrentWeaponDetails() {
+  const selected = getSelectedClassConfig();
+  if (!selected) {
+    return null;
+  }
+
+  if (hero.hasRifle) {
+    return {
+      name: "M4 Rifle",
+      meta: "Automatic rifle",
+      damage: `${16 + player.bonusDamage} / shot`,
+      ammo: hero.isReloading ? `${hero.ammo}/${hero.maxAmmo} reloading` : `${hero.ammo}/${hero.maxAmmo}`,
+      reload: `${hero.reloadDuration.toFixed(1)}s`,
+      range: `${GRID_SIZE * 5}`,
+      fireRate: `${(1 / 0.08).toFixed(1)} shots/s`,
+    };
+  }
+
+  if (hero.hasBow) {
+    return {
+      name: "Bow",
+      meta: "Precision ranged weapon",
+      damage: `${getBasicBowDamage()} / shot`,
+      ammo: "Unlimited",
+      reload: "None",
+      range: `${Math.round(canvas.width * 0.5)}`,
+      fireRate: `${(1 / 0.45).toFixed(1)} shots/s`,
+    };
+  }
+
+  if (hero.hasAxe) {
+    return {
+      name: "Axe",
+      meta: "Close-range melee weapon",
+      damage: `${18 + player.bonusDamage} / swing`,
+      ammo: "N/A",
+      reload: "None",
+      range: "64",
+      fireRate: `${(1 / hero.axeSwingDuration).toFixed(1)} swings/s`,
+    };
+  }
+
+  return {
+    name: selected.name || "Weapon",
+    meta: "Class weapon",
+    damage: `${getAbilityDamage(selected)}`,
+    ammo: "N/A",
+    reload: "None",
+    range: selected.range && selected.range > 0 ? `${selected.range}` : "Melee",
+    fireRate: `${(1 / Math.max(0.1, selected.cooldown || 1)).toFixed(1)} uses/s`,
+  };
+}
+
+function updateWeaponDetailsUI() {
+  weaponDetailsPanelEl.classList.toggle("hidden", !player.weaponDetailsOpen);
+  if (!player.weaponDetailsOpen) {
+    return;
+  }
+
+  const details = getCurrentWeaponDetails();
+  if (!details) {
+    weaponDetailsNameEl.textContent = "No Weapon";
+    weaponDetailsMetaEl.textContent = "Select a character to view weapon stats.";
+    weaponDetailsDamageEl.textContent = "-";
+    weaponDetailsAmmoEl.textContent = "-";
+    weaponDetailsReloadEl.textContent = "-";
+    weaponDetailsRangeEl.textContent = "-";
+    weaponDetailsFireRateEl.textContent = "-";
+    return;
+  }
+
+  weaponDetailsNameEl.textContent = details.name;
+  weaponDetailsMetaEl.textContent = details.meta;
+  weaponDetailsDamageEl.textContent = details.damage;
+  weaponDetailsAmmoEl.textContent = details.ammo;
+  weaponDetailsReloadEl.textContent = details.reload;
+  weaponDetailsRangeEl.textContent = details.range;
+  weaponDetailsFireRateEl.textContent = details.fireRate;
+}
+
+function openWeaponDetails() {
+  if (!player.hasSelectedCharacter) {
+    return;
+  }
+  closeShop();
+  closeTrader();
+  player.weaponDetailsOpen = true;
+  updateWeaponDetailsUI();
+}
+
+function closeWeaponDetails() {
+  player.weaponDetailsOpen = false;
+  updateWeaponDetailsUI();
+}
+
 function getSelectedClassConfig() {
   return hero.selectedClass ? CHARACTER_OPTIONS[hero.selectedClass] : null;
 }
@@ -2071,6 +2177,7 @@ function updateStatsUI() {
   speedFillEl.style.width = `${Math.min(100, (speed / 300) * 100)}%`;
   regenFillEl.style.width = `${Math.min(100, regen * 20)}%`;
   updateEquipmentUI(selected, stats);
+  updateWeaponDetailsUI();
 }
 
 function buildHelmetIcon(fill, stroke) {
@@ -2236,9 +2343,6 @@ function applyUpgrade(upgradeId) {
   } else if (upgradeId === "armor") {
     player.bonusArmor += 3;
     statusTextEl.textContent = "Upgrade applied: +3 armor.";
-  } else if (upgradeId === "damage") {
-    player.bonusDamage += 2;
-    statusTextEl.textContent = "Upgrade applied: +2 damage.";
   } else if (upgradeId === "speed") {
     player.bonusSpeed += 5;
     hero.speed += 5;
@@ -2373,6 +2477,7 @@ function activateTutorialWorld() {
   player.inDodgeArena = false;
   player.shopOpen = false;
   player.traderOpen = false;
+  player.weaponDetailsOpen = false;
   player.isPlacingBuilding = false;
   player.selectedUnits = [];
   player.selectedBuildingId = null;
@@ -2382,6 +2487,7 @@ function activateTutorialWorld() {
   closeQuestDialogue();
   closeShop();
   closeTrader();
+  closeWeaponDetails();
   clearWorldEntities();
 
   trees.push({
@@ -2811,6 +2917,7 @@ function respawnHero() {
   cancelHarvest();
   closeShop();
   closeTrader();
+  closeWeaponDetails();
   updateStatsUI();
   statusTextEl.textContent = player.inTutorialWorld ? "You respawned in the tutorial world." : "You respawned at base.";
   spawnTextPopup(hero.x, hero.y - 30, "Respawned!", "rgba(196, 234, 255, 1)", 1.4);
@@ -2822,6 +2929,7 @@ function openShop() {
     return;
   }
   player.shopOpen = true;
+  player.weaponDetailsOpen = false;
   updateShopUI();
 }
 
@@ -2836,6 +2944,7 @@ function openTrader() {
     return;
   }
   player.traderOpen = true;
+  player.weaponDetailsOpen = false;
   updateTraderUI();
 }
 
@@ -4238,7 +4347,7 @@ function updateHero(dt) {
     updateAbilityUI();
     return;
   }
-  if (mouse.leftDown && !player.isPlacingBuilding && !player.shopOpen && !player.traderOpen && !isUsingBattleMedicine()) {
+  if (mouse.leftDown && !player.isPlacingBuilding && !isInterfacePanelOpen() && !isUsingBattleMedicine()) {
     if (hero.hasRifle) {
       spawnHeroBullet(mouse.worldX, mouse.worldY);
     } else if (hero.hasBow) {
@@ -4292,7 +4401,7 @@ function updateHero(dt) {
     return;
   }
 
-  if (player.shopOpen || player.traderOpen) {
+  if (isInterfacePanelOpen()) {
     updateInventoryUI();
     updateStatsUI();
     updateAbilityUI();
@@ -6482,6 +6591,7 @@ window.addEventListener("keydown", (event) => {
         closeTrader();
       } else {
         closeShop();
+        closeWeaponDetails();
         openTrader();
       }
       return;
@@ -6491,16 +6601,18 @@ window.addEventListener("keydown", (event) => {
         closeShop();
       } else {
         closeTrader();
+        closeWeaponDetails();
         openShop();
       }
       return;
     }
   }
 
-  if (player.shopOpen || player.traderOpen) {
+  if (isInterfacePanelOpen()) {
     if (event.key === "Escape") {
       closeShop();
       closeTrader();
+      closeWeaponDetails();
     }
     return;
   }
@@ -6595,7 +6707,7 @@ canvas.addEventListener("mousedown", (event) => {
   if (!player.hasSelectedCharacter) {
     return;
   }
-  if (player.shopOpen || player.traderOpen) {
+  if (isInterfacePanelOpen()) {
     return;
   }
   const point = screenToWorld(event.offsetX, event.offsetY);
@@ -6671,7 +6783,7 @@ canvas.addEventListener("mouseup", (event) => {
   if (event.button === 0) {
     mouse.leftDown = false;
   }
-  if (player.shopOpen || player.traderOpen) {
+  if (isInterfacePanelOpen()) {
     return;
   }
   if (event.button === 0 && selectionBox) {
@@ -6703,7 +6815,7 @@ canvas.addEventListener("contextmenu", (event) => {
   if (!player.hasSelectedCharacter) {
     return;
   }
-  if (player.shopOpen || player.traderOpen) {
+  if (isInterfacePanelOpen()) {
     return;
   }
   const point = screenToWorld(event.offsetX, event.offsetY);
@@ -6774,7 +6886,7 @@ trainSoldierBtn.addEventListener("click", () => {
   if (!player.hasSelectedCharacter) {
     return;
   }
-  if (player.shopOpen || player.traderOpen) {
+  if (isInterfacePanelOpen()) {
     return;
   }
   const barracks = buildings.find((building) => building.id === player.selectedBuildingId && building.isPlayer);
@@ -6816,6 +6928,18 @@ buyWeaponUpgradeBtn.addEventListener("click", () => {
 
 closeTraderBtn.addEventListener("click", () => {
   closeTrader();
+});
+
+weaponDetailsBtnEl.addEventListener("click", () => {
+  if (player.weaponDetailsOpen) {
+    closeWeaponDetails();
+  } else {
+    openWeaponDetails();
+  }
+});
+
+closeWeaponDetailsBtn.addEventListener("click", () => {
+  closeWeaponDetails();
 });
 
 function selectCharacter(classId) {

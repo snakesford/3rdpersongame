@@ -19,6 +19,7 @@ const player = {
   hasSelectedCharacter: false,
   shopOpen: false,
   traderOpen: false,
+  weaponDetailsOpen: false,
   inDodgeArena: false,
   inTutorialWorld: false,
   dodgeArenaReturnX: PLAYER_BASE_SPAWN.x + 40,

@@ -54,7 +54,7 @@
             </div>
             <div class="stat-row">
               <div class="stat-head">
-                <span>Damage <button class="upgrade-action hidden" data-upgrade="damage" type="button" aria-label="Upgrade damage">+</button></span>
+                <span>Damage</span>
                 <strong id="weaponValue">0</strong>
               </div>
               <div class="stat-bar"><div id="weaponFill" class="stat-fill weapon-fill"></div></div>
@@ -97,8 +97,8 @@
                   </div>
                 </div>
               </div>
-              <div class="equipment-slot">
-                <span class="equipment-label">Weapon <button class="upgrade-action hidden" data-upgrade="damage" type="button" aria-label="Upgrade weapon">+</button></span>
+              <button id="weaponDetailsBtn" class="equipment-slot equipment-slot-button" type="button" aria-label="View weapon details">
+                <span class="equipment-label">Weapon</span>
                 <div class="equipment-content">
                   <img id="equipmentWeaponIcon" class="equipment-icon" alt="Equipped weapon icon">
                   <div class="equipment-copy">
@@ -106,7 +106,7 @@
                     <span id="equipmentWeaponMeta" class="equipment-meta"></span>
                   </div>
                 </div>
-              </div>
+              </button>
             </div>
           </div>
           <div class="inventory-panel">
@@ -190,6 +190,37 @@
       <button id="buyWeaponUpgradeBtn">Buy Weapon Enhancement (50 gold)</button>
       <div id="traderStatus" class="trader-status">Current bonus: +0 weapon</div>
       <button id="closeTraderBtn" class="shop-close">Close</button>
+    </div>
+  </div>
+
+  <div id="weaponDetailsPanel" class="shop-panel hidden">
+    <div class="shop-card weapon-details-card">
+      <span class="shop-kicker">Weapon Details</span>
+      <h3 id="weaponDetailsName">Weapon</h3>
+      <p id="weaponDetailsMeta">View your current weapon stats.</p>
+      <div class="weapon-details-grid">
+        <div class="weapon-detail-row">
+          <span>Damage</span>
+          <strong id="weaponDetailsDamage">0</strong>
+        </div>
+        <div class="weapon-detail-row">
+          <span>Ammo</span>
+          <strong id="weaponDetailsAmmo">0</strong>
+        </div>
+        <div class="weapon-detail-row">
+          <span>Reload Time</span>
+          <strong id="weaponDetailsReload">0s</strong>
+        </div>
+        <div class="weapon-detail-row">
+          <span>Range</span>
+          <strong id="weaponDetailsRange">0</strong>
+        </div>
+        <div class="weapon-detail-row">
+          <span>Fire Rate</span>
+          <strong id="weaponDetailsFireRate">0</strong>
+        </div>
+      </div>
+      <button id="closeWeaponDetailsBtn" class="shop-close">Close</button>
     </div>
   </div>
 
