@@ -525,10 +525,60 @@ button.hidden {
   line-height: 1.5;
 }
 
+.dialogue-progress {
+  margin-top: 14px;
+  padding: 12px 14px;
+  border: 1px solid rgba(255, 245, 210, 0.14);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.dialogue-progress.hidden {
+  display: none;
+}
+
+.dialogue-progress-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.dialogue-progress-label,
+.dialogue-progress-value {
+  color: #fff5d2;
+  font: 600 12px "Chakra Petch", sans-serif;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.dialogue-progress-bar {
+  margin-top: 10px;
+  height: 12px;
+  border-radius: 999px;
+  background: rgba(7, 15, 11, 0.72);
+  overflow: hidden;
+}
+
+.dialogue-progress-fill {
+  height: 100%;
+  width: 0;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #9fdf76 0%, #f0d37b 100%);
+}
+
+.dialogue-progress-meta,
+.dialogue-progress-unlock {
+  margin-top: 10px;
+  color: #eff7e6;
+  font-size: 13px;
+  line-height: 1.4;
+}
+
 .dialogue-options {
   margin-top: 14px;
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 10px;
   pointer-events: auto;
 }
@@ -538,11 +588,13 @@ button.hidden {
 }
 
 .dialogue-option {
+  position: relative;
+  width: 100%;
   border: 1px solid rgba(255, 245, 210, 0.18);
   border-radius: 999px;
   background: rgba(255, 255, 255, 0.08);
   color: #fff5d2;
-  padding: 8px 14px;
+  padding: 8px 30px 8px 14px;
   font: 600 13px "Chakra Petch", sans-serif;
   letter-spacing: 0.06em;
   text-transform: uppercase;
@@ -551,6 +603,57 @@ button.hidden {
 
 .dialogue-option:hover {
   background: rgba(255, 226, 148, 0.16);
+}
+
+.dialogue-option:disabled {
+  cursor: default;
+}
+
+.dialogue-option-turn-in-ready {
+  border-color: rgba(126, 224, 154, 0.48);
+  background: rgba(24, 124, 56, 0.34);
+  color: #e5ffe8;
+}
+
+.dialogue-option-turn-in-ready:hover {
+  background: rgba(34, 158, 72, 0.44);
+}
+
+.dialogue-option-turn-in-disabled {
+  border-color: rgba(164, 170, 178, 0.24);
+  background: rgba(92, 98, 108, 0.2);
+  color: rgba(227, 231, 236, 0.58);
+}
+
+.dialogue-option-turn-in-disabled:hover {
+  background: rgba(92, 98, 108, 0.2);
+}
+
+.dialogue-option-leave {
+  border-color: rgba(255, 124, 124, 0.42);
+  background: rgba(140, 24, 24, 0.34);
+  color: #ffd8d8;
+}
+
+.dialogue-option-leave:hover {
+  background: rgba(196, 40, 40, 0.42);
+}
+
+.dialogue-option-leave::after {
+  content: "";
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  width: 16px;
+  height: 16px;
+  background: center / contain no-repeat url("./images/exit.png");
+  transform: translateY(-50%);
+  filter: brightness(0) invert(1);
+  opacity: 0.95;
+}
+
+.dialogue-option-spacer {
+  min-height: 38px;
 }
 
 .dialogue-hint {

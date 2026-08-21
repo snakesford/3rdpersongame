@@ -71,6 +71,12 @@ import {
   dialogueHintEl,
   dialogueOptionsEl,
   dialoguePanelEl,
+  dialogueProgressEl,
+  dialogueProgressFillEl,
+  dialogueProgressLabelEl,
+  dialogueProgressReputationEl,
+  dialogueProgressUnlockEl,
+  dialogueProgressValueEl,
   dialogueSpeakerEl,
   dialogueTextEl,
   equipmentBodyArmorIconEl,
@@ -164,6 +170,7 @@ const tutorialDialogue = {
   npcId: null,
   text: "",
   options: [],
+  progressView: null,
   taskOffered: false,
 };
 const SHOOTING_INSTRUCTOR_ID = "shootingInstructor";
@@ -238,6 +245,13 @@ const TUTORIAL_PROFESSIONS = {
     taskTitle: "Recover 1 arcane shard",
     rewardText: "Scholar progress increased and magical insight granted.",
   },
+};
+const PROFESSION_REPUTATION_UNLOCKS = {
+  merchant: [
+    { reputation: 1, text: "Unlocks better trade payouts for wood deliveries." },
+    { reputation: 3, text: "Unlocks stronger merchant delivery contracts." },
+    { reputation: 5, text: "Unlocks the best tutorial market opportunities." },
+  ],
 };
 const SHOOTING_RANGE_TUTORIAL_XP = 12;
 const tutorialProfessionState = Object.fromEntries(
@@ -619,6 +633,27 @@ function getTutorialProfessionState(professionId) {
 
 function getProfessionXpRequired(level) {
   return 20 + (level - 1) * 10;
+}
+
+function getNextProfessionUnlock(professionId, reputation) {
+  const unlocks = PROFESSION_REPUTATION_UNLOCKS[professionId] || [];
+  return unlocks.find((entry) => entry.reputation > reputation) || null;
+}
+
+function buildProfessionProgressView(professionId) {
+  const profession = TUTORIAL_PROFESSIONS[professionId];
+  const state = getTutorialProfessionState(professionId);
+  const xpRequired = getProfessionXpRequired(state.level);
+  const nextUnlock = getNextProfessionUnlock(professionId, state.reputation);
+  return {
+    label: `${profession.label} XP Progress`,
+    value: `${state.xp}/${xpRequired} XP`,
+    percent: clamp(state.xp / xpRequired, 0, 1),
+    reputationText: `${profession.label} Reputation ${state.reputation}`,
+    unlockText: nextUnlock
+      ? `Next unlock at Reputation ${nextUnlock.reputation}: ${nextUnlock.text}`
+      : "Nothing is unlocked next.",
+  };
 }
 
 function awardTutorialProfessionProgress(professionId, xp, reputation, rewardMessage) {
@@ -1261,6 +1296,7 @@ function closeTutorialDialogue() {
   tutorialDialogue.npcId = null;
   tutorialDialogue.text = "";
   tutorialDialogue.options = [];
+  tutorialDialogue.progressView = null;
   tutorialDialogue.taskOffered = false;
 }
 
@@ -1284,8 +1320,12 @@ function buildTutorialDialogueOptions(npc) {
     { id: "leave", label: "4. Leave" },
   ];
 
-  if (state.activeTask?.status === "readyToTurnIn") {
-    options.splice(1, 0, { id: "turnIn", label: "2. Turn In Task" });
+  if (state.activeTask) {
+    options.splice(1, 0, {
+      id: "turnIn",
+      label: "2. Turn In Task",
+      disabled: state.activeTask.status !== "readyToTurnIn",
+    });
   } else if (tutorialDialogue.taskOffered && !state.activeTask) {
     options.splice(1, 0, { id: "accept", label: "2. Accept Task" });
   }
@@ -1293,10 +1333,11 @@ function buildTutorialDialogueOptions(npc) {
   return options;
 }
 
-function openTutorialNpcMenu(npc, text = null, taskOffered = false) {
+function openTutorialNpcMenu(npc, text = null, taskOffered = false, progressView = null) {
   if (npc.kind === "shootingInstructor") {
     tutorialDialogue.npcId = npc.id;
     tutorialDialogue.text = text || "I cover ranged combat. Ask about work and I will walk you through a short live-fire lesson.";
+    tutorialDialogue.progressView = progressView;
     tutorialDialogue.taskOffered = false;
     tutorialDialogue.options = buildTutorialDialogueOptions(npc);
     shootingRangeTutorial.introSeen = true;
@@ -1308,6 +1349,7 @@ function openTutorialNpcMenu(npc, text = null, taskOffered = false) {
   const state = getTutorialProfessionState(npc.professionId);
   tutorialDialogue.npcId = npc.id;
   tutorialDialogue.text = text || (!state.introSeen ? profession.intro : profession.workText);
+  tutorialDialogue.progressView = progressView;
   tutorialDialogue.taskOffered = taskOffered;
   tutorialDialogue.options = buildTutorialDialogueOptions(npc);
   state.introSeen = true;
@@ -1431,7 +1473,9 @@ function handleTutorialNpcOption(optionId) {
   if (optionId === "progress") {
     openTutorialNpcMenu(
       npc,
-      `${profession.label} Reputation ${state.reputation}. Progress ${state.xp}/${getProfessionXpRequired(state.level)} to next reputation rank. Completed tasks ${state.completed}.`
+      `Completed tasks ${state.completed}. Review your current standing below.`,
+      false,
+      buildProfessionProgressView(npc.professionId)
     );
     return;
   }
@@ -1506,6 +1550,7 @@ function updateDialogueUI() {
   const open = isDialogueOpen();
   dialoguePanelEl.classList.toggle("hidden", !open);
   if (!open) {
+    dialogueProgressEl.classList.add("hidden");
     dialogueOptionsEl.classList.add("hidden");
     dialogueOptionsEl.textContent = "";
     return;
@@ -1517,22 +1562,59 @@ function updateDialogueUI() {
     dialogueTextEl.textContent = tutorialDialogue.text;
     dialogueHintEl.textContent = "";
     dialogueHintEl.classList.add("hidden");
+    if (tutorialDialogue.progressView) {
+      dialogueProgressLabelEl.textContent = tutorialDialogue.progressView.label;
+      dialogueProgressValueEl.textContent = tutorialDialogue.progressView.value;
+      dialogueProgressFillEl.style.width = `${Math.round(tutorialDialogue.progressView.percent * 100)}%`;
+      dialogueProgressReputationEl.textContent = tutorialDialogue.progressView.reputationText;
+      dialogueProgressUnlockEl.textContent = tutorialDialogue.progressView.unlockText;
+      dialogueProgressEl.classList.remove("hidden");
+    } else {
+      dialogueProgressEl.classList.add("hidden");
+      dialogueProgressFillEl.style.width = "0%";
+    }
     dialogueOptionsEl.textContent = "";
     dialogueOptionsEl.classList.remove("hidden");
+    const optionSlots = new Array(4).fill(null);
     for (const option of tutorialDialogue.options) {
+      const match = option.label.match(/^(\d+)\./);
+      const slotIndex = match ? Number(match[1]) - 1 : -1;
+      if (slotIndex >= 0 && slotIndex < optionSlots.length) {
+        optionSlots[slotIndex] = option;
+      }
+    }
+    for (const option of optionSlots) {
+      if (!option) {
+        const spacer = document.createElement("div");
+        spacer.className = "dialogue-option-spacer";
+        spacer.setAttribute("aria-hidden", "true");
+        dialogueOptionsEl.appendChild(spacer);
+        continue;
+      }
       const button = document.createElement("button");
       button.type = "button";
       button.className = "dialogue-option";
+      if (option.id === "leave") {
+        button.classList.add("dialogue-option-leave");
+      } else if (option.id === "turnIn") {
+        button.classList.add(option.disabled ? "dialogue-option-turn-in-disabled" : "dialogue-option-turn-in-ready");
+      }
+      if (option.disabled) {
+        button.disabled = true;
+      }
       button.textContent = option.label;
-      button.addEventListener("click", () => {
-        handleTutorialNpcOption(option.id);
-      });
+      if (!option.disabled) {
+        button.addEventListener("click", () => {
+          handleTutorialNpcOption(option.id);
+        });
+      }
       dialogueOptionsEl.appendChild(button);
     }
     return;
   }
 
   const lines = getQuestDialogueLines(quest.activeDialogue, quest.dialogueContractId);
+  dialogueProgressEl.classList.add("hidden");
   dialogueOptionsEl.classList.add("hidden");
   dialogueOptionsEl.textContent = "";
   dialogueHintEl.classList.remove("hidden");
@@ -6363,7 +6445,7 @@ window.addEventListener("keydown", (event) => {
       if (["1", "2", "3", "4"].includes(event.key)) {
         event.preventDefault();
         const option = tutorialDialogue.options.find((entry) => entry.label.startsWith(`${event.key}.`));
-        if (option) {
+        if (option && !option.disabled) {
           handleTutorialNpcOption(option.id);
         }
         return;

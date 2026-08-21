@@ -66,6 +66,12 @@ const classGridEl = document.querySelector(".class-grid");
 const dialoguePanelEl = document.getElementById("dialoguePanel");
 const dialogueSpeakerEl = document.getElementById("dialogueSpeaker");
 const dialogueTextEl = document.getElementById("dialogueText");
+const dialogueProgressEl = document.getElementById("dialogueProgress");
+const dialogueProgressFillEl = document.getElementById("dialogueProgressFill");
+const dialogueProgressLabelEl = document.getElementById("dialogueProgressLabel");
+const dialogueProgressReputationEl = document.getElementById("dialogueProgressReputation");
+const dialogueProgressUnlockEl = document.getElementById("dialogueProgressUnlock");
+const dialogueProgressValueEl = document.getElementById("dialogueProgressValue");
 const dialogueOptionsEl = document.getElementById("dialogueOptions");
 const dialogueHintEl = document.getElementById("dialogueHint");
 
@@ -91,6 +97,12 @@ export {
   dialogueHintEl,
   dialogueOptionsEl,
   dialoguePanelEl,
+  dialogueProgressEl,
+  dialogueProgressFillEl,
+  dialogueProgressLabelEl,
+  dialogueProgressReputationEl,
+  dialogueProgressUnlockEl,
+  dialogueProgressValueEl,
   dialogueSpeakerEl,
   dialogueTextEl,
   equipmentBodyArmorIconEl,
