@@ -1135,7 +1135,17 @@ function registerContractKill(enemy) {
 }
 
 function getQuestObjectiveText() {
+  const activeContract = getActiveContract();
   if (player.inTutorialWorld) {
+    if (activeContract && quest.activeContractStage === "active") {
+      return `${activeContract.title}\n${getContractProgressText(activeContract)}`;
+    }
+    if (activeContract && quest.activeContractStage === "readyToTurnIn") {
+      return `${activeContract.title}\nReturn to the Mercenary Captain.`;
+    }
+    if (hasCompletedContract("knownCamp") && !hasDiscoveredCamp("hiddenCamp")) {
+      return "Explore off the main forest paths to find the hidden goblin camp.";
+    }
     if (shootingRangeTutorial.started && !shootingRangeTutorial.completed) {
       if (shootingRangeTutorial.state === "leading") {
         return "Follow the Shooting Instructor.";
@@ -1148,16 +1158,11 @@ function getQuestObjectiveText() {
     return activeTasks.length ? activeTasks.slice(0, 2).join(" • ") : "Talk to the guides to learn each career path.";
   }
 
-  const activeContract = getActiveContract();
   if (activeContract && quest.activeContractStage === "active") {
     return `${activeContract.title}\n${getContractProgressText(activeContract)}`;
   }
   if (activeContract && quest.activeContractStage === "readyToTurnIn") {
     return `${activeContract.title}\nReturn to the Mercenary Captain.`;
-  }
-  if (quest.availableContractIds.length) {
-    const nextContract = getContractConfig(quest.availableContractIds[0]);
-    return nextContract ? `Talk to the Mercenary Captain.\nContract ready: ${nextContract.title}` : "Talk to the Mercenary Captain.";
   }
   if (hasCompletedContract("knownCamp") && !hasDiscoveredCamp("hiddenCamp")) {
     return "Explore off the main forest paths to find the hidden goblin camp.";
@@ -1167,18 +1172,22 @@ function getQuestObjectiveText() {
 
 function updateQuestUI() {
   if (player.inTutorialWorld) {
-    const visible = player.tutorialPathsUnlocked;
+    const showingContract = Boolean(getActiveContract()) || (hasCompletedContract("knownCamp") && !hasDiscoveredCamp("hiddenCamp"));
+    const visible = player.tutorialPathsUnlocked || showingContract;
     questPanelEl.classList.toggle("hidden", !visible);
     if (!visible) {
       return;
     }
     questPanelEl.classList.remove("hidden");
-    questTitleEl.textContent = "Tutorial Paths";
+    questTitleEl.textContent = showingContract ? "Mercenary Contract" : "Tutorial Paths";
     questObjectiveEl.textContent = getQuestObjectiveText();
     return;
   }
-  const visible = Boolean(getActiveContract()) || quest.availableContractIds.length > 0 || (hasCompletedContract("knownCamp") && !hasDiscoveredCamp("hiddenCamp"));
+  const visible = Boolean(getActiveContract()) || (hasCompletedContract("knownCamp") && !hasDiscoveredCamp("hiddenCamp"));
   questPanelEl.classList.toggle("hidden", !visible);
+  if (!visible) {
+    return;
+  }
   questTitleEl.textContent = "Mercenary Contract";
   questObjectiveEl.textContent = getQuestObjectiveText();
 }
