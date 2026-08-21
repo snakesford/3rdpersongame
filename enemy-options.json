@@ -33,7 +33,33 @@
     "damage": 9,
     "attackRange": 28,
     "attackCooldown": 0.85,
-    "xp": 30
+    "xp": 30,
+    "attackStyle": "melee"
+  },
+  "goblinArcher": {
+    "radius": 16,
+    "speed": 92,
+    "hp": 48,
+    "damage": 11,
+    "attackRange": 230,
+    "attackCooldown": 1.4,
+    "xp": 36,
+    "attackStyle": "ranged",
+    "preferredRange": 180,
+    "retreatRange": 110,
+    "projectileSpeed": 420,
+    "projectileRadius": 5,
+    "projectileType": "goblinArrow"
+  },
+  "ogre": {
+    "radius": 28,
+    "speed": 58,
+    "hp": 220,
+    "damage": 24,
+    "attackRange": 38,
+    "attackCooldown": 1.6,
+    "xp": 90,
+    "attackStyle": "melee"
   },
   "enemyHero": {
     "radius": 18,

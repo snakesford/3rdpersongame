@@ -108,18 +108,24 @@ const hero = {
 };
 
 const villager = {
-  x: 356,
-  y: 1298,
+  x: 416,
+  y: 1308,
   radius: 20,
-  name: "Villager",
+  name: "Mercenary Captain",
 };
 
 const quest = {
   id: QUEST_ID,
-  stage: "available",
-  goblinId: null,
+  activeContractId: null,
+  activeContractStage: "idle",
+  availableContractIds: ["knownCamp"],
+  completedContractIds: [],
+  discoveredCampIds: [],
+  progress: null,
   activeDialogue: null,
   dialogueIndex: 0,
+  dialogueAction: null,
+  dialogueContractId: null,
 };
 
 const inventory = [];

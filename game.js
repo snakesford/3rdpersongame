@@ -253,17 +253,321 @@ const tutorialProfessionState = Object.fromEntries(
     },
   ])
 );
+const enemyProjectiles = [];
+const forestEnemySpawners = [];
+const forestRespawnQueue = [];
+const FOREST_REGION = {
+  x: 920,
+  y: 170,
+  w: 1320,
+  h: 1320,
+};
+const FOREST_CLEARINGS = [
+  { x: 1160, y: 980, radius: 108, color: "rgba(168, 191, 110, 0.38)" },
+  { x: 1495, y: 815, radius: 124, color: "rgba(176, 198, 116, 0.34)" },
+  { x: 1825, y: 625, radius: 156, color: "rgba(187, 201, 123, 0.34)" },
+  { x: 2010, y: 1240, radius: 150, color: "rgba(176, 194, 116, 0.32)" },
+];
+const MERCENARY_CONTRACTS = {
+  knownCamp: {
+    id: "knownCamp",
+    title: "Clear the Goblin Camp",
+    campId: "knownCamp",
+    discoveryRequired: false,
+    requirements: {
+      goblin: 5,
+      goblinArcher: 2,
+      ogre: 1,
+    },
+    rewards: {
+      gold: 90,
+      xp: 60,
+      mercenaryXp: 18,
+      mercenaryReputation: 1,
+      lootChance: 0.55,
+      lootTable: ["enemyHelmet", "healthBuff", "weaponBuff"],
+    },
+    offerLines: [
+      "A goblin camp has settled deeper in the forest and they are testing our roads.",
+      "Clear it out. I need five goblins, two archers, and their ogre brute dead.",
+    ],
+    progressLines: [
+      "Hold the line and finish the camp. I only pay for confirmed kills.",
+    ],
+    completionLines: [
+      "The known camp is broken. Good work.",
+      "Take your pay. Keep roaming. There may be a second camp hidden in those trees.",
+    ],
+  },
+  hiddenCamp: {
+    id: "hiddenCamp",
+    title: "Break the Hidden Goblin Camp",
+    campId: "hiddenCamp",
+    discoveryRequired: true,
+    requirements: {
+      goblin: 6,
+      goblinArcher: 3,
+      ogre: 1,
+    },
+    rewards: {
+      gold: 160,
+      xp: 110,
+      mercenaryXp: 30,
+      mercenaryReputation: 2,
+      lootChance: 0.85,
+      lootTable: ["rareHelmet", "weaponBuff", "enemyHelmet"],
+    },
+    offerLines: [
+      "You found their hidden camp. Hit it before they spread farther.",
+      "This one is tougher. Break their whole warband and come back standing.",
+    ],
+    progressLines: [
+      "The hidden camp is still active. Finish the harder contract and report back.",
+    ],
+    completionLines: [
+      "That hidden camp was the real nest.",
+      "You earned the heavier contract pay. More work will open as the frontier expands.",
+    ],
+  },
+};
+const FOREST_CAMPS = [
+  {
+    id: "knownCamp",
+    label: "Goblin Camp",
+    center: { x: 1820, y: 620 },
+    discoveryRadius: 0,
+    iconVisibleFromStart: true,
+    hidden: false,
+    props: [
+      { type: "tent", x: 1738, y: 560, w: 86, h: 58, collidable: true },
+      { type: "tent", x: 1868, y: 572, w: 82, h: 56, collidable: true },
+      { type: "campfire", x: 1812, y: 646, radius: 16, collidable: false },
+      { type: "crate", x: 1762, y: 672, w: 24, h: 24, collidable: true },
+      { type: "crate", x: 1894, y: 684, w: 22, h: 22, collidable: true },
+      { type: "barrel", x: 1928, y: 654, radius: 12, collidable: true },
+      { type: "banner", x: 1706, y: 634, w: 18, h: 44, collidable: false },
+      { type: "wreckage", x: 1848, y: 714, w: 42, h: 16, collidable: false },
+      { type: "bush", x: 1688, y: 724, radius: 18, collidable: false },
+      { type: "bush", x: 1960, y: 556, radius: 18, collidable: false },
+    ],
+    spawns: [
+      { id: "known-g1", kind: "goblin", x: 1734, y: 644 },
+      { id: "known-g2", kind: "goblin", x: 1766, y: 712 },
+      { id: "known-g3", kind: "goblin", x: 1836, y: 718 },
+      { id: "known-g4", kind: "goblin", x: 1918, y: 706 },
+      { id: "known-g5", kind: "goblin", x: 1938, y: 612 },
+      { id: "known-a1", kind: "goblinArcher", x: 1712, y: 582 },
+      { id: "known-a2", kind: "goblinArcher", x: 1948, y: 572 },
+      { id: "known-o1", kind: "ogre", x: 1824, y: 564, displayName: "Camp Ogre" },
+    ],
+  },
+  {
+    id: "hiddenCamp",
+    label: "Hidden Camp",
+    center: { x: 2050, y: 1260 },
+    discoveryRadius: 185,
+    iconVisibleFromStart: false,
+    hidden: true,
+    discoveryXp: 16,
+    props: [
+      { type: "tent", x: 1966, y: 1196, w: 84, h: 56, collidable: true },
+      { type: "tent", x: 2088, y: 1180, w: 92, h: 62, collidable: true },
+      { type: "tent", x: 2036, y: 1324, w: 82, h: 54, collidable: true },
+      { type: "campfire", x: 2060, y: 1262, radius: 18, collidable: false },
+      { type: "crate", x: 1974, y: 1296, w: 24, h: 24, collidable: true },
+      { type: "crate", x: 2142, y: 1290, w: 26, h: 26, collidable: true },
+      { type: "barrel", x: 2178, y: 1232, radius: 12, collidable: true },
+      { type: "barrel", x: 1946, y: 1228, radius: 12, collidable: true },
+      { type: "banner", x: 2188, y: 1268, w: 18, h: 46, collidable: false },
+      { type: "wreckage", x: 2010, y: 1364, w: 54, h: 16, collidable: false },
+      { type: "bush", x: 1918, y: 1334, radius: 20, collidable: false },
+      { type: "bush", x: 2206, y: 1174, radius: 20, collidable: false },
+    ],
+    spawns: [
+      { id: "hidden-g1", kind: "goblin", x: 1962, y: 1260, hpMultiplier: 1.2, damageMultiplier: 1.1 },
+      { id: "hidden-g2", kind: "goblin", x: 1988, y: 1352, hpMultiplier: 1.2, damageMultiplier: 1.1 },
+      { id: "hidden-g3", kind: "goblin", x: 2054, y: 1394, hpMultiplier: 1.2, damageMultiplier: 1.1 },
+      { id: "hidden-g4", kind: "goblin", x: 2146, y: 1354, hpMultiplier: 1.2, damageMultiplier: 1.1 },
+      { id: "hidden-g5", kind: "goblin", x: 2158, y: 1252, hpMultiplier: 1.2, damageMultiplier: 1.1 },
+      { id: "hidden-g6", kind: "goblin", x: 2032, y: 1184, hpMultiplier: 1.2, damageMultiplier: 1.1 },
+      { id: "hidden-a1", kind: "goblinArcher", x: 1930, y: 1200, hpMultiplier: 1.18, damageMultiplier: 1.15 },
+      { id: "hidden-a2", kind: "goblinArcher", x: 2194, y: 1204, hpMultiplier: 1.18, damageMultiplier: 1.15 },
+      { id: "hidden-a3", kind: "goblinArcher", x: 2128, y: 1396, hpMultiplier: 1.18, damageMultiplier: 1.15 },
+      { id: "hidden-o1", kind: "ogre", x: 2062, y: 1230, hpMultiplier: 1.35, damageMultiplier: 1.18, displayName: "Camp Chieftain" },
+    ],
+  },
+];
+const FOREST_ROAMING_SPAWNS = [
+  { id: "roam-g1", kind: "goblin", x: 1168, y: 1068 },
+  { id: "roam-g2", kind: "goblin", x: 1288, y: 920 },
+  { id: "roam-g3", kind: "goblin", x: 1464, y: 930 },
+  { id: "roam-g4", kind: "goblin", x: 1612, y: 782 },
+  { id: "roam-a1", kind: "goblinArcher", x: 1378, y: 1106 },
+  { id: "roam-a2", kind: "goblinArcher", x: 1718, y: 876 },
+];
+
+function getCampConfig(campId) {
+  return FOREST_CAMPS.find((camp) => camp.id === campId) || null;
+}
+
+function getContractConfig(contractId) {
+  return MERCENARY_CONTRACTS[contractId] || null;
+}
+
+function hasCompletedContract(contractId) {
+  return quest.completedContractIds.includes(contractId);
+}
+
+function hasDiscoveredCamp(campId) {
+  return quest.discoveredCampIds.includes(campId);
+}
+
+function getNextAvailableContractId() {
+  if (!hasCompletedContract("knownCamp")) {
+    return "knownCamp";
+  }
+  if (!hasCompletedContract("hiddenCamp") && hasDiscoveredCamp("hiddenCamp")) {
+    return "hiddenCamp";
+  }
+  return null;
+}
+
+function ensureContractAvailability() {
+  const nextContractId = getNextAvailableContractId();
+  quest.availableContractIds = nextContractId ? [nextContractId] : [];
+  if (!quest.activeContractId) {
+    quest.activeContractStage = nextContractId ? "available" : "idle";
+  }
+}
+
+function buildContractProgress(requirements) {
+  return Object.fromEntries(
+    Object.keys(requirements).map((kind) => [kind, 0])
+  );
+}
+
+function getActiveContract() {
+  return quest.activeContractId ? getContractConfig(quest.activeContractId) : null;
+}
+
+function startMercenaryContract(contractId) {
+  const contract = getContractConfig(contractId);
+  if (!contract) {
+    return false;
+  }
+
+  quest.activeContractId = contractId;
+  quest.activeContractStage = "active";
+  quest.progress = buildContractProgress(contract.requirements);
+  quest.availableContractIds = [];
+  updateQuestUI();
+  return true;
+}
+
+function finishMercenaryContractObjective() {
+  quest.activeContractStage = "readyToTurnIn";
+  updateQuestUI();
+  spawnTextPopup(hero.x, hero.y - 24, "Contract complete!", "rgba(214, 255, 176, 1)", 1.6);
+  statusTextEl.textContent = "Return to the Mercenary Captain.";
+}
+
+function markCampDiscovered(campId) {
+  if (hasDiscoveredCamp(campId)) {
+    return;
+  }
+
+  quest.discoveredCampIds.push(campId);
+  const camp = getCampConfig(campId);
+  if (camp?.discoveryXp) {
+    awardTutorialProfessionProgress("explorer", camp.discoveryXp, 1, "Hidden Goblin Camp discovered. Explorer progress increased.");
+    spawnTextPopup(hero.x, hero.y - 26, `+${camp.discoveryXp} Exploration XP`, "rgba(126, 220, 205, 1)", 1.5);
+  }
+  ensureContractAvailability();
+  updateQuestUI();
+}
+
+function getRandomBetween(min, max) {
+  return min + Math.random() * (max - min);
+}
+
+function createForestEnemySpawner(config) {
+  forestEnemySpawners.push({
+    respawnMin: 35,
+    respawnMax: 60,
+    hpMultiplier: 1,
+    damageMultiplier: 1,
+    speedMultiplier: 1,
+    ...config,
+  });
+}
+
+function spawnEnemyFromSpawner(spawner) {
+  const enemy = createUnit(spawner.kind, spawner.x, spawner.y, false);
+  enemy.spawnerId = spawner.id;
+  enemy.campId = spawner.campId || null;
+  enemy.displayName = spawner.displayName || enemy.displayName;
+  enemy.hp = Math.round(enemy.hp * spawner.hpMultiplier);
+  enemy.maxHp = enemy.hp;
+  enemy.damage = Math.round(enemy.damage * spawner.damageMultiplier);
+  enemy.speed *= spawner.speedMultiplier;
+  enemy.homeX = spawner.x;
+  enemy.homeY = spawner.y;
+  enemy.lootTier = spawner.lootTier || (enemy.campId === "hiddenCamp" ? "better" : "normal");
+  return enemy;
+}
+
+function queueEnemyRespawn(enemy) {
+  if (!enemy.spawnerId) {
+    return;
+  }
+  const spawner = forestEnemySpawners.find((entry) => entry.id === enemy.spawnerId);
+  if (!spawner) {
+    return;
+  }
+  forestRespawnQueue.push({
+    spawnerId: spawner.id,
+    timer: getRandomBetween(spawner.respawnMin, spawner.respawnMax),
+  });
+}
+
+function initializeForestEncounterSpawners() {
+  forestEnemySpawners.length = 0;
+  forestRespawnQueue.length = 0;
+
+  for (const camp of FOREST_CAMPS) {
+    for (const spawn of camp.spawns) {
+      createForestEnemySpawner({
+        ...spawn,
+        campId: camp.id,
+        respawnMin: camp.id === "hiddenCamp" ? 45 : 38,
+        respawnMax: camp.id === "hiddenCamp" ? 72 : 58,
+      });
+    }
+  }
+
+  for (const spawn of FOREST_ROAMING_SPAWNS) {
+    createForestEnemySpawner({
+      ...spawn,
+      respawnMin: 30,
+      respawnMax: 52,
+    });
+  }
+
+  for (const spawner of forestEnemySpawners) {
+    spawnEnemyFromSpawner(spawner);
+  }
+}
 
 function initializeEnemyForces() {
   createUnit("boss", WORLD.width / 2, MAIN_LANE_Y, false);
-  enemyHero = createEnemyHero(WORLD.width - 430, MAIN_LANE_Y - 10);
+  enemyHero = createEnemyHero(WORLD.width - 250, WORLD.height - 250);
   enemyHero.equippedArmorValue = 80;
   enemyHero.latestPickup = {
   type: "enemyHelmet",
   armorValue: 80,
   radius: 18,
   };
-  createUnit("enemySoldier", WORLD.width - 470, MAIN_LANE_Y + 90, false);
+  createUnit("enemySoldier", WORLD.width - 300, WORLD.height - 180, false);
 }
 
 function clearWorldEntities() {
@@ -272,6 +576,7 @@ function clearWorldEntities() {
   buildings.length = 0;
   units.length = 0;
   enemies.length = 0;
+  enemyProjectiles.length = 0;
   pickups.length = 0;
   heroProjectiles.length = 0;
   heroGrenades.length = 0;
@@ -287,10 +592,13 @@ function clearWorldEntities() {
   tutorialPlots.length = 0;
   tutorialSites.length = 0;
   tutorialRangeTargets.length = 0;
+  forestEnemySpawners.length = 0;
+  forestRespawnQueue.length = 0;
 }
 
 function initializeMainWorld() {
   clearWorldEntities();
+  ensureContractAvailability();
   SPAWN_WAVE_TILE.triggered = false;
   SPAWN_STREAM_TILE.timer = 0;
   DODGE_ARENA.timer = 0;
@@ -307,16 +615,14 @@ function initializeMainWorld() {
   playerBase.w = 180;
   playerBase.h = 200;
   initializeVillage();
-  enemyBase = createBuilding("enemyBase", WORLD.width - 270, MAIN_LANE_Y - 100, false);
+  initializeForest();
+  enemyBase = createBuilding("enemyBase", WORLD.width - 290, WORLD.height - 320, false);
   enemyBase.hp = 800;
   enemyBase.maxHp = 800;
   enemyBase.w = 180;
   enemyBase.h = 200;
   initializeEnemyForces();
-
-  if (quest.stage === "active") {
-    spawnQuestGoblin();
-  }
+  initializeForestEncounterSpawners();
 }
 
 function getTutorialProfessionState(professionId) {
@@ -647,8 +953,103 @@ function initializeVillage() {
   );
 }
 
-function isQuestGoblin(unit) {
-  return unit?.kind === "goblin" && unit.id === quest.goblinId;
+function addForestRectProp(type, x, y, w, h, collidable = true) {
+  villageProps.push({ type, x, y, w, h, collidable, shape: "rect" });
+}
+
+function addForestCircleProp(type, x, y, radius, collidable = true) {
+  villageProps.push({ type, x, y, radius, collidable, shape: "circle" });
+}
+
+function spawnForestTrees() {
+  const clusterCenters = [
+    [1040, 1140], [1160, 860], [1370, 1040], [1560, 930], [1720, 770],
+    [1870, 900], [2000, 1090], [2140, 1320], [1990, 480], [1550, 460],
+  ];
+  for (const [centerX, centerY] of clusterCenters) {
+    for (let index = 0; index < 8; index += 1) {
+      const angle = (Math.PI * 2 * index) / 8;
+      const radius = 60 + (index % 3) * 18;
+      const x = centerX + Math.cos(angle) * radius;
+      const y = centerY + Math.sin(angle) * radius;
+      trees.push({
+        id: nextId(),
+        x,
+        y,
+        radius: 22 + (index % 2) * 4,
+        wood: 25,
+      });
+    }
+  }
+}
+
+function spawnForestStones() {
+  const points = [
+    [1028, 1032], [1184, 786], [1318, 1148], [1492, 688], [1638, 982],
+    [1756, 838], [1882, 1044], [2044, 1182], [2126, 1368], [1942, 574],
+    [1684, 456], [1438, 522],
+  ];
+  for (const [x, y] of points) {
+    stones.push({
+      id: nextId(),
+      x,
+      y,
+      radius: 20,
+    });
+  }
+}
+
+function initializeForest() {
+  villagePaths.push(
+    { x: 520, y: 1242, w: 360, h: 58 },
+    { x: 842, y: 1010, w: 58, h: 288 },
+    { x: 872, y: 980, w: 262, h: 56 },
+    { x: 1098, y: 850, w: 58, h: 186 },
+    { x: 1128, y: 822, w: 306, h: 52 },
+    { x: 1400, y: 700, w: 54, h: 174 },
+    { x: 1422, y: 674, w: 370, h: 50 },
+    { x: 1760, y: 600, w: 52, h: 124 },
+    { x: 1504, y: 1038, w: 54, h: 176 },
+    { x: 1532, y: 1188, w: 362, h: 46 },
+    { x: 1864, y: 1092, w: 44, h: 142 },
+    { x: 1888, y: 1070, w: 156, h: 40 }
+  );
+
+  spawnForestTrees();
+  spawnForestStones();
+
+  const forestScenery = [
+    { type: "bush", x: 972, y: 960, radius: 18, collidable: false },
+    { type: "bush", x: 1250, y: 846, radius: 20, collidable: false },
+    { type: "bush", x: 1440, y: 790, radius: 18, collidable: false },
+    { type: "bush", x: 1658, y: 688, radius: 18, collidable: false },
+    { type: "bush", x: 1772, y: 974, radius: 20, collidable: false },
+    { type: "bush", x: 2144, y: 1126, radius: 20, collidable: false },
+    { type: "stump", x: 1092, y: 934, w: 26, h: 18, collidable: false },
+    { type: "stump", x: 1578, y: 1094, w: 28, h: 18, collidable: false },
+    { type: "wreckage", x: 1188, y: 1000, w: 44, h: 14, collidable: false },
+    { type: "wreckage", x: 1714, y: 1182, w: 52, h: 14, collidable: false },
+    { type: "cart", x: 1320, y: 832, w: 54, h: 28, collidable: true },
+    { type: "cart", x: 1518, y: 1198, w: 54, h: 28, collidable: true },
+  ];
+
+  for (const prop of forestScenery) {
+    if (prop.shape === "circle" || typeof prop.radius === "number") {
+      addForestCircleProp(prop.type, prop.x, prop.y, prop.radius, prop.collidable);
+    } else {
+      addForestRectProp(prop.type, prop.x, prop.y, prop.w, prop.h, prop.collidable);
+    }
+  }
+
+  for (const camp of FOREST_CAMPS) {
+    for (const prop of camp.props) {
+      if (typeof prop.radius === "number") {
+        addForestCircleProp(prop.type, prop.x, prop.y, prop.radius, prop.collidable);
+      } else {
+        addForestRectProp(prop.type, prop.x, prop.y, prop.w, prop.h, prop.collidable);
+      }
+    }
+  }
 }
 
 function hasInventoryItem(itemType) {
@@ -663,51 +1064,86 @@ function addInventoryItem(item) {
   updateInventoryUI();
 }
 
-function awardGoldHelmet() {
-  if (quest.stage === "completed") {
-    return;
+function rollContractLootPickup(contractId) {
+  const contract = getContractConfig(contractId);
+  if (!contract || Math.random() > contract.rewards.lootChance) {
+    return false;
   }
 
-  addInventoryItem({
-    type: "goldHelmet",
-    name: "Gold Helmet",
-    description: `Armor ${GOLD_HELMET_ARMOR}`,
-  });
-  hero.equippedArmorValue = GOLD_HELMET_ARMOR;
-  hero.equippedHelmetType = "goldHelmet";
-  hero.latestPickup = {
-    type: "goldHelmet",
-    armorValue: GOLD_HELMET_ARMOR,
-    radius: 18,
-  };
-  quest.stage = "completed";
-  updateQuestUI();
-  updateStatsUI();
-  spawnTextPopup(hero.x, hero.y - 28, "Gold Helmet received!", "rgba(255, 226, 148, 1)", 1.8);
-  statusTextEl.textContent = "Quest complete. Gold Helmet added to inventory.";
+  const lootType = contract.rewards.lootTable[Math.floor(Math.random() * contract.rewards.lootTable.length)];
+  const loot = {
+    enemyHelmet: { type: "enemyHelmet", armorValue: 80, radius: 18 },
+    rareHelmet: { type: "rareHelmet", armorValue: 85, radius: 18 },
+    healthBuff: { type: "healthBuff", healthValue: 20, radius: 18 },
+    weaponBuff: { type: "weaponBuff", damageValue: 2, radius: 18 },
+  }[lootType];
+
+  if (!loot) {
+    return false;
+  }
+
+  spawnPickupDrop(loot, hero.x + 28, hero.y - 6);
+  spawnTextPopup(hero.x, hero.y - 42, "Bonus loot dropped", "rgba(255, 228, 154, 1)", 1.4);
+  return true;
 }
 
-function completeQuestGoblinObjective(x, y) {
-  if (quest.stage !== "active") {
+function completeMercenaryContractTurnIn(contractId) {
+  const contract = getContractConfig(contractId);
+  if (!contract) {
     return;
   }
 
-  quest.stage = "readyToTurnIn";
-  quest.goblinId = null;
+  player.money += contract.rewards.gold;
+  awardPlayerXp(contract.rewards.xp, hero.x, hero.y);
+  awardTutorialProfessionProgress(
+    "mercenary",
+    contract.rewards.mercenaryXp,
+    contract.rewards.mercenaryReputation,
+    "Mercenary contract completed. Reputation increased."
+  );
+  rollContractLootPickup(contractId);
+  quest.completedContractIds.push(contractId);
+  quest.activeContractId = null;
+  quest.activeContractStage = "idle";
+  quest.progress = null;
+  ensureContractAvailability();
+  updateInventoryUI();
   updateQuestUI();
-  spawnTextPopup(x, y - 24, "Objective complete!", "rgba(214, 255, 176, 1)", 1.6);
-  statusTextEl.textContent = "Kill the Goblin (1/1). Return to the villager.";
+  spawnTextPopup(hero.x, hero.y - 24, `+${contract.rewards.gold} Gold`, "rgba(255, 219, 146, 1)", 1.4);
+  statusTextEl.textContent = `${contract.title} completed.`;
 }
 
-function spawnQuestGoblin() {
-  if (quest.goblinId && enemies.some((enemy) => enemy.id === quest.goblinId)) {
+function getContractProgressText(contract) {
+  const lines = [];
+  for (const [kind, required] of Object.entries(contract.requirements)) {
+    const label = kind === "goblin"
+      ? "Goblins"
+      : kind === "goblinArcher"
+        ? "Archers"
+        : "Ogre";
+    const current = Math.min(required, quest.progress?.[kind] || 0);
+    lines.push(`${label}: ${current}/${required}`);
+  }
+  return lines.join("\n");
+}
+
+function registerContractKill(enemy) {
+  const contract = getActiveContract();
+  if (!contract || quest.activeContractStage !== "active" || enemy.campId !== contract.campId) {
     return;
   }
 
-  const goblin = createUnit("goblin", 862, 1462, false);
-  goblin.displayName = "Quest Goblin";
-  quest.goblinId = goblin.id;
-  spawnTextPopup(goblin.x, goblin.y - 22, "Goblin spotted!", "rgba(201, 255, 164, 1)", 1.6);
+  const required = contract.requirements[enemy.kind];
+  if (!required) {
+    return;
+  }
+
+  quest.progress[enemy.kind] = Math.min(required, (quest.progress[enemy.kind] || 0) + 1);
+  const isComplete = Object.entries(contract.requirements).every(([kind, amount]) => (quest.progress[kind] || 0) >= amount);
+  updateQuestUI();
+  if (isComplete) {
+    finishMercenaryContractObjective();
+  }
 }
 
 function getQuestObjectiveText() {
@@ -723,16 +1159,22 @@ function getQuestObjectiveText() {
       .map(([professionId]) => `${TUTORIAL_PROFESSIONS[professionId].label}: ${TUTORIAL_PROFESSIONS[professionId].taskTitle}`);
     return activeTasks.length ? activeTasks.slice(0, 2).join(" • ") : "Talk to the guides to learn each career path.";
   }
-  if (quest.stage === "available") {
-    return "Talk to the villager.";
+
+  const activeContract = getActiveContract();
+  if (activeContract && quest.activeContractStage === "active") {
+    return `${activeContract.title}\n${getContractProgressText(activeContract)}`;
   }
-  if (quest.stage === "active") {
-    return "Kill the Goblin (0/1)";
+  if (activeContract && quest.activeContractStage === "readyToTurnIn") {
+    return `${activeContract.title}\nReturn to the Mercenary Captain.`;
   }
-  if (quest.stage === "readyToTurnIn") {
-    return "Kill the Goblin (1/1) • Return to the villager.";
+  if (quest.availableContractIds.length) {
+    const nextContract = getContractConfig(quest.availableContractIds[0]);
+    return nextContract ? `Talk to the Mercenary Captain.\nContract ready: ${nextContract.title}` : "Talk to the Mercenary Captain.";
   }
-  return "Quest complete.";
+  if (hasCompletedContract("knownCamp") && !hasDiscoveredCamp("hiddenCamp")) {
+    return "Explore off the main forest paths to find the hidden goblin camp.";
+  }
+  return "No contract posted right now.";
 }
 
 function updateQuestUI() {
@@ -747,9 +1189,9 @@ function updateQuestUI() {
     questObjectiveEl.textContent = getQuestObjectiveText();
     return;
   }
-  const visible = quest.stage === "active" || quest.stage === "readyToTurnIn";
+  const visible = Boolean(getActiveContract()) || quest.availableContractIds.length > 0 || (hasCompletedContract("knownCamp") && !hasDiscoveredCamp("hiddenCamp"));
   questPanelEl.classList.toggle("hidden", !visible);
-  questTitleEl.textContent = "Goblin Trouble";
+  questTitleEl.textContent = "Mercenary Contract";
   questObjectiveEl.textContent = getQuestObjectiveText();
 }
 
@@ -1021,15 +1463,45 @@ function handleTutorialNpcOption(optionId) {
   updateQuestUI();
 }
 
-function openQuestDialogue(dialogueKey) {
+function getQuestDialogueLines(dialogueKey, contractId = null) {
+  const contract = contractId ? getContractConfig(contractId) : null;
+  if (dialogueKey === "offerContract" && contract) {
+    return contract.offerLines;
+  }
+  if (dialogueKey === "contractProgress" && contract) {
+    const progressText = quest.activeContractStage === "active"
+      ? getContractProgressText(contract).replace(/\n/g, ". ")
+      : "Return to me for payment.";
+    return [...contract.progressLines, progressText];
+  }
+  if (dialogueKey === "completeContract" && contract) {
+    return contract.completionLines;
+  }
+  if (dialogueKey === "discoverHidden") {
+    return [
+      "You cleared the first camp, but there is nothing else on my board yet.",
+      "Scout off the road. If you uncover another nest, I will post the harder contract.",
+    ];
+  }
+  return [
+    "The forest is quiet for the moment.",
+    "Check back after you discover another threat.",
+  ];
+}
+
+function openQuestDialogue(dialogueKey, action = null, contractId = null) {
   quest.activeDialogue = dialogueKey;
   quest.dialogueIndex = 0;
+  quest.dialogueAction = action;
+  quest.dialogueContractId = contractId;
   updateDialogueUI();
 }
 
 function closeQuestDialogue() {
   quest.activeDialogue = null;
   quest.dialogueIndex = 0;
+  quest.dialogueAction = null;
+  quest.dialogueContractId = null;
   updateDialogueUI();
 }
 
@@ -1063,16 +1535,16 @@ function updateDialogueUI() {
     return;
   }
 
-  const lines = QUEST_DIALOGUES[quest.activeDialogue] || [];
+  const lines = getQuestDialogueLines(quest.activeDialogue, quest.dialogueContractId);
   dialogueOptionsEl.classList.add("hidden");
   dialogueOptionsEl.textContent = "";
   dialogueHintEl.classList.remove("hidden");
   dialogueSpeakerEl.textContent = villager.name;
   dialogueTextEl.textContent = lines[quest.dialogueIndex] || "";
   const isLastLine = quest.dialogueIndex >= lines.length - 1;
-  if (quest.activeDialogue === "intro" && isLastLine) {
-    dialogueHintEl.textContent = "Press Space to accept quest";
-  } else if (quest.activeDialogue === "readyToTurnIn" && isLastLine) {
+  if (quest.dialogueAction === "acceptContract" && isLastLine) {
+    dialogueHintEl.textContent = "Press Space to accept contract";
+  } else if (quest.dialogueAction === "turnInContract" && isLastLine) {
     dialogueHintEl.textContent = "Press Space to claim reward";
   } else {
     dialogueHintEl.textContent = "Press Space to continue";
@@ -1084,14 +1556,17 @@ function beginVillagerInteraction() {
     return false;
   }
 
-  if (quest.stage === "available") {
-    openQuestDialogue("intro");
-  } else if (quest.stage === "active") {
-    openQuestDialogue("inProgress");
-  } else if (quest.stage === "readyToTurnIn") {
-    openQuestDialogue("readyToTurnIn");
+  const activeContract = getActiveContract();
+  if (activeContract && quest.activeContractStage === "readyToTurnIn") {
+    openQuestDialogue("completeContract", "turnInContract", activeContract.id);
+  } else if (activeContract) {
+    openQuestDialogue("contractProgress", null, activeContract.id);
+  } else if (quest.availableContractIds.length > 0) {
+    openQuestDialogue("offerContract", "acceptContract", quest.availableContractIds[0]);
+  } else if (hasCompletedContract("knownCamp") && !hasDiscoveredCamp("hiddenCamp")) {
+    openQuestDialogue("discoverHidden");
   } else {
-    openQuestDialogue("completed");
+    openQuestDialogue("noContract");
   }
 
   return true;
@@ -1112,7 +1587,7 @@ function advanceQuestDialogue() {
     return false;
   }
 
-  const lines = QUEST_DIALOGUES[quest.activeDialogue] || [];
+  const lines = getQuestDialogueLines(quest.activeDialogue, quest.dialogueContractId);
   const isLastLine = quest.dialogueIndex >= lines.length - 1;
   if (!isLastLine) {
     quest.dialogueIndex += 1;
@@ -1120,13 +1595,11 @@ function advanceQuestDialogue() {
     return true;
   }
 
-  if (quest.activeDialogue === "intro" && quest.stage === "available") {
-    quest.stage = "active";
-    spawnQuestGoblin();
-    updateQuestUI();
-    statusTextEl.textContent = "Quest accepted: Kill the Goblin (0/1).";
-  } else if (quest.activeDialogue === "readyToTurnIn" && quest.stage === "readyToTurnIn") {
-    awardGoldHelmet();
+  if (quest.dialogueAction === "acceptContract" && quest.dialogueContractId) {
+    startMercenaryContract(quest.dialogueContractId);
+    statusTextEl.textContent = `Contract accepted: ${getContractConfig(quest.dialogueContractId)?.title || "Mercenary contract"}.`;
+  } else if (quest.dialogueAction === "turnInContract" && quest.dialogueContractId) {
+    completeMercenaryContractTurnIn(quest.dialogueContractId);
   }
 
   closeQuestDialogue();
@@ -1153,6 +1626,12 @@ function createUnit(kind, x, y, isPlayer) {
     xpReward: isPlayer ? 0 : enemyConfig.xp,
     attackRange: isPlayer ? 34 : enemyConfig.attackRange,
     attackCooldown: isPlayer ? 1 : enemyConfig.attackCooldown,
+    attackStyle: isPlayer ? "melee" : (enemyConfig.attackStyle || "melee"),
+    preferredRange: isPlayer ? 0 : (enemyConfig.preferredRange || enemyConfig.attackRange),
+    retreatRange: isPlayer ? 0 : (enemyConfig.retreatRange || 0),
+    projectileSpeed: isPlayer ? 0 : (enemyConfig.projectileSpeed || 0),
+    projectileRadius: isPlayer ? 0 : (enemyConfig.projectileRadius || 0),
+    projectileType: isPlayer ? null : (enemyConfig.projectileType || null),
     attackTimer: 0,
     targetPos: null,
     targetUnitId: null,
@@ -1238,7 +1717,7 @@ function getCharacterStatus() {
   }
 
   if (isDialogueOpen()) {
-    return "Talking to the villager. Press Space to continue.";
+    return "Talking to the Mercenary Captain. Press Space to continue.";
   }
 
   if (isHeroNearTrader()) {
@@ -1246,16 +1725,16 @@ function getCharacterStatus() {
   }
 
   if (isHeroNearVillager()) {
-    if (quest.stage === "available") {
-      return "Near the Villager. Press Space to hear about a goblin quest.";
+    if (quest.activeContractStage === "readyToTurnIn") {
+      return "Return to the Mercenary Captain. Press Space to claim your reward.";
     }
-    if (quest.stage === "readyToTurnIn") {
-      return "Return to the Villager. Press Space to claim your reward.";
+    if (quest.activeContractStage === "active") {
+      return "Near the Mercenary Captain. Press Space to review your contract.";
     }
-    if (quest.stage === "active") {
-      return "Near the Villager. Press Space to talk about the goblin quest.";
+    if (quest.availableContractIds.length > 0) {
+      return "Near the Mercenary Captain. Press Space to take a contract.";
     }
-    return "Near the Villager. Press Space to talk.";
+    return "Near the Mercenary Captain. Press Space to talk.";
   }
 
   if (isHeroNearShop()) {
@@ -3048,6 +3527,105 @@ function updateHeroProjectiles(dt) {
   }
 }
 
+function fireEnemyProjectile(attacker, target) {
+  const targetPoint = getEntityTargetPoint(target);
+  const angle = Math.atan2(targetPoint.y - attacker.y, targetPoint.x - attacker.x);
+  enemyProjectiles.push({
+    x: attacker.x,
+    y: attacker.y,
+    angle,
+    speed: attacker.projectileSpeed || 420,
+    radius: attacker.projectileRadius || 5,
+    damage: attacker.damage,
+    traveled: 0,
+    maxDistance: attacker.attackRange + 40,
+    active: true,
+    projectileType: attacker.projectileType || "goblinArrow",
+  });
+}
+
+function updateEnemyProjectiles(dt) {
+  for (let index = enemyProjectiles.length - 1; index >= 0; index -= 1) {
+    const projectile = enemyProjectiles[index];
+    const step = projectile.speed * dt;
+    projectile.x += Math.cos(projectile.angle) * step;
+    projectile.y += Math.sin(projectile.angle) * step;
+    projectile.traveled += step;
+
+    let blocked = false;
+    for (const tree of trees) {
+      if (intersectsTree(projectile, projectile.radius, tree)) {
+        blocked = true;
+        break;
+      }
+    }
+    if (!blocked) {
+      for (const stone of stones) {
+        if (intersectsStone(projectile, projectile.radius, stone)) {
+          blocked = true;
+          break;
+        }
+      }
+    }
+    if (blocked) {
+      enemyProjectiles.splice(index, 1);
+      continue;
+    }
+
+    if (distance(projectile, hero) <= projectile.radius + hero.radius) {
+      dealDamage(hero, projectile.damage, true);
+      enemyProjectiles.splice(index, 1);
+      continue;
+    }
+
+    let hitUnit = false;
+    for (const unit of units) {
+      if (distance(projectile, unit) <= projectile.radius + unit.radius) {
+        dealDamage(unit, projectile.damage, true);
+        hitUnit = true;
+        break;
+      }
+    }
+    if (hitUnit) {
+      enemyProjectiles.splice(index, 1);
+      continue;
+    }
+
+    if (projectile.traveled >= projectile.maxDistance) {
+      enemyProjectiles.splice(index, 1);
+    }
+  }
+}
+
+function updateForestSystems(dt) {
+  for (const camp of FOREST_CAMPS) {
+    if (!camp.hidden || hasDiscoveredCamp(camp.id)) {
+      continue;
+    }
+    if (distance(hero, camp.center) <= camp.discoveryRadius) {
+      markCampDiscovered(camp.id);
+      statusTextEl.textContent = "Hidden Goblin Camp discovered.";
+      break;
+    }
+  }
+
+  for (let index = forestRespawnQueue.length - 1; index >= 0; index -= 1) {
+    const entry = forestRespawnQueue[index];
+    entry.timer = Math.max(0, entry.timer - dt);
+    if (entry.timer > 0) {
+      continue;
+    }
+    const spawner = forestEnemySpawners.find((candidate) => candidate.id === entry.spawnerId);
+    const alreadyActive = enemies.some((enemy) => enemy.spawnerId === entry.spawnerId);
+    if (!spawner || alreadyActive || distance(hero, spawner) < 170) {
+      entry.timer = 4;
+      continue;
+    }
+    spawnEnemyFromSpawner(spawner);
+    forestRespawnQueue.splice(index, 1);
+  }
+}
+
 function clearUnitSelection() {
   for (const unit of units) {
     unit.selected = false;
@@ -3866,10 +4444,17 @@ function updateUnits(dt, list, enemiesList, enemyBuildings) {
     if (target) {
       const targetPoint = getEntityTargetPoint(target);
       const dist = distance(unit, targetPoint);
-      if (dist > unit.attackRange) {
+      const useRangedLogic = !unit.isPlayer && unit.attackStyle === "ranged" && !isBuildingTarget(target);
+      if (useRangedLogic && dist < unit.retreatRange) {
+        moveAway(unit, targetPoint.x, targetPoint.y, dt);
+      } else if (dist > (useRangedLogic ? unit.preferredRange : unit.attackRange)) {
         moveTowards(unit, targetPoint.x, targetPoint.y, dt);
       } else if (unit.attackTimer === 0) {
-        dealDamage(target, unit.damage, unit.isPlayer);
+        if (useRangedLogic) {
+          fireEnemyProjectile(unit, target);
+        } else {
+          dealDamage(target, unit.damage, unit.isPlayer);
+        }
         unit.attackTimer = unit.attackCooldown;
       }
       unit.targetPos = { x: targetPoint.x, y: targetPoint.y };
@@ -3898,6 +4483,17 @@ function moveTowards(unit, x, y, dt) {
   unit.y += (dy / dist) * unit.speed * dt;
 }
 
+function moveAway(unit, x, y, dt) {
+  const dx = unit.x - x;
+  const dy = unit.y - y;
+  const dist = Math.hypot(dx, dy);
+  if (dist < 1) {
+    return;
+  }
+  unit.x = clamp(unit.x + (dx / dist) * unit.speed * dt, unit.radius, WORLD.width - unit.radius);
+  unit.y = clamp(unit.y + (dy / dist) * unit.speed * dt, unit.radius, WORLD.height - unit.radius);
+}
+
 function isInsideDeathZone(entity) {
   return (
     entity.x >= DEATH_ZONE.x &&
@@ -3923,9 +4519,7 @@ function cleanupDeathZoneEntities() {
 
   for (let i = enemies.length - 1; i >= 0; i -= 1) {
     if (isInsideDeathZone(enemies[i])) {
-      if (isQuestGoblin(enemies[i])) {
-        completeQuestGoblinObjective(enemies[i].x, enemies[i].y);
-      }
+      queueEnemyRespawn(enemies[i]);
       enemies.splice(i, 1);
     }
   }
@@ -3975,15 +4569,21 @@ function cleanupDefeatedEnemies() {
       spawnRareHelmetDrop(enemy.x, enemy.y);
     }
 
-    if (isQuestGoblin(enemy)) {
-      completeQuestGoblinObjective(enemy.x, enemy.y);
-    }
-
     if (enemy.tutorialProfessionId === "mercenary") {
       completeTutorialProfessionTask("mercenary");
     }
 
+    registerContractKill(enemy);
+    queueEnemyRespawn(enemy);
     awardPlayerXp(enemy.xpReward || 0, enemy.x, enemy.y);
+    if (enemy.campId === "hiddenCamp" && Math.random() < 0.28) {
+      const lootOptions = [
+        { type: "enemyHelmet", armorValue: 80, radius: 18 },
+        { type: "weaponBuff", damageValue: 2, radius: 18 },
+        { type: "healthBuff", healthValue: 20, radius: 18 },
+      ];
+      spawnPickupDrop(lootOptions[Math.floor(Math.random() * lootOptions.length)], enemy.x + 10, enemy.y);
+    }
     enemies.splice(i, 1);
   }
 }
@@ -4010,9 +4610,11 @@ function update(dt) {
     updateDodgeArena(dt);
   }
   updateHeroProjectiles(dt);
+  updateEnemyProjectiles(dt);
   updateUnits(dt, units, enemies, buildings.filter((b) => !b.isPlayer));
   updateUnits(dt, enemies, [hero, ...units], buildings.filter((b) => b.isPlayer));
   if (!player.inTutorialWorld) {
+    updateForestSystems(dt);
     cleanupDeathZoneEntities();
   }
   updateDamagePopups(dt);
@@ -4104,6 +4706,21 @@ function drawBackground() {
   ctx.fillStyle = "#fff4da";
   ctx.fillText("TUTOR", TUTORIAL_TILE.x + TUTORIAL_TILE.size / 2, TUTORIAL_TILE.y + 34);
   ctx.fillText("IAL", TUTORIAL_TILE.x + TUTORIAL_TILE.size / 2, TUTORIAL_TILE.y + 54);
+
+  ctx.fillStyle = "rgba(39, 76, 36, 0.94)";
+  ctx.fillRect(FOREST_REGION.x, FOREST_REGION.y, FOREST_REGION.w, FOREST_REGION.h);
+  for (const clearing of FOREST_CLEARINGS) {
+    ctx.beginPath();
+    ctx.fillStyle = clearing.color;
+    ctx.arc(clearing.x, clearing.y, clearing.radius, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.strokeStyle = "rgba(26, 51, 24, 0.38)";
+  ctx.lineWidth = 4;
+  ctx.strokeRect(FOREST_REGION.x, FOREST_REGION.y, FOREST_REGION.w, FOREST_REGION.h);
+  ctx.fillStyle = "rgba(231, 242, 195, 0.82)";
+  ctx.font = "700 18px Chakra Petch";
+  ctx.fillText("FOREST FRONTIER", FOREST_REGION.x + 180, FOREST_REGION.y + 34);
 
   ctx.fillStyle = "rgba(27, 54, 76, 0.92)";
   ctx.fillRect(DODGE_ARENA.x, DODGE_ARENA.y, DODGE_ARENA.w, DODGE_ARENA.h);
@@ -4199,6 +4816,13 @@ function drawMinimap() {
 
   minimapCtx.fillStyle = "rgba(208, 188, 132, 0.36)";
   minimapCtx.fillRect(0, toMapY(MAIN_LANE_Y - 90), mapWidth, Math.max(10, 180 * scaleY));
+  minimapCtx.fillStyle = "rgba(40, 88, 42, 0.92)";
+  minimapCtx.fillRect(toMapX(FOREST_REGION.x), toMapY(FOREST_REGION.y), FOREST_REGION.w * scaleX, FOREST_REGION.h * scaleY);
+
+  minimapCtx.fillStyle = "rgba(133, 112, 74, 0.72)";
+  for (const path of villagePaths) {
+    minimapCtx.fillRect(toMapX(path.x), toMapY(path.y), Math.max(2, path.w * scaleX), Math.max(2, path.h * scaleY));
+  }
 
   minimapCtx.fillStyle = "rgba(122, 90, 50, 0.7)";
   minimapCtx.fillRect(toMapX(SPAWN_WAVE_TILE.x), toMapY(SPAWN_WAVE_TILE.y), SPAWN_WAVE_TILE.size * scaleX, SPAWN_WAVE_TILE.size * scaleY);
@@ -4252,6 +4876,19 @@ function drawMinimap() {
   minimapCtx.beginPath();
   minimapCtx.arc(toMapX(villager.x), toMapY(villager.y), 3, 0, Math.PI * 2);
   minimapCtx.fill();
+
+  for (const camp of FOREST_CAMPS) {
+    if (!camp.iconVisibleFromStart && !hasDiscoveredCamp(camp.id)) {
+      continue;
+    }
+    minimapCtx.fillStyle = camp.id === "hiddenCamp" ? "#d6f08a" : "#ffb978";
+    minimapCtx.beginPath();
+    minimapCtx.arc(toMapX(camp.center.x), toMapY(camp.center.y), 3.5, 0, Math.PI * 2);
+    minimapCtx.fill();
+    minimapCtx.strokeStyle = "rgba(45, 28, 14, 0.75)";
+    minimapCtx.lineWidth = 1;
+    minimapCtx.strokeRect(toMapX(camp.center.x) - 3, toMapY(camp.center.y) - 3, 6, 6);
+  }
 
   for (const pickup of pickups) {
     if (pickup.collected || distance(hero, pickup) > MINIMAP_NEARBY_RADIUS * 1.25) {
@@ -4476,17 +5113,17 @@ function drawTrader() {
 
 function drawVillager() {
   ctx.beginPath();
-  ctx.fillStyle = "#d2b08a";
+  ctx.fillStyle = "#c45d44";
   ctx.arc(villager.x, villager.y, villager.radius, 0, Math.PI * 2);
   ctx.fill();
   ctx.beginPath();
-  ctx.fillStyle = "#6b472b";
+  ctx.fillStyle = "#472216";
   ctx.arc(villager.x, villager.y - 7, villager.radius * 0.42, 0, Math.PI * 2);
   ctx.fill();
   ctx.fillStyle = "#fff1cf";
   ctx.font = "700 14px Chakra Petch";
   ctx.textAlign = "center";
-  ctx.fillText("VILLAGER", villager.x, villager.y - 34);
+  ctx.fillText("CAPTAIN", villager.x, villager.y - 34);
 }
 
 function drawTutorialNpcs() {
@@ -4629,6 +5266,22 @@ function drawVillageProp(prop) {
     return;
   }
 
+  if (prop.type === "tent") {
+    ctx.fillStyle = "#7e5b38";
+    ctx.beginPath();
+    ctx.moveTo(prop.x, prop.y + prop.h);
+    ctx.lineTo(prop.x + prop.w / 2, prop.y);
+    ctx.lineTo(prop.x + prop.w, prop.y + prop.h);
+    ctx.closePath();
+    ctx.fill();
+    ctx.strokeStyle = "rgba(48, 26, 12, 0.7)";
+    ctx.lineWidth = 2;
+    ctx.stroke();
+    ctx.fillStyle = "#4b2e1a";
+    ctx.fillRect(prop.x + prop.w / 2 - 7, prop.y + prop.h - 18, 14, 18);
+    return;
+  }
+
   if (prop.type === "hay") {
     ctx.fillStyle = COLORS.villageHay;
     ctx.fillRect(prop.x, prop.y, prop.w, prop.h);
@@ -4643,6 +5296,44 @@ function drawVillageProp(prop) {
     return;
   }
 
+  if (prop.type === "cart") {
+    ctx.fillStyle = "#6f4b2a";
+    ctx.fillRect(prop.x, prop.y + 6, prop.w, prop.h - 6);
+    ctx.strokeStyle = "#2f1d10";
+    ctx.lineWidth = 2;
+    ctx.strokeRect(prop.x, prop.y + 6, prop.w, prop.h - 6);
+    ctx.fillStyle = "#8f643c";
+    ctx.fillRect(prop.x + 4, prop.y, prop.w - 8, 10);
+    ctx.beginPath();
+    ctx.arc(prop.x + 10, prop.y + prop.h, 8, 0, Math.PI * 2);
+    ctx.arc(prop.x + prop.w - 10, prop.y + prop.h, 8, 0, Math.PI * 2);
+    ctx.fillStyle = "#2f1d10";
+    ctx.fill();
+    return;
+  }
+
+  if (prop.type === "wreckage" || prop.type === "stump") {
+    ctx.fillStyle = prop.type === "stump" ? "#6f4f31" : "#7f6747";
+    ctx.fillRect(prop.x, prop.y, prop.w, prop.h);
+    ctx.strokeStyle = "rgba(59, 40, 18, 0.55)";
+    ctx.lineWidth = 2;
+    ctx.strokeRect(prop.x, prop.y, prop.w, prop.h);
+    return;
+  }
+
+  if (prop.type === "banner") {
+    ctx.fillStyle = "#5a3920";
+    ctx.fillRect(prop.x + prop.w / 2 - 2, prop.y, 4, prop.h);
+    ctx.fillStyle = "#b74234";
+    ctx.beginPath();
+    ctx.moveTo(prop.x + prop.w / 2 + 2, prop.y + 4);
+    ctx.lineTo(prop.x + prop.w, prop.y + 10);
+    ctx.lineTo(prop.x + prop.w / 2 + 2, prop.y + 18);
+    ctx.closePath();
+    ctx.fill();
+    return;
+  }
+
   if (prop.type === "barrel") {
     ctx.fillStyle = "#825737";
     ctx.beginPath();
@@ -4653,6 +5344,26 @@ function drawVillageProp(prop) {
     ctx.beginPath();
     ctx.arc(prop.x, prop.y - 1, prop.radius * 0.75, 0, Math.PI * 2);
     ctx.stroke();
+    return;
+  }
+
+  if (prop.type === "campfire") {
+    ctx.beginPath();
+    ctx.fillStyle = "rgba(255, 164, 84, 0.88)";
+    ctx.arc(prop.x, prop.y, prop.radius, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.fillStyle = "rgba(255, 236, 168, 0.92)";
+    ctx.arc(prop.x, prop.y - 1, prop.radius * 0.42, 0, Math.PI * 2);
+    ctx.fill();
+    return;
+  }
+
+  if (prop.type === "bush") {
+    ctx.beginPath();
+    ctx.fillStyle = "#3c7c38";
+    ctx.arc(prop.x, prop.y, prop.radius, 0, Math.PI * 2);
+    ctx.fill();
   }
 }
 
@@ -5540,6 +6251,25 @@ function render() {
   drawGrenadeShockwaves();
   drawHeroGrenades();
   drawHeroProjectiles();
+  for (const projectile of enemyProjectiles) {
+    ctx.save();
+    ctx.translate(projectile.x, projectile.y);
+    ctx.rotate(projectile.angle);
+    ctx.strokeStyle = "#725127";
+    ctx.lineWidth = 2.5;
+    ctx.beginPath();
+    ctx.moveTo(-10, 0);
+    ctx.lineTo(6, 0);
+    ctx.stroke();
+    ctx.fillStyle = "#d2d9dd";
+    ctx.beginPath();
+    ctx.moveTo(6, 0);
+    ctx.lineTo(0, -4);
+    ctx.lineTo(0, 4);
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
+  }
   drawSparkEffects();
 
   for (const unit of units) {
@@ -5559,20 +6289,35 @@ function render() {
     if (unit.kind === "skeleton" && skeletonImage.complete && skeletonImage.naturalWidth > 0) {
       const size = 42;
       ctx.drawImage(skeletonImage, unit.x - size / 2, unit.y - size / 2, size, size);
+    } else if (unit.kind === "goblinArcher") {
+      drawEntityCircle(unit, "#7a4b2d", "#d8bf7f");
+      ctx.strokeStyle = "#4b2d18";
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(unit.x - 2, unit.y, unit.radius - 5, -Math.PI / 2, Math.PI / 2);
+      ctx.stroke();
+    } else if (unit.kind === "ogre") {
+      drawEntityCircle(unit, "#6d3c28", "#d6a16c");
+      ctx.strokeStyle = "rgba(62, 30, 18, 0.75)";
+      ctx.lineWidth = 4;
+      ctx.beginPath();
+      ctx.moveTo(unit.x - 12, unit.y + 6);
+      ctx.lineTo(unit.x + 12, unit.y + 6);
+      ctx.stroke();
     } else {
       drawEntityCircle(unit, isBoss ? "#5b2a2a" : COLORS.enemy, isBoss ? "#ff9f7b" : "#ef9494");
     }
-    drawHealthBar(unit.x, unit.y - (isBoss ? 36 : 28), isBoss ? 70 : 44, unit.hp / unit.maxHp);
+    drawHealthBar(unit.x, unit.y - (isBoss || unit.kind === "ogre" ? 36 : 28), isBoss || unit.kind === "ogre" ? 70 : 44, unit.hp / unit.maxHp);
     if (isBoss) {
       ctx.fillStyle = "#ffe0b0";
       ctx.font = "700 16px Chakra Petch";
       ctx.textAlign = "center";
       ctx.fillText("BOSS", unit.x, unit.y - 44);
-    } else if (isQuestGoblin(unit)) {
-      ctx.fillStyle = "#d7ffb8";
+    } else if (unit.campId && distance(hero, unit) <= 150) {
+      ctx.fillStyle = unit.campId === "hiddenCamp" ? "#dff5b0" : "#ffd8aa";
       ctx.font = "700 14px Chakra Petch";
       ctx.textAlign = "center";
-      ctx.fillText("GOBLIN", unit.x, unit.y - 36);
+      ctx.fillText(unit.kind === "ogre" ? "OGRE" : unit.kind === "goblinArcher" ? "ARCHER" : "GOBLIN", unit.x, unit.y - 36);
     }
   }
 
