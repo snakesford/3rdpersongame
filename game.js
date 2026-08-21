@@ -126,6 +126,7 @@ import {
   weaponDetailsPanelEl,
   weaponDetailsRangeEl,
   weaponDetailsReloadEl,
+  weaponDetailUpgradeEls,
   weaponFillEl,
   weaponValueEl,
   xpFillEl,
@@ -2004,6 +2005,40 @@ function isInterfacePanelOpen() {
   return player.shopOpen || player.traderOpen || player.weaponDetailsOpen;
 }
 
+function getWeaponUpgradeRules() {
+  return {
+    damage: { step: 2 },
+    ammo: { step: 5 },
+    reload: { step: 0.1 },
+    range: { step: 40, meleeStep: 8 },
+    fireRate: { rifleStep: 0.005, bowStep: 0.03, axeStep: 0.015, classStep: 0.2 },
+  };
+}
+
+function getRifleDamage() {
+  return 16 + player.bonusDamage + player.weaponDetailDamageLevel * getWeaponUpgradeRules().damage.step;
+}
+
+function getRifleMaxAmmo() {
+  return 30 + player.weaponDetailAmmoLevel * getWeaponUpgradeRules().ammo.step;
+}
+
+function getRifleReloadDuration() {
+  return Math.max(0.4, 1.2 - player.weaponDetailReloadLevel * getWeaponUpgradeRules().reload.step);
+}
+
+function getRifleRange() {
+  return GRID_SIZE * 5 + player.weaponDetailRangeLevel * getWeaponUpgradeRules().range.step;
+}
+
+function getRifleFireInterval() {
+  return Math.max(0.03, 0.08 - player.weaponDetailFireRateLevel * getWeaponUpgradeRules().fireRate.rifleStep);
+}
+
+function getClassWeaponCooldown(selected) {
+  return Math.max(0.5, (selected?.cooldown || 1) - player.weaponDetailFireRateLevel * getWeaponUpgradeRules().fireRate.classStep);
+}
+
 function getCurrentWeaponDetails() {
   const selected = getSelectedClassConfig();
   if (!selected) {
@@ -2012,49 +2047,76 @@ function getCurrentWeaponDetails() {
 
   if (hero.hasRifle) {
     return {
+      type: "rifle",
       name: "M4 Rifle",
       meta: "Automatic rifle",
-      damage: `${16 + player.bonusDamage} / shot`,
+      damage: `${getRifleDamage()} / shot`,
       ammo: hero.isReloading ? `${hero.ammo}/${hero.maxAmmo} reloading` : `${hero.ammo}/${hero.maxAmmo}`,
       reload: `${hero.reloadDuration.toFixed(1)}s`,
-      range: `${GRID_SIZE * 5}`,
-      fireRate: `${(1 / 0.08).toFixed(1)} shots/s`,
+      range: `${getRifleRange()}`,
+      fireRate: `${(1 / getRifleFireInterval()).toFixed(1)} shots/s`,
+      upgrades: { damage: true, ammo: true, reload: true, range: true, fireRate: true },
     };
   }
 
   if (hero.hasBow) {
+    const bowRange = Math.round(canvas.width * 0.5) + player.weaponDetailRangeLevel * getWeaponUpgradeRules().range.step;
+    const bowFireInterval = Math.max(0.12, 0.45 - player.weaponDetailFireRateLevel * getWeaponUpgradeRules().fireRate.bowStep);
     return {
+      type: "bow",
       name: "Bow",
       meta: "Precision ranged weapon",
       damage: `${getBasicBowDamage()} / shot`,
       ammo: "Unlimited",
       reload: "None",
-      range: `${Math.round(canvas.width * 0.5)}`,
-      fireRate: `${(1 / 0.45).toFixed(1)} shots/s`,
+      range: `${bowRange}`,
+      fireRate: `${(1 / bowFireInterval).toFixed(1)} shots/s`,
+      upgrades: { damage: true, ammo: false, reload: false, range: true, fireRate: true },
     };
   }
 
   if (hero.hasAxe) {
+    const axeSwingDuration = Math.max(0.08, 0.22 - player.weaponDetailFireRateLevel * getWeaponUpgradeRules().fireRate.axeStep);
+    const axeRange = 64 + player.weaponDetailRangeLevel * getWeaponUpgradeRules().range.meleeStep;
     return {
+      type: "axe",
       name: "Axe",
       meta: "Close-range melee weapon",
-      damage: `${18 + player.bonusDamage} / swing`,
+      damage: `${18 + player.bonusDamage + player.weaponDetailDamageLevel * getWeaponUpgradeRules().damage.step} / swing`,
       ammo: "N/A",
       reload: "None",
-      range: "64",
-      fireRate: `${(1 / hero.axeSwingDuration).toFixed(1)} swings/s`,
+      range: `${axeRange}`,
+      fireRate: `${(1 / axeSwingDuration).toFixed(1)} swings/s`,
+      upgrades: { damage: true, ammo: false, reload: false, range: true, fireRate: true },
     };
   }
 
+  const classRange = selected.range && selected.range > 0
+    ? selected.range + player.weaponDetailRangeLevel * getWeaponUpgradeRules().range.step
+    : selected.radius
+      ? selected.radius + player.weaponDetailRangeLevel * getWeaponUpgradeRules().range.meleeStep
+      : 0;
+  const classCooldown = getClassWeaponCooldown(selected);
   return {
+    type: "class",
     name: selected.name || "Weapon",
     meta: "Class weapon",
     damage: `${getAbilityDamage(selected)}`,
     ammo: "N/A",
     reload: "None",
-    range: selected.range && selected.range > 0 ? `${selected.range}` : "Melee",
-    fireRate: `${(1 / Math.max(0.1, selected.cooldown || 1)).toFixed(1)} uses/s`,
+    range: classRange > 0 ? `${Math.round(classRange)}` : "Melee",
+    fireRate: `${(1 / classCooldown).toFixed(1)} uses/s`,
+    upgrades: { damage: true, ammo: false, reload: false, range: classRange > 0, fireRate: true },
   };
+}
+
+function syncWeaponDerivedStats() {
+  hero.maxAmmo = getRifleMaxAmmo();
+  hero.reloadDuration = getRifleReloadDuration();
+  hero.axeSwingDuration = Math.max(0.08, 0.22 - player.weaponDetailFireRateLevel * getWeaponUpgradeRules().fireRate.axeStep);
+  if (hero.hasRifle) {
+    hero.ammo = Math.min(hero.ammo, hero.maxAmmo);
+  }
 }
 
 function updateWeaponDetailsUI() {
@@ -2072,6 +2134,9 @@ function updateWeaponDetailsUI() {
     weaponDetailsReloadEl.textContent = "-";
     weaponDetailsRangeEl.textContent = "-";
     weaponDetailsFireRateEl.textContent = "-";
+    weaponDetailUpgradeEls.forEach((element) => {
+      element.disabled = true;
+    });
     return;
   }
 
@@ -2082,6 +2147,11 @@ function updateWeaponDetailsUI() {
   weaponDetailsReloadEl.textContent = details.reload;
   weaponDetailsRangeEl.textContent = details.range;
   weaponDetailsFireRateEl.textContent = details.fireRate;
+  weaponDetailUpgradeEls.forEach((element) => {
+    const upgradeId = element.dataset.weaponUpgrade;
+    const allowed = Boolean(details.upgrades?.[upgradeId]);
+    element.disabled = !allowed || player.upgradePoints <= 0;
+  });
 }
 
 function openWeaponDetails() {
@@ -2097,6 +2167,38 @@ function openWeaponDetails() {
 function closeWeaponDetails() {
   player.weaponDetailsOpen = false;
   updateWeaponDetailsUI();
+}
+
+function applyWeaponDetailUpgrade(upgradeId) {
+  const details = getCurrentWeaponDetails();
+  if (!details || !details.upgrades?.[upgradeId]) {
+    return;
+  }
+  if (player.upgradePoints <= 0) {
+    statusTextEl.textContent = "You need an upgrade point.";
+    return;
+  }
+
+  if (upgradeId === "damage") {
+    player.weaponDetailDamageLevel += 1;
+  } else if (upgradeId === "ammo") {
+    player.weaponDetailAmmoLevel += 1;
+  } else if (upgradeId === "reload") {
+    player.weaponDetailReloadLevel += 1;
+  } else if (upgradeId === "range") {
+    player.weaponDetailRangeLevel += 1;
+  } else if (upgradeId === "fireRate") {
+    player.weaponDetailFireRateLevel += 1;
+  } else {
+    return;
+  }
+
+  player.upgradePoints -= 1;
+  syncWeaponDerivedStats();
+  updateUpgradeUI();
+  updateStatsUI();
+  updateWeaponDetailsUI();
+  statusTextEl.textContent = `Weapon upgraded: ${upgradeId}.`;
 }
 
 function getSelectedClassConfig() {
@@ -2120,15 +2222,18 @@ function getTotalArmor(selected = getSelectedClassConfig()) {
 }
 
 function getDisplayedWeaponStat(selected = getSelectedClassConfig()) {
-  return (selected?.stats?.weapon || 0) + player.weaponBonusStat + player.bonusDamage;
+  return (selected?.stats?.weapon || 0) +
+    player.weaponBonusStat +
+    player.bonusDamage +
+    player.weaponDetailDamageLevel * getWeaponUpgradeRules().damage.step;
 }
 
 function getBasicBowDamage() {
-  return (CHARACTER_OPTIONS.archer?.damage || 0) + player.bonusDamage;
+  return (CHARACTER_OPTIONS.archer?.damage || 0) + player.bonusDamage + player.weaponDetailDamageLevel * getWeaponUpgradeRules().damage.step;
 }
 
 function getAbilityDamage(selected = getSelectedClassConfig()) {
-  return (selected?.damage || 0) + player.weaponBonusDamage + player.bonusAbilityDamage;
+  return (selected?.damage || 0) + player.weaponBonusDamage + player.bonusAbilityDamage + player.weaponDetailDamageLevel * getWeaponUpgradeRules().damage.step;
 }
 
 function getHeroSpeed(selected = getSelectedClassConfig()) {
@@ -2146,6 +2251,7 @@ function updateUpgradeUI() {
   upgradeActionEls.forEach((element) => {
     element.classList.toggle("hidden", player.upgradePoints <= 0);
   });
+  updateWeaponDetailsUI();
 }
 
 upgradeActionEls.forEach((element) => {
@@ -2896,6 +3002,7 @@ function respawnHero() {
   hero.weaponPickupCooldown = 0;
   hero.hasRifle = hero.selectedClass === "soldier";
   hero.rifleCooldown = 0;
+  syncWeaponDerivedStats();
   hero.ammo = hero.hasRifle ? hero.maxAmmo : 0;
   hero.isReloading = false;
   hero.reloadTimer = 0;
@@ -3439,7 +3546,7 @@ function buildArcherArrowProjectile(damageOverride = null) {
   return spawnAbilityProjectile({
     damage: damageOverride ?? getAbilityDamage(archerClass),
     width: archerClass.width || 10,
-    range: canvas.width * 0.5,
+    range: Math.round(canvas.width * 0.5) + player.weaponDetailRangeLevel * getWeaponUpgradeRules().range.step,
     style: "arrow",
     speed: 820,
     projectileType: "arrow",
@@ -3926,6 +4033,7 @@ function equipPickup(pickup) {
     swapHeroWeaponPickup("axe", pickup.x, pickup.y, pickup.radius);
     hero.hasAxe = true;
     hero.weaponPickupCooldown = 0.8;
+    syncWeaponDerivedStats();
     hero.latestPickup = {
       type: "axe",
       radius: pickup.radius,
@@ -3944,6 +4052,7 @@ function equipPickup(pickup) {
     swapHeroWeaponPickup("rifle", pickup.x, pickup.y, pickup.radius);
     hero.hasRifle = true;
     hero.weaponPickupCooldown = 0.8;
+    syncWeaponDerivedStats();
     hero.ammo = hero.maxAmmo;
     hero.isReloading = false;
     hero.reloadTimer = 0;
@@ -3966,6 +4075,7 @@ function equipPickup(pickup) {
     hero.hasBow = true;
     hero.bowCooldown = 0;
     hero.weaponPickupCooldown = 0.8;
+    syncWeaponDerivedStats();
     hero.latestPickup = {
       type: "bow",
       radius: pickup.radius,
@@ -4087,21 +4197,27 @@ function useSlash(targetX = null, targetY = null) {
       hero.facingAngle = Math.atan2(dy, dx);
     }
   }
-  hero.slashCooldown = selectedClass.cooldown;
+  hero.slashCooldown = (!hero.hasRifle && !hero.hasBow && !hero.hasAxe)
+    ? getClassWeaponCooldown(selectedClass)
+    : selectedClass.cooldown;
   hero.slashTimer = hero.slashCooldown;
   hero.slashArcTimer = selectedClass.effect === "burst" ? 0.42 : 0.22;
   hero.abilityEffect = { ...selectedClass, aimAngle: hero.facingAngle };
 
   if (selectedClass.effect === "cone") {
-    hero.slashRadius = selectedClass.radius;
+    hero.slashRadius = selectedClass.radius + player.weaponDetailRangeLevel * getWeaponUpgradeRules().range.meleeStep;
     hero.slashHalfAngle = selectedClass.halfAngle;
-    damageEnemiesInCone(getAbilityDamage(selectedClass), selectedClass.radius, selectedClass.halfAngle);
+    damageEnemiesInCone(getAbilityDamage(selectedClass), hero.slashRadius, selectedClass.halfAngle);
   } else if (selectedClass.effect === "line") {
-    damageEnemiesInLine(getAbilityDamage(selectedClass), selectedClass.range, selectedClass.width);
+    damageEnemiesInLine(
+      getAbilityDamage(selectedClass),
+      selectedClass.range + player.weaponDetailRangeLevel * getWeaponUpgradeRules().range.step,
+      selectedClass.width
+    );
   } else if (selectedClass.effect === "burst") {
     const burstBaseAngle = hero.abilityEffect.aimAngle;
     const shots = buildBurstShots(
-      selectedClass.range,
+      selectedClass.range + player.weaponDetailRangeLevel * getWeaponUpgradeRules().range.step,
       selectedClass.rounds,
       selectedClass.spreadAngle,
       selectedClass.shotAnglesDegrees
@@ -4117,7 +4233,10 @@ function useSlash(targetX = null, targetY = null) {
   } else if (selectedClass.effect === "projectile") {
     hero.abilityEffect.projectiles = [buildArcherArrowProjectile(getAbilityDamage(selectedClass))];
   } else if (selectedClass.effect === "nova") {
-    damageEnemiesInRadius(getAbilityDamage(selectedClass), selectedClass.radius);
+    damageEnemiesInRadius(
+      getAbilityDamage(selectedClass),
+      selectedClass.radius + player.weaponDetailRangeLevel * getWeaponUpgradeRules().range.meleeStep
+    );
   }
 
   updateAbilityUI();
@@ -4130,7 +4249,11 @@ function useAxeSwing() {
   }
 
   hero.axeSwingTimer = hero.axeSwingDuration;
-  damageEnemiesInCone(18 + player.bonusDamage, 64, Math.PI / 3);
+  damageEnemiesInCone(
+    18 + player.bonusDamage + player.weaponDetailDamageLevel * getWeaponUpgradeRules().damage.step,
+    64 + player.weaponDetailRangeLevel * getWeaponUpgradeRules().range.meleeStep,
+    Math.PI / 3
+  );
 }
 
 function useRobotDash() {
@@ -4226,10 +4349,10 @@ function spawnHeroBullet(targetX, targetY) {
 
   const angle = Math.atan2(dy, dx);
   hero.facingAngle = angle;
-  hero.rifleCooldown = 0.08;
+  hero.rifleCooldown = getRifleFireInterval();
   hero.ammo -= 1;
   heroProjectiles.push({
-    ...spawnBurstProjectile({ angleOffset: 0, range: GRID_SIZE * 5 }, 16 + player.bonusDamage, 18),
+    ...spawnBurstProjectile({ angleOffset: 0, range: getRifleRange() }, getRifleDamage(), 18),
     x: hero.x,
     y: hero.y,
     angle,
@@ -4253,7 +4376,7 @@ function spawnHeroBowShot(targetX, targetY) {
   }
 
   hero.facingAngle = Math.atan2(dy, dx);
-  hero.bowCooldown = 0.45;
+  hero.bowCooldown = Math.max(0.12, 0.45 - player.weaponDetailFireRateLevel * getWeaponUpgradeRules().fireRate.bowStep);
   heroProjectiles.push({
     ...buildArcherArrowProjectile(getBasicBowDamage()),
     x: hero.x,
@@ -6942,6 +7065,14 @@ closeWeaponDetailsBtn.addEventListener("click", () => {
   closeWeaponDetails();
 });
 
+weaponDetailUpgradeEls.forEach((element) => {
+  element.addEventListener("click", (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    applyWeaponDetailUpgrade(element.dataset.weaponUpgrade);
+  });
+});
+
 function selectCharacter(classId) {
   const selectedClass = CHARACTER_OPTIONS[classId];
   if (!selectedClass || !player.displayName) {
@@ -6972,6 +7103,7 @@ function selectCharacter(classId) {
   hero.weaponPickupCooldown = 0;
   hero.hasRifle = classId === "soldier";
   hero.rifleCooldown = 0;
+  syncWeaponDerivedStats();
   hero.ammo = hero.hasRifle ? hero.maxAmmo : 0;
   hero.isReloading = false;
   hero.reloadTimer = 0;

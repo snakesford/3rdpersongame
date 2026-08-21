@@ -33,6 +33,7 @@ const weaponDetailsAmmoEl = document.getElementById("weaponDetailsAmmo");
 const weaponDetailsReloadEl = document.getElementById("weaponDetailsReload");
 const weaponDetailsRangeEl = document.getElementById("weaponDetailsRange");
 const weaponDetailsFireRateEl = document.getElementById("weaponDetailsFireRate");
+const weaponDetailUpgradeEls = document.querySelectorAll(".weapon-detail-upgrade");
 const closeWeaponDetailsBtn = document.getElementById("closeWeaponDetailsBtn");
 const equipmentHelmetNameEl = document.getElementById("equipmentHelmetName");
 const equipmentHelmetMetaEl = document.getElementById("equipmentHelmetMeta");
@@ -161,6 +162,7 @@ export {
   weaponDetailsPanelEl,
   weaponDetailsRangeEl,
   weaponDetailsReloadEl,
+  weaponDetailUpgradeEls,
   weaponFillEl,
   weaponValueEl,
   xpFillEl,
