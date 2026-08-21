@@ -492,11 +492,10 @@ function getRandomBetween(min, max) {
 
 function createForestEnemySpawner(config) {
   forestEnemySpawners.push({
-    respawnMin: 35,
-    respawnMax: 60,
     hpMultiplier: 1,
     damageMultiplier: 1,
     speedMultiplier: 1,
+    aggroRange: 220,
     ...config,
   });
 }
@@ -513,21 +512,12 @@ function spawnEnemyFromSpawner(spawner) {
   enemy.homeX = spawner.x;
   enemy.homeY = spawner.y;
   enemy.lootTier = spawner.lootTier || (enemy.campId === "hiddenCamp" ? "better" : "normal");
+  enemy.aggroRange = spawner.aggroRange;
   return enemy;
 }
 
 function queueEnemyRespawn(enemy) {
-  if (!enemy.spawnerId) {
-    return;
-  }
-  const spawner = forestEnemySpawners.find((entry) => entry.id === enemy.spawnerId);
-  if (!spawner) {
-    return;
-  }
-  forestRespawnQueue.push({
-    spawnerId: spawner.id,
-    timer: getRandomBetween(spawner.respawnMin, spawner.respawnMax),
-  });
+  return enemy;
 }
 
 function initializeForestEncounterSpawners() {
@@ -539,8 +529,7 @@ function initializeForestEncounterSpawners() {
       createForestEnemySpawner({
         ...spawn,
         campId: camp.id,
-        respawnMin: camp.id === "hiddenCamp" ? 45 : 38,
-        respawnMax: camp.id === "hiddenCamp" ? 72 : 58,
+        aggroRange: spawn.kind === "goblinArcher" ? 280 : spawn.kind === "ogre" ? 210 : 230,
       });
     }
   }
@@ -548,8 +537,7 @@ function initializeForestEncounterSpawners() {
   for (const spawn of FOREST_ROAMING_SPAWNS) {
     createForestEnemySpawner({
       ...spawn,
-      respawnMin: 30,
-      respawnMax: 52,
+      aggroRange: spawn.kind === "goblinArcher" ? 270 : 220,
     });
   }
 
@@ -3608,22 +3596,6 @@ function updateForestSystems(dt) {
       break;
     }
   }
-
-  for (let index = forestRespawnQueue.length - 1; index >= 0; index -= 1) {
-    const entry = forestRespawnQueue[index];
-    entry.timer = Math.max(0, entry.timer - dt);
-    if (entry.timer > 0) {
-      continue;
-    }
-    const spawner = forestEnemySpawners.find((candidate) => candidate.id === entry.spawnerId);
-    const alreadyActive = enemies.some((enemy) => enemy.spawnerId === entry.spawnerId);
-    if (!spawner || alreadyActive || distance(hero, spawner) < 170) {
-      entry.timer = 4;
-      continue;
-    }
-    spawnEnemyFromSpawner(spawner);
-    forestRespawnQueue.splice(index, 1);
-  }
 }
 
 function clearUnitSelection() {
@@ -4417,6 +4389,21 @@ function getClosestTarget(unit, unitsList, buildingsList) {
   return closest;
 }
 
+function getForestEnemyTarget(unit) {
+  if (!unit.spawnerId) {
+    return null;
+  }
+
+  const aggroRange = unit.aggroRange || 220;
+  if (distance(unit, hero) > aggroRange) {
+    unit.targetUnitId = null;
+    unit.targetBuildingId = null;
+    return null;
+  }
+
+  return hero;
+}
+
 function updateUnits(dt, list, enemiesList, enemyBuildings) {
   for (let i = list.length - 1; i >= 0; i -= 1) {
     const unit = list[i];
@@ -4430,7 +4417,9 @@ function updateUnits(dt, list, enemiesList, enemyBuildings) {
     }
 
     if (!target) {
-      target = unit.isPlayer
+      target = !unit.isPlayer && unit.spawnerId
+        ? getForestEnemyTarget(unit)
+        : unit.isPlayer
         ? (enemiesList.find((enemy) => distance(unit, enemy) <= 150) ||
           enemyBuildings.find((building) => distance(unit, { x: building.x + building.w / 2, y: building.y + building.h / 2 }) <= 180) ||
           null)
@@ -4445,6 +4434,14 @@ function updateUnits(dt, list, enemiesList, enemyBuildings) {
       const targetPoint = getEntityTargetPoint(target);
       const dist = distance(unit, targetPoint);
       const useRangedLogic = !unit.isPlayer && unit.attackStyle === "ranged" && !isBuildingTarget(target);
+      if (!unit.isPlayer && unit.spawnerId && dist > (unit.aggroRange || 220) + 35) {
+        unit.targetUnitId = null;
+        unit.targetBuildingId = null;
+        target = null;
+      }
+      if (!target) {
+        continue;
+      }
       if (useRangedLogic && dist < unit.retreatRange) {
         moveAway(unit, targetPoint.x, targetPoint.y, dt);
       } else if (dist > (useRangedLogic ? unit.preferredRange : unit.attackRange)) {
