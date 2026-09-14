@@ -3071,6 +3071,7 @@ function respawnHero() {
   hero.hasRifle = hero.selectedClass === "soldier";
   hero.rifleFireMode = "automatic";
   hero.rifleCooldown = 0;
+  hero.rifleShotAnimationTimer = 0;
   syncWeaponDerivedStats();
   hero.ammo = hero.hasRifle ? hero.maxAmmo : 0;
   hero.isReloading = false;
@@ -4420,6 +4421,8 @@ function spawnHeroBullet(targetX, targetY) {
   const angle = Math.atan2(dy, dx);
   hero.facingAngle = angle;
   hero.rifleCooldown = getRifleFireInterval();
+  hero.rifleShotAnimationTimer = 0.15;
+  hero.rifleShotAngle = angle;
   hero.ammo -= 1;
   heroProjectiles.push({
     ...spawnBurstProjectile({ angleOffset: 0, range: getRifleRange() }, getRifleDamage(), 18),
@@ -4508,6 +4511,7 @@ function updateHero(dt) {
   hero.shootLockTimer = Math.max(0, hero.shootLockTimer - dt);
   hero.weaponPickupCooldown = Math.max(0, hero.weaponPickupCooldown - dt);
   hero.rifleCooldown = Math.max(0, hero.rifleCooldown - dt);
+  hero.rifleShotAnimationTimer = Math.max(0, hero.rifleShotAnimationTimer - dt);
   hero.dashTimer = Math.max(0, hero.dashTimer - dt);
   hero.dashCooldownRemaining = Math.max(0, hero.dashCooldownRemaining - dt);
   if (hero.isReloading) {
@@ -4542,7 +4546,9 @@ function updateHero(dt) {
   }
   if (mouse.leftDown && !player.isPlacingBuilding && !isInterfacePanelOpen() && !isUsingBattleMedicine()) {
     if (hero.hasRifle) {
-      spawnHeroBullet(mouse.worldX, mouse.worldY);
+      if (hero.rifleFireMode === "automatic") {
+        spawnHeroBullet(mouse.worldX, mouse.worldY);
+      }
     } else if (hero.hasBow) {
       spawnHeroBowShot(mouse.worldX, mouse.worldY);
     }
@@ -5920,6 +5926,7 @@ function drawSoldierHero() {
   const isBurstShooting = hero.abilityEffect?.effect === "burst" &&
     Boolean(hero.abilityEffect?.pendingShots && hero.abilityEffect.pendingShots.length > 0);
   const isRifleShooting = isSoldierRifleShooting();
+  const isSemiAutoShooting = hero.hasRifle && hero.rifleFireMode === "semi" && hero.rifleShotAnimationTimer > 0;
   const isUsingMedicine = isUsingBattleMedicine();
   const isReloading = hero.hasRifle && hero.isReloading && hero.ammo === 0;
   const runningFrames = [
@@ -5938,7 +5945,7 @@ function drawSoldierHero() {
   const runningFrameName = runningFrameNames[Math.floor(hero.runAnimationTimer / 0.3) % runningFrameNames.length];
   const image = isUsingMedicine
     ? soldierMedkitImage
-    : (isBurstShooting || isRifleShooting)
+    : (isBurstShooting || isRifleShooting || isSemiAutoShooting)
       ? soldierShootingImage
     : hero.isMoving
       ? runningFrame
@@ -5947,7 +5954,7 @@ function drawSoldierHero() {
       : soldierIdleImage;
   const animationName = isUsingMedicine
     ? "soldierMedkit"
-    : (isBurstShooting || isRifleShooting)
+    : (isBurstShooting || isRifleShooting || isSemiAutoShooting)
       ? "soldierShooting"
       : hero.isMoving
         ? runningFrameName
@@ -5956,7 +5963,9 @@ function drawSoldierHero() {
         : "soldierIdle";
   const shootingAngle = isRifleShooting
     ? Math.atan2(mouse.worldY - hero.y, mouse.worldX - hero.x)
-    : hero.facingAngle;
+    : isSemiAutoShooting
+      ? hero.rifleShotAngle
+      : hero.facingAngle;
   const facingAngle = hero.lastMoveAngle ?? shootingAngle ?? hero.facingAngle ?? 0;
   const spriteFacingAngle = image === soldierShootingImage
     ? (shootingAngle ?? hero.facingAngle ?? 0)
@@ -7180,6 +7189,7 @@ function selectCharacter(classId) {
   hero.hasRifle = classId === "soldier";
   hero.rifleFireMode = "automatic";
   hero.rifleCooldown = 0;
+  hero.rifleShotAnimationTimer = 0;
   syncWeaponDerivedStats();
   hero.ammo = hero.hasRifle ? hero.maxAmmo : 0;
   hero.isReloading = false;

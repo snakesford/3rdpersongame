@@ -100,6 +100,8 @@ const hero = {
   weaponPickupCooldown: 0,
   hasRifle: false,
   rifleCooldown: 0,
+  rifleShotAnimationTimer: 0,
+  rifleShotAngle: 0,
   rifleFireMode: "automatic",
   isMoving: false,
   runAnimationTimer: 0,
