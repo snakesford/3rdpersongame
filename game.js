@@ -182,6 +182,7 @@ let enemyBase = null;
 let enemyHero = null;
 let lastSoldierAnimationName = null;
 const BATTLE_MEDICINE_USE_DURATION = 0.9;
+const ROAD_SPEED_MULTIPLIER = 1.3;
 const MAIN_WORLD_TRADER_POSITION = { x: trader.x, y: trader.y };
 const tutorialNpcs = [];
 const tutorialPlots = [];
@@ -2403,7 +2404,7 @@ function updateStatsUI() {
   const damage = getDisplayedWeaponStat(selected);
   const maxHealth = hero.maxHp || stats.health;
   const currentHealth = Math.max(0, Math.round(hero.hp || 0));
-  const speed = getHeroSpeed(selected);
+  const speed = getHeroSpeed(selected) * getRoadSpeedMultiplier();
   const regen = getHeroRegen(selected);
 
   const portraitSrc = hero.hp < maxHealth / 2
@@ -4662,6 +4663,19 @@ function getWorldHeight() {
   return player.inVillageWorld ? VILLAGE_WORLD.height : WORLD.height;
 }
 
+function isHeroOnRoad() {
+  if (player.inTutorialWorld || player.inDodgeArena) return false;
+  if (villagePaths.some((path) =>
+    hero.x >= path.x && hero.x <= path.x + path.w &&
+    hero.y >= path.y && hero.y <= path.y + path.h
+  )) return true;
+  return !player.inVillageWorld && hero.y >= MAIN_LANE_Y - 90 && hero.y <= MAIN_LANE_Y + 90;
+}
+
+function getRoadSpeedMultiplier() {
+  return isHeroOnRoad() ? ROAD_SPEED_MULTIPLIER : 1;
+}
+
 function updateCamera(dt) {
   camera.x = clamp(hero.x - canvas.width / 2, 0, Math.max(0, WORLD.width - canvas.width));
   camera.y = clamp(hero.y - canvas.height / 2, 0, Math.max(0, getWorldHeight() - canvas.height));
@@ -4786,7 +4800,7 @@ function updateHero(dt) {
 
   const dx = (keys.has("d") ? 1 : 0) - (keys.has("a") ? 1 : 0);
   const dy = (keys.has("s") ? 1 : 0) - (keys.has("w") ? 1 : 0);
-  const movementSpeedMultiplier = isSoldierRifleShooting() ? 0.5 : 1;
+  const movementSpeedMultiplier = getRoadSpeedMultiplier() * (isSoldierRifleShooting() ? 0.5 : 1);
 
   if (isUsingBattleMedicine()) {
     hero.isMoving = false;
