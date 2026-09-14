@@ -22,6 +22,7 @@ const player = {
   weaponDetailsOpen: false,
   inDodgeArena: false,
   inTutorialWorld: false,
+  inVillageWorld: false,
   dodgeArenaReturnX: PLAYER_BASE_SPAWN.x + 40,
   dodgeArenaReturnY: PLAYER_BASE_SPAWN.y,
   weaponBonusStat: 0,
@@ -117,8 +118,8 @@ const hero = {
 };
 
 const villager = {
-  x: 416,
-  y: 1308,
+  x: 530,
+  y: 1290,
   radius: 20,
   name: "Mercenary Captain",
 };

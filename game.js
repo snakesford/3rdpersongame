@@ -46,6 +46,8 @@ import {
   TUTORIAL_WORLD,
   UPGRADE_OPTIONS,
   VILLAGE_ROAD_WIDTH,
+  VILLAGE_WORLD,
+  VILLAGE_RETURN_TILES,
   WORLD,
 } from "./modules/constants.js";
 import {
@@ -178,6 +180,7 @@ let enemyBase = null;
 let enemyHero = null;
 let lastSoldierAnimationName = null;
 const BATTLE_MEDICINE_USE_DURATION = 0.9;
+const MAIN_WORLD_TRADER_POSITION = { x: trader.x, y: trader.y };
 const tutorialNpcs = [];
 const tutorialPlots = [];
 const tutorialSites = [];
@@ -199,6 +202,25 @@ const SHOOTING_RANGE_CONFIG = {
   nearTargetY: TUTORIAL_WORLD.spawnY - 170,
   farTargetY: TUTORIAL_WORLD.spawnY - 285,
 };
+const VILLAGE_SHOOTING_RANGE = {
+  instructorStartX: VILLAGE_WORLD.range.x + 60,
+  instructorStartY: VILLAGE_WORLD.range.y + 40,
+  shootPosX: VILLAGE_WORLD.range.x + 150,
+  shootPosY: VILLAGE_WORLD.range.y + 120,
+  targetLaneX: VILLAGE_WORLD.range.x + 440,
+  nearTargetY: VILLAGE_WORLD.range.y + 120,
+  farTargetY: VILLAGE_WORLD.range.y + 50,
+};
+
+function getShootingRangeConfig() {
+  return player.inVillageWorld ? VILLAGE_SHOOTING_RANGE : SHOOTING_RANGE_CONFIG;
+}
+
+function getShootingLine() {
+  const range = getShootingRangeConfig();
+  return { x: range.shootPosX - 54, y: range.shootPosY - 12, w: 18, h: 128 };
+}
+
 const shootingRangeTutorial = {
   state: "idle",
   started: false,
@@ -578,14 +600,14 @@ function initializeForestEncounterSpawners() {
 
 function initializeEnemyForces() {
   createUnit("boss", WORLD.width / 2, MAIN_LANE_Y, false);
-  enemyHero = createEnemyHero(WORLD.width - 250, WORLD.height - 250);
+  enemyHero = createEnemyHero(WORLD.width - 250, getWorldHeight() - 250);
   enemyHero.equippedArmorValue = 80;
   enemyHero.latestPickup = {
   type: "enemyHelmet",
   armorValue: 80,
   radius: 18,
   };
-  createUnit("enemySoldier", WORLD.width - 300, WORLD.height - 180, false);
+  createUnit("enemySoldier", WORLD.width - 300, getWorldHeight() - 180, false);
 }
 
 function clearWorldEntities() {
@@ -616,11 +638,13 @@ function clearWorldEntities() {
 
 function initializeMainWorld() {
   clearWorldEntities();
+  Object.assign(trader, MAIN_WORLD_TRADER_POSITION);
   ensureContractAvailability();
   SPAWN_WAVE_TILE.triggered = false;
   SPAWN_STREAM_TILE.timer = 0;
   DODGE_ARENA.timer = 0;
   player.inTutorialWorld = false;
+  player.inVillageWorld = false;
   player.inDodgeArena = false;
   player.selectedUnits = [];
   player.selectedBuildingId = null;
@@ -634,7 +658,7 @@ function initializeMainWorld() {
   playerBase.h = 200;
   initializeVillage();
   initializeForest();
-  enemyBase = createBuilding("enemyBase", WORLD.width - 290, WORLD.height - 320, false);
+  enemyBase = createBuilding("enemyBase", WORLD.width - 290, getWorldHeight() - 320, false);
   enemyBase.hp = 800;
   enemyBase.maxHp = 800;
   enemyBase.w = 180;
@@ -721,8 +745,8 @@ function resetShootingRangeTutorial() {
   tutorialRangeTargets.push(
     {
       id: "rangeTargetNear",
-      x: SHOOTING_RANGE_CONFIG.targetLaneX,
-      y: SHOOTING_RANGE_CONFIG.nearTargetY,
+      x: getShootingRangeConfig().targetLaneX,
+      y: getShootingRangeConfig().nearTargetY,
       radius: 18,
       hit: false,
       destroyed: false,
@@ -731,8 +755,8 @@ function resetShootingRangeTutorial() {
     },
     {
       id: "rangeTargetFar",
-      x: SHOOTING_RANGE_CONFIG.targetLaneX + 86,
-      y: SHOOTING_RANGE_CONFIG.farTargetY,
+      x: getShootingRangeConfig().targetLaneX + 86,
+      y: getShootingRangeConfig().farTargetY,
       radius: 18,
       hit: false,
       destroyed: false,
@@ -804,6 +828,21 @@ function resetTutorialObjects() {
   );
 }
 
+function initializeShootingRange() {
+  createSpecialTutorialNpc({
+    id: SHOOTING_INSTRUCTOR_ID,
+    professionId: null,
+    kind: "shootingInstructor",
+    name: "Shooting Instructor",
+    x: getShootingRangeConfig().instructorStartX,
+    y: getShootingRangeConfig().instructorStartY,
+    color: "#d88444",
+    targetX: getShootingRangeConfig().instructorStartX,
+    targetY: getShootingRangeConfig().instructorStartY,
+  });
+  resetShootingRangeTutorial();
+}
+
 function populateTutorialWorld() {
   tutorialNpcs.length = 0;
   createTutorialNpc("explorer", TUTORIAL_WORLD.spawnX - 520, TUTORIAL_WORLD.spawnY - 280);
@@ -812,19 +851,9 @@ function populateTutorialWorld() {
   createTutorialNpc("merchant", TUTORIAL_WORLD.spawnX - 520, TUTORIAL_WORLD.spawnY + 50);
   createTutorialNpc("craftsman", TUTORIAL_WORLD.spawnX - 520, TUTORIAL_WORLD.spawnY + 160);
   createTutorialNpc("mercenary", TUTORIAL_WORLD.spawnX - 520, TUTORIAL_WORLD.spawnY + 270);
-  createSpecialTutorialNpc({
-    id: SHOOTING_INSTRUCTOR_ID,
-    professionId: null,
-    kind: "shootingInstructor",
-    name: "Shooting Instructor",
-    x: SHOOTING_RANGE_CONFIG.instructorStartX,
-    y: SHOOTING_RANGE_CONFIG.instructorStartY,
-    color: "#d88444",
-    targetX: SHOOTING_RANGE_CONFIG.instructorStartX,
-    targetY: SHOOTING_RANGE_CONFIG.instructorStartY,
-  });
+  initializeShootingRange();
+  restoreMercenaryTrainingTask();
   resetTutorialObjects();
-  resetShootingRangeTutorial();
   if (!player.tutorialPathsUnlocked) {
     pickups.push({
       id: nextId(),
@@ -835,6 +864,17 @@ function populateTutorialWorld() {
       collected: false,
     });
   }
+}
+
+function restoreMercenaryTrainingTask() {
+  const task = getTutorialProfessionState("mercenary").activeTask;
+  if (task?.status !== "active") return;
+  const raider = createUnit("skeleton",
+    player.inVillageWorld ? 940 + VILLAGE_WORLD.offset.x : TUTORIAL_WORLD.spawnX + 400,
+    player.inVillageWorld ? 1500 + VILLAGE_WORLD.offset.y : TUTORIAL_WORLD.spawnY + 10, false);
+  raider.displayName = "Training Raider";
+  raider.tutorialProfessionId = "mercenary";
+  task.enemyId = raider.id;
 }
 
 function startTutorialProfessionTask(professionId) {
@@ -853,10 +893,8 @@ function startTutorialProfessionTask(professionId) {
     }
     state.activeTask = { id: "farmerStarter", status: "active" };
   } else if (professionId === "mercenary") {
-    const raider = createUnit("skeleton", TUTORIAL_WORLD.spawnX + 400, TUTORIAL_WORLD.spawnY + 10, false);
-    raider.displayName = "Training Raider";
-    raider.tutorialProfessionId = "mercenary";
-    state.activeTask = { id: "mercenaryStarter", status: "active", enemyId: raider.id };
+    state.activeTask = { id: "mercenaryStarter", status: "active" };
+    restoreMercenaryTrainingTask();
   } else if (professionId === "explorer") {
     const site = tutorialSites.find((entry) => entry.id === "explorerWaypoint");
     if (site) {
@@ -943,9 +981,9 @@ function addVillageCircleProp(type, x, y, radius, collidable = true) {
   villageProps.push({ type, x, y, radius, collidable, shape: "circle" });
 }
 
-function initializeVillage() {
+function initializeVillage(roadStartY = playerBase.y + playerBase.h) {
   villagePaths.push(
-    { x: 132, y: playerBase.y + playerBase.h, w: VILLAGE_ROAD_WIDTH, h: 420 },
+    { x: 132, y: roadStartY, w: VILLAGE_ROAD_WIDTH, h: 1220 - roadStartY },
     { x: 132, y: 1210, w: 430, h: 64 },
     { x: 210, y: 1338, w: 330, h: 56 },
     { x: 188, y: 1476, w: 170, h: 52 },
@@ -1186,6 +1224,18 @@ function registerContractKill(enemy) {
 }
 
 function getQuestObjectiveText() {
+  if (player.inVillageWorld) {
+    if (shootingRangeTutorial.started && !shootingRangeTutorial.completed) {
+      return shootingRangeTutorial.state === "leading"
+        ? "Follow the Shooting Instructor."
+        : `Hit the targets: ${shootingRangeTutorial.hits}/2`;
+    }
+    const task = getTutorialProfessionState("mercenary").activeTask;
+    if (task) return task.status === "readyToTurnIn"
+      ? "Return to the Mercenary for your reward."
+      : "Defeat the training raider east of the village.";
+    return "Talk to the Mercenary or visit the shooting range on the far right of the map.";
+  }
   const activeContract = getActiveContract();
   if (player.inTutorialWorld) {
     if (activeContract && quest.activeContractStage === "active") {
@@ -1222,6 +1272,12 @@ function getQuestObjectiveText() {
 }
 
 function updateQuestUI() {
+  if (player.inVillageWorld) {
+    questPanelEl.classList.remove("hidden");
+    questTitleEl.textContent = "Village";
+    questObjectiveEl.textContent = getQuestObjectiveText();
+    return;
+  }
   if (player.inTutorialWorld) {
     const showingContract = Boolean(getActiveContract()) || (hasCompletedContract("knownCamp") && !hasDiscoveredCamp("hiddenCamp"));
     const visible = player.tutorialPathsUnlocked || showingContract;
@@ -1282,7 +1338,7 @@ function updateInventoryUI() {
 }
 
 function isHeroNearVillager() {
-  return distance(hero, villager) <= 80;
+  return !player.inVillageWorld && distance(hero, villager) <= 80;
 }
 
 function isDialogueOpen() {
@@ -1441,8 +1497,9 @@ function handleTutorialNpcOption(optionId) {
         shootingRangeTutorial.hits = 0;
         shootingRangeTutorial.started = true;
         shootingRangeTutorial.state = "leading";
-        npc.targetX = SHOOTING_RANGE_CONFIG.shootPosX;
-        npc.targetY = SHOOTING_RANGE_CONFIG.shootPosY;
+        const shootingLine = getShootingLine();
+        npc.targetX = shootingLine.x - npc.radius - 12;
+        npc.targetY = shootingLine.y + shootingLine.h - npc.radius;
         spawnTextPopup(npc.x, npc.y - 30, "Follow me.", "rgba(255, 226, 148, 1)", 1.2);
         closeTutorialDialogue();
         updateDialogueUI();
@@ -1460,7 +1517,7 @@ function handleTutorialNpcOption(optionId) {
 
     if (optionId === "progress") {
       if (shootingRangeTutorial.completed) {
-        openTutorialNpcMenu(npc, "Range lesson complete. Both targets were hit.");
+        openTutorialNpcMenu(npc, "Both targets were hit.");
       } else if (!shootingRangeTutorial.started) {
         openTutorialNpcMenu(npc, "Lesson not started. Ask about work to begin.");
       } else if (shootingRangeTutorial.state === "leading") {
@@ -1807,8 +1864,14 @@ window.addEventListener("resize", resizeCanvas);
 resizeCanvas();
 
 function getCharacterStatus() {
+  if (player.inVillageWorld) {
+    const npc = getNearbyTutorialNpc();
+    return npc
+      ? `${npc.name} nearby. Press Space to talk.`
+      : "Village. Visit the shooting range to the east, or walk onto a teleporter to travel.";
+  }
   if (player.inTutorialWorld) {
-    return "Tutorial world. A tree and a rock are the only objects here.";
+    return "Training world. Talk to the guides with Space, or use a teleporter to leave.";
   }
 
   if (isDialogueOpen()) {
@@ -1847,7 +1910,7 @@ function updateTrainButton() {
 }
 
 function isPlayerBaseSelected() {
-  return player.selectedBuildingId === playerBase.id;
+  return Boolean(playerBase && player.selectedBuildingId === playerBase.id);
 }
 
 function updateBuildBarracksButton() {
@@ -2642,26 +2705,127 @@ function leaveDodgeArena(message = "Returned from the Dodge Arena.") {
   spawnTextPopup(hero.x, hero.y - 28, "Returned", "rgba(196, 234, 255, 1)", 1.2);
 }
 
+function prepareWorldTravel() {
+  player.isPlacingBuilding = false;
+  player.selectedUnits = [];
+  player.selectedBuildingId = null;
+  selectionBox = null;
+  mouse.leftDown = false;
+  cancelGrenadeAim();
+  cancelHarvest();
+  closeTutorialDialogue();
+  closeQuestDialogue();
+  closeShop();
+  closeTrader();
+  closeWeaponDetails();
+  hero.targetPos = null;
+  hero.lastMoveAngle = null;
+  hero.abilityEffect = null;
+  hero.rifleShotAnimationTimer = 0;
+}
+
+function activateVillageWorld() {
+  prepareWorldTravel();
+  clearWorldEntities();
+  player.inVillageWorld = true;
+  player.inTutorialWorld = false;
+  player.inDodgeArena = false;
+  playerBase = null;
+  enemyBase = null;
+  enemyHero = createEnemyHero(-1000, -1000);
+  enemyHero.active = false;
+  enemyHero.hp = 0;
+  ensureContractAvailability();
+  initializeVillage(1150);
+  villagePaths.push(
+    { x: 310, y: 1300, w: 100, h: 240 },
+    { x: 310, y: 1558, w: 240, h: 116 }
+  );
+  const { x: offsetX, y: offsetY } = VILLAGE_WORLD.offset;
+  for (const entity of [...buildings, ...trees, ...villagePaths, ...villageFields, ...villageProps]) {
+    entity.x += offsetX;
+    entity.y += offsetY;
+  }
+  for (const fence of villageFences) {
+    fence.x1 += offsetX;
+    fence.x2 += offsetX;
+    fence.y1 += offsetY;
+    fence.y2 += offsetY;
+  }
+  const range = VILLAGE_WORLD.range;
+  const villageRoadX = 310 + offsetX;
+  const villageRoadY = 1558 + offsetY;
+  const rangeApproachY = range.y - 90;
+  villagePaths.push(
+    { x: villageRoadX, y: villageRoadY, w: 100, h: rangeApproachY + 64 - villageRoadY },
+    { x: villageRoadX, y: rangeApproachY, w: range.x + 120 - villageRoadX, h: 64 },
+    { x: range.x + 20, y: rangeApproachY, w: 100, h: 260 },
+    { x: range.x + 120, y: range.y + 90, w: 430, h: 100 }
+  );
+  trader.x = MAIN_WORLD_TRADER_POSITION.x + offsetX;
+  trader.y = MAIN_WORLD_TRADER_POSITION.y + offsetY;
+  createTutorialNpc("mercenary", 530 + offsetX, 1290 + offsetY);
+  initializeShootingRange();
+  restoreMercenaryTrainingTask();
+  hero.x = VILLAGE_WORLD.spawnX;
+  hero.y = VILLAGE_WORLD.spawnY;
+  hero.hp = hero.maxHp;
+  updateCamera(1);
+  overlayMessageEl.classList.add("hidden");
+  statusTextEl.textContent = "Village. Press Space to talk to the Mercenary. The Shooting Instructor is at the range on the far right of the map.";
+  updateQuestUI();
+  updateInventoryUI();
+  updateStatsUI();
+  updateAbilityUI();
+  updateTrainButton();
+  updateBuildBarracksButton();
+}
+
+function getVillagePortals() {
+  if (player.inVillageWorld) return VILLAGE_WORLD.portals;
+  return [player.inTutorialWorld ? VILLAGE_RETURN_TILES.training : VILLAGE_RETURN_TILES.main];
+}
+
+function updateVillagePortals() {
+  const portal = getVillagePortals().find((tile) =>
+    hero.x >= tile.x && hero.x <= tile.x + tile.size &&
+    hero.y >= tile.y && hero.y <= tile.y + tile.size
+  );
+  if (!portal) return false;
+  if (portal.destination === "main") travelToMainWorld();
+  else if (portal.destination === "training") activateTutorialWorld();
+  else activateVillageWorld();
+  return true;
+}
+
+function drawVillagePortals() {
+  for (const portal of getVillagePortals()) {
+    ctx.fillStyle = portal.destination === "training" ? "#5c4e91" : "#326f86";
+    ctx.fillRect(portal.x, portal.y, portal.size, portal.size);
+    ctx.strokeStyle = "#c1edff";
+    ctx.lineWidth = 3;
+    ctx.strokeRect(portal.x, portal.y, portal.size, portal.size);
+    ctx.fillStyle = "#ffffff";
+    ctx.font = "700 14px Chakra Petch";
+    ctx.textAlign = "center";
+    portal.label.forEach((line, index) => {
+      ctx.fillText(line, portal.x + portal.size / 2, portal.y + portal.size / 2 + 5 + (index - (portal.label.length - 1) / 2) * 20);
+    });
+    ctx.font = "600 12px Chakra Petch";
+    ctx.fillText("Walk here to travel", portal.x + portal.size / 2, portal.y - 10);
+  }
+}
+
 function activateTutorialWorld() {
   if (player.inTutorialWorld) {
     return;
   }
 
+  prepareWorldTravel();
+  player.inVillageWorld = false;
   player.inTutorialWorld = true;
+  Object.assign(trader, MAIN_WORLD_TRADER_POSITION);
   player.inDodgeArena = false;
-  player.shopOpen = false;
-  player.traderOpen = false;
-  player.weaponDetailsOpen = false;
-  player.isPlacingBuilding = false;
-  player.selectedUnits = [];
-  player.selectedBuildingId = null;
-  clearUnitSelection();
-  cancelGrenadeAim();
-  cancelHarvest();
-  closeQuestDialogue();
-  closeShop();
-  closeTrader();
-  closeWeaponDetails();
   clearWorldEntities();
 
   trees.push({
@@ -2692,7 +2856,8 @@ function activateTutorialWorld() {
   populateTutorialWorld();
 
   overlayMessageEl.classList.add("hidden");
-  statusTextEl.textContent = "Entered the tutorial world.";
+  updateCamera(1);
+  statusTextEl.textContent = "Entered the training world.";
   updateQuestUI();
   updateInventoryUI();
   updateStatsUI();
@@ -2701,11 +2866,8 @@ function activateTutorialWorld() {
   updateBuildBarracksButton();
 }
 
-function leaveTutorialWorld() {
-  if (!player.inTutorialWorld) {
-    return;
-  }
-
+function travelToMainWorld() {
+  prepareWorldTravel();
   initializeMainWorld();
   hero.x = PLAYER_BASE_SPAWN.x;
   hero.y = PLAYER_BASE_SPAWN.y;
@@ -2714,7 +2876,8 @@ function leaveTutorialWorld() {
   hero.lastMoveAngle = null;
   hero.abilityEffect = null;
   overlayMessageEl.classList.add("hidden");
-  statusTextEl.textContent = "Returned to the main world.";
+  updateCamera(1);
+  statusTextEl.textContent = "Entered the main world.";
   updateQuestUI();
   updateInventoryUI();
   updateStatsUI();
@@ -2802,10 +2965,9 @@ function completeShootingRangeTutorial() {
   awardPlayerXp(SHOOTING_RANGE_TUTORIAL_XP);
   const instructor = getShootingInstructor();
   if (instructor) {
-    openTutorialNpcMenu(instructor, "Good shooting. Both targets are down. The tutorial is complete.");
+    openTutorialNpcMenu(instructor, "Good shooting. Both targets are down.");
   }
-  spawnTextPopup(hero.x, hero.y - 24, "Tutorial complete!", "rgba(255, 226, 148, 1)", 1.6);
-  statusTextEl.textContent = "Tutorial complete. Enter the main world when you are ready.";
+  statusTextEl.textContent = getCharacterStatus();
   updateQuestUI();
 }
 
@@ -2849,7 +3011,7 @@ function destroyTutorialRangeTarget(target, reason = "destroyed") {
 }
 
 function tryHitTutorialRangeTarget(projectile) {
-  if (!player.inTutorialWorld) {
+  if (!player.inTutorialWorld && !player.inVillageWorld) {
     return false;
   }
 
@@ -2929,7 +3091,7 @@ function updateTutorialWorldSystems(dt) {
       if (arrived) {
         shootingRangeTutorial.state = "shootTargets";
         spawnTextPopup(instructor.x, instructor.y - 30, "Hit both targets.", "rgba(255, 226, 148, 1)", 1.2);
-        openTutorialNpcMenu(instructor, "This is the firing line. Shoot both targets.");
+        openTutorialNpcMenu(instructor, "Stand behind the thick brown firing line and shoot both targets. I will wait at this end.");
         statusTextEl.textContent = "Instructor: Hold here and shoot both targets.";
         updateQuestUI();
       }
@@ -3088,15 +3250,15 @@ function respawnHero() {
   grenadeShockwaves.length = 0;
   hero.maxHp = (selectedClass?.stats?.health || 150) + player.bonusHealth;
   hero.hp = hero.maxHp;
-  hero.x = player.inTutorialWorld ? TUTORIAL_WORLD.spawnX : PLAYER_BASE_SPAWN.x;
-  hero.y = player.inTutorialWorld ? TUTORIAL_WORLD.spawnY : PLAYER_BASE_SPAWN.y;
+  hero.x = player.inVillageWorld ? VILLAGE_WORLD.spawnX : player.inTutorialWorld ? TUTORIAL_WORLD.spawnX : PLAYER_BASE_SPAWN.x;
+  hero.y = player.inVillageWorld ? VILLAGE_WORLD.spawnY : player.inTutorialWorld ? TUTORIAL_WORLD.spawnY : PLAYER_BASE_SPAWN.y;
   hero.targetPos = null;
   cancelHarvest();
   closeShop();
   closeTrader();
   closeWeaponDetails();
   updateStatsUI();
-  statusTextEl.textContent = player.inTutorialWorld ? "You respawned in the tutorial world." : "You respawned at base.";
+  statusTextEl.textContent = player.inVillageWorld ? "You respawned in the village." : player.inTutorialWorld ? "You respawned in the tutorial world." : "You respawned at base.";
   spawnTextPopup(hero.x, hero.y - 30, "Respawned!", "rgba(196, 234, 255, 1)", 1.4);
 }
 
@@ -3664,7 +3826,7 @@ function resolveCircleAgainstRect(entity, radius, rect) {
   if (distanceToRect > 0 && distanceToRect < radius) {
     const overlap = radius - distanceToRect;
     entity.x = clamp(entity.x + (dx / distanceToRect) * overlap, radius, WORLD.width - radius);
-    entity.y = clamp(entity.y + (dy / distanceToRect) * overlap, radius, WORLD.height - radius);
+    entity.y = clamp(entity.y + (dy / distanceToRect) * overlap, radius, getWorldHeight() - radius);
     return;
   }
 
@@ -3687,7 +3849,7 @@ function resolveCircleAgainstRect(entity, radius, rect) {
       entity.y = rect.y + rect.h + radius;
     }
     entity.x = clamp(entity.x, radius, WORLD.width - radius);
-    entity.y = clamp(entity.y, radius, WORLD.height - radius);
+    entity.y = clamp(entity.y, radius, getWorldHeight() - radius);
   }
 }
 
@@ -3707,7 +3869,7 @@ function resolveHeroObstacleCollisions() {
     if (distanceToObstacle < minDistance) {
       const overlap = minDistance - distanceToObstacle;
       hero.x = clamp(hero.x + (dx / distanceToObstacle) * overlap, hero.radius, WORLD.width - hero.radius);
-      hero.y = clamp(hero.y + (dy / distanceToObstacle) * overlap, hero.radius, WORLD.height - hero.radius);
+      hero.y = clamp(hero.y + (dy / distanceToObstacle) * overlap, hero.radius, getWorldHeight() - hero.radius);
     }
   }
 
@@ -3731,7 +3893,7 @@ function resolveHeroObstacleCollisions() {
     if (dist > 0 && dist < minDistance) {
       const overlap = minDistance - dist;
       hero.x = clamp(hero.x + (dx / dist) * overlap, hero.radius, WORLD.width - hero.radius);
-      hero.y = clamp(hero.y + (dy / dist) * overlap, hero.radius, WORLD.height - hero.radius);
+      hero.y = clamp(hero.y + (dy / dist) * overlap, hero.radius, getWorldHeight() - hero.radius);
     }
   }
 }
@@ -4188,7 +4350,7 @@ function getBuildingAt(point, list) {
 
 function isValidBarracksPlacement(x, y) {
   const preview = { x: x - 70, y: y - 70, w: 140, h: 140 };
-  if (preview.x < 40 || preview.y < 40 || preview.x + preview.w > WORLD.width - 40 || preview.y + preview.h > WORLD.height - 40) {
+  if (preview.x < 40 || preview.y < 40 || preview.x + preview.w > WORLD.width - 40 || preview.y + preview.h > getWorldHeight() - 40) {
     return false;
   }
 
@@ -4485,9 +4647,13 @@ function setSelectedUnitsAttackTarget(target) {
   }
 }
 
+function getWorldHeight() {
+  return player.inVillageWorld ? VILLAGE_WORLD.height : WORLD.height;
+}
+
 function updateCamera(dt) {
-  camera.x = clamp(hero.x - canvas.width / 2, 0, WORLD.width - canvas.width);
-  camera.y = clamp(hero.y - canvas.height / 2, 0, WORLD.height - canvas.height);
+  camera.x = clamp(hero.x - canvas.width / 2, 0, Math.max(0, WORLD.width - canvas.width));
+  camera.y = clamp(hero.y - canvas.height / 2, 0, Math.max(0, getWorldHeight() - canvas.height));
 }
 
 function updateHero(dt) {
@@ -4615,7 +4781,7 @@ function updateHero(dt) {
     hero.isMoving = false;
   } else if (hero.dashTimer > 0) {
     hero.x = clamp(hero.x + Math.cos(hero.lastMoveAngle) * hero.dashSpeed * dt, hero.radius, WORLD.width - hero.radius);
-    hero.y = clamp(hero.y + Math.sin(hero.lastMoveAngle) * hero.dashSpeed * dt, hero.radius, WORLD.height - hero.radius);
+    hero.y = clamp(hero.y + Math.sin(hero.lastMoveAngle) * hero.dashSpeed * dt, hero.radius, getWorldHeight() - hero.radius);
     resolveHeroObstacleCollisions();
     hero.isMoving = true;
   } else if (dx || dy) {
@@ -4625,7 +4791,7 @@ function updateHero(dt) {
       hero.facingAngle = hero.lastMoveAngle;
     }
     hero.x = clamp(hero.x + (dx / mag) * hero.speed * movementSpeedMultiplier * dt, hero.radius, WORLD.width - hero.radius);
-    hero.y = clamp(hero.y + (dy / mag) * hero.speed * movementSpeedMultiplier * dt, hero.radius, WORLD.height - hero.radius);
+    hero.y = clamp(hero.y + (dy / mag) * hero.speed * movementSpeedMultiplier * dt, hero.radius, getWorldHeight() - hero.radius);
     resolveHeroObstacleCollisions();
     hero.isMoving = true;
     if (hero.isHarvesting) {
@@ -4639,11 +4805,15 @@ function updateHero(dt) {
     hero.runAnimationTimer = 0;
   }
 
-  if (!SPAWN_WAVE_TILE.triggered && isHeroOnSpawnWaveTile()) {
+  if (updateVillagePortals()) {
+    return;
+  }
+  const inMainWorld = !player.inTutorialWorld && !player.inVillageWorld;
+  if (inMainWorld && !SPAWN_WAVE_TILE.triggered && isHeroOnSpawnWaveTile()) {
     spawnSkeletonWave();
   }
 
-  if (isHeroOnSpawnStreamTile()) {
+  if (inMainWorld && isHeroOnSpawnStreamTile()) {
     SPAWN_STREAM_TILE.timer += dt;
     while (SPAWN_STREAM_TILE.timer >= SPAWN_STREAM_TILE.interval) {
       spawnSingleSkeleton();
@@ -4653,21 +4823,21 @@ function updateHero(dt) {
     SPAWN_STREAM_TILE.timer = 0;
   }
 
-  if (!player.inDodgeArena && isHeroOnDodgeArenaTile()) {
+  if (inMainWorld && !player.inDodgeArena && isHeroOnDodgeArenaTile()) {
     enterDodgeArena();
   }
 
-  if (!player.inTutorialWorld && isHeroOnTutorialTile()) {
+  if (inMainWorld && isHeroOnTutorialTile()) {
     activateTutorialWorld();
     return;
   }
 
   if (player.inTutorialWorld && isHeroOnTutorialReturnTile()) {
-    leaveTutorialWorld();
+    travelToMainWorld();
     return;
   }
 
-  if (player.inTutorialWorld) {
+  if (player.inTutorialWorld || player.inVillageWorld) {
     updateTutorialWorldSystems(dt);
   }
 
@@ -4887,7 +5057,7 @@ function moveAway(unit, x, y, dt) {
     return;
   }
   unit.x = clamp(unit.x + (dx / dist) * unit.speed * dt, unit.radius, WORLD.width - unit.radius);
-  unit.y = clamp(unit.y + (dy / dist) * unit.speed * dt, unit.radius, WORLD.height - unit.radius);
+  unit.y = clamp(unit.y + (dy / dist) * unit.speed * dt, unit.radius, getWorldHeight() - unit.radius);
 }
 
 function isInsideDeathZone(entity) {
@@ -5002,14 +5172,14 @@ function update(dt) {
   }
   updateCamera(dt);
   updateHero(dt);
-  if (!player.inTutorialWorld) {
+  if (!player.inTutorialWorld && !player.inVillageWorld) {
     updateDodgeArena(dt);
   }
   updateHeroProjectiles(dt);
   updateEnemyProjectiles(dt);
   updateUnits(dt, units, enemies, buildings.filter((b) => !b.isPlayer));
   updateUnits(dt, enemies, [hero, ...units], buildings.filter((b) => b.isPlayer));
-  if (!player.inTutorialWorld) {
+  if (!player.inTutorialWorld && !player.inVillageWorld) {
     updateForestSystems(dt);
     cleanupDeathZoneEntities();
   }
@@ -5032,7 +5202,12 @@ function update(dt) {
 
 function drawBackground() {
   ctx.fillStyle = COLORS.ground;
-  ctx.fillRect(0, 0, WORLD.width, WORLD.height);
+  ctx.fillRect(0, 0, WORLD.width, getWorldHeight());
+
+  if (player.inVillageWorld) {
+    drawVillageGround();
+    return;
+  }
 
   if (player.inTutorialWorld) {
     ctx.fillStyle = COLORS.tutorialTile;
@@ -5053,9 +5228,9 @@ function drawBackground() {
 
   ctx.fillStyle = "rgba(255,255,255,0.08)";
   for (let x = 0; x < WORLD.width; x += 120) {
-    ctx.fillRect(x, 0, 2, WORLD.height);
+    ctx.fillRect(x, 0, 2, getWorldHeight());
   }
-  for (let y = 0; y < WORLD.height; y += 120) {
+  for (let y = 0; y < getWorldHeight(); y += 120) {
     ctx.fillRect(0, y, WORLD.width, 2);
   }
 
@@ -5129,6 +5304,10 @@ function drawBackground() {
   ctx.font = "700 14px Chakra Petch";
   ctx.fillText("Bullets rain from above", DODGE_ARENA.x + DODGE_ARENA.w / 2, DODGE_ARENA.y + 58);
 
+  drawVillageGround();
+}
+
+function drawVillageGround() {
   for (const path of villagePaths) {
     ctx.fillStyle = COLORS.path;
     ctx.fillRect(path.x, path.y, path.w, path.h);
@@ -5176,13 +5355,45 @@ function drawMinimap() {
   const mapWidth = minimapCanvas.width;
   const mapHeight = minimapCanvas.height;
   const scaleX = mapWidth / WORLD.width;
-  const scaleY = mapHeight / WORLD.height;
+  const scaleY = mapHeight / getWorldHeight();
   const toMapX = (x) => x * scaleX;
   const toMapY = (y) => y * scaleY;
 
   minimapCtx.clearRect(0, 0, mapWidth, mapHeight);
   minimapCtx.fillStyle = "#19301f";
   minimapCtx.fillRect(0, 0, mapWidth, mapHeight);
+
+  if (player.inVillageWorld) {
+    minimapCtx.fillStyle = "#9b895b";
+    for (const path of villagePaths) {
+      minimapCtx.fillRect(toMapX(path.x), toMapY(path.y), path.w * scaleX, path.h * scaleY);
+    }
+    minimapCtx.fillStyle = "#d7bf97";
+    for (const building of buildings) {
+      minimapCtx.fillRect(toMapX(building.x), toMapY(building.y), building.w * scaleX, building.h * scaleY);
+    }
+    for (const portal of getVillagePortals()) {
+      minimapCtx.fillStyle = "#83d9ff";
+      minimapCtx.fillRect(toMapX(portal.x), toMapY(portal.y), portal.size * scaleX, portal.size * scaleY);
+    }
+    minimapCtx.strokeStyle = "#d5b47c";
+    const range = VILLAGE_WORLD.range;
+    minimapCtx.strokeRect(toMapX(range.x), toMapY(range.y), range.w * scaleX, range.h * scaleY);
+    for (const npc of tutorialNpcs) {
+      minimapCtx.fillStyle = npc.color;
+      minimapCtx.fillRect(toMapX(npc.x) - 2, toMapY(npc.y) - 2, 4, 4);
+    }
+    minimapCtx.fillStyle = "#9de0ff";
+    minimapCtx.beginPath();
+    minimapCtx.arc(toMapX(hero.x), toMapY(hero.y), 3, 0, Math.PI * 2);
+    minimapCtx.fill();
+    return;
+  }
+
+  for (const portal of getVillagePortals()) {
+    minimapCtx.fillStyle = "#83d9ff";
+    minimapCtx.fillRect(toMapX(portal.x), toMapY(portal.y), portal.size * scaleX, portal.size * scaleY);
+  }
 
   if (player.inTutorialWorld) {
     minimapCtx.fillStyle = "rgba(95, 77, 47, 0.95)";
@@ -5504,10 +5715,13 @@ function drawTrader() {
   ctx.fillStyle = "#fff1cf";
   ctx.font = "700 14px Chakra Petch";
   ctx.textAlign = "center";
-  ctx.fillText("TRADER", trader.x, trader.y - 34);
+  if (isHeroNearTrader()) {
+    ctx.fillText("TRADER", trader.x, trader.y - 34);
+  }
 }
 
 function drawVillager() {
+  if (player.inVillageWorld) return;
   ctx.beginPath();
   ctx.fillStyle = "#c45d44";
   ctx.arc(villager.x, villager.y, villager.radius, 0, Math.PI * 2);
@@ -5519,7 +5733,9 @@ function drawVillager() {
   ctx.fillStyle = "#fff1cf";
   ctx.font = "700 14px Chakra Petch";
   ctx.textAlign = "center";
-  ctx.fillText("CAPTAIN", villager.x, villager.y - 34);
+  if (isHeroNearVillager()) {
+    ctx.fillText("MERCENARY CAPTAIN", villager.x, villager.y - 34);
+  }
 }
 
 function drawTutorialNpcs() {
@@ -5532,16 +5748,14 @@ function drawTutorialNpcs() {
     ctx.beginPath();
     ctx.arc(npc.x, npc.y - 8, npc.radius * 0.42, 0, Math.PI * 2);
     ctx.fill();
-    drawNameplate(npc.x, npc.y - 40, npc.name, "rgba(15, 33, 24, 0.9)");
+    if (distance(hero, npc) <= 90) {
+      drawNameplate(npc.x, npc.y - 40, npc.name, "rgba(15, 33, 24, 0.9)");
+    }
     if (npc.kind === "shootingInstructor") {
-      if (distance(hero, npc) <= 90) {
-        const label = shootingRangeTutorial.completed
-          ? "Tutorial complete"
-          : shootingRangeTutorial.started
-            ? shootingRangeTutorial.state === "leading"
-              ? "Follow me"
-              : `Targets ${shootingRangeTutorial.hits}/2`
-            : "Range lesson ready";
+      if (distance(hero, npc) <= 90 && shootingRangeTutorial.started && !shootingRangeTutorial.completed) {
+        const label = shootingRangeTutorial.state === "leading"
+          ? "Follow me"
+          : `Targets ${shootingRangeTutorial.hits}/2`;
         drawNameplate(npc.x, npc.y - 64, label, "rgba(33, 24, 15, 0.9)");
       }
       continue;
@@ -5570,16 +5784,24 @@ function drawTutorialNpcs() {
 }
 
 function drawTutorialObjects() {
-  if (player.inTutorialWorld) {
+  if (player.inVillageWorld) {
+    const range = VILLAGE_WORLD.range;
+    ctx.fillStyle = "rgba(118, 95, 62, 0.3)";
+    ctx.fillRect(range.x, range.y, range.w, range.h);
+    ctx.strokeStyle = "#806541";
+    ctx.lineWidth = 4;
+    ctx.strokeRect(range.x, range.y, range.w, range.h);
+    ctx.fillStyle = "#3f3424";
+    ctx.font = "700 18px Chakra Petch";
+    ctx.textAlign = "center";
+    ctx.fillText("SHOOTING RANGE", range.x + 390, range.y - 20);
+  }
+  if (player.inTutorialWorld || player.inVillageWorld) {
+    const shootingLine = getShootingLine();
+    ctx.fillStyle = "#5c492a";
+    ctx.fillRect(shootingLine.x, shootingLine.y, shootingLine.w, shootingLine.h);
     ctx.fillStyle = "rgba(92, 73, 42, 0.55)";
-    ctx.fillRect(SHOOTING_RANGE_CONFIG.shootPosX - 54, SHOOTING_RANGE_CONFIG.shootPosY - 12, 18, 128);
-    ctx.fillRect(SHOOTING_RANGE_CONFIG.targetLaneX - 18, SHOOTING_RANGE_CONFIG.farTargetY - 42, 174, 12);
-    ctx.strokeStyle = "rgba(255, 232, 194, 0.35)";
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.moveTo(SHOOTING_RANGE_CONFIG.shootPosX, SHOOTING_RANGE_CONFIG.shootPosY - 34);
-    ctx.lineTo(SHOOTING_RANGE_CONFIG.shootPosX, SHOOTING_RANGE_CONFIG.shootPosY + 96);
-    ctx.stroke();
+    ctx.fillRect(getShootingRangeConfig().targetLaneX - 18, getShootingRangeConfig().farTargetY - 42, 174, 12);
 
     for (const target of tutorialRangeTargets) {
       if (target.destroyed) {
@@ -6595,6 +6817,7 @@ function render() {
   ctx.translate(-camera.x, -camera.y);
 
   drawBackground();
+  drawVillagePortals();
 
   for (const tree of trees) {
     drawTree(tree);
@@ -7290,8 +7513,7 @@ async function initializeGame() {
   try {
     await loadCharacterOptions();
     await loadEnemyOptions();
-    initializeMainWorld();
-    activateTutorialWorld();
+    activateVillageWorld();
     initializeCharacterCards();
     updateAbilityUI();
     updateStatsUI();

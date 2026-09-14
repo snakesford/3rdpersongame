@@ -42,6 +42,23 @@ const TUTORIAL_WORLD = {
   returnTileY: WORLD.height / 2 + 320,
   returnTileSize: 96,
 };
+const VILLAGE_LAYOUT_OFFSET = { x: WORLD.width / 2 - 460, y: -1070 };
+const VILLAGE_RANGE = { x: WORLD.width - 650, y: 1300, w: 570, h: 220 };
+const VILLAGE_WORLD = {
+  height: 2800,
+  offset: VILLAGE_LAYOUT_OFFSET,
+  spawnX: VILLAGE_RANGE.x + 60,
+  spawnY: VILLAGE_RANGE.y - 50,
+  range: VILLAGE_RANGE,
+  portals: [
+    { x: 330, y: 1440, size: 80, destination: "main", label: ["MAIN", "WORLD"] },
+    { x: 450, y: 1575, size: 80, destination: "training", label: ["TRAINING", "WORLD"] },
+  ].map((portal) => ({ ...portal, x: portal.x + VILLAGE_LAYOUT_OFFSET.x, y: portal.y + VILLAGE_LAYOUT_OFFSET.y })),
+};
+const VILLAGE_RETURN_TILES = {
+  main: { x: 800, y: 850, size: 90, destination: "village", label: ["VILLAGE"] },
+  training: { x: 1360, y: 1270, size: 96, destination: "village", label: ["VILLAGE"] },
+};
 const DODGE_ARENA = {
   x: WORLD.width - 520,
   y: 120,
@@ -54,7 +71,7 @@ const DODGE_ARENA = {
 const VILLAGE_ROAD_WIDTH = 76;
 const COLORS = {
   ground: "#a8cb7a",
-  path: "#b6c792",
+  path: "#a8875b",
   tree: "#2f6b33",
   trunk: "#5f4023",
   stone: "#7e8792",
@@ -180,5 +197,7 @@ export {
   TUTORIAL_WORLD,
   UPGRADE_OPTIONS,
   VILLAGE_ROAD_WIDTH,
+  VILLAGE_WORLD,
+  VILLAGE_RETURN_TILES,
   WORLD,
 };

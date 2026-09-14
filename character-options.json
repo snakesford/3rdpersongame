@@ -20,7 +20,7 @@
     "name": "Soldier",
     "abilityName": "Burst Shot",
     "cooldown": 1,
-    "agility": 420,
+    "agility": 300,
     "portrait": "./images/soldier.png",
     "stats": {
       "armor": 45,
