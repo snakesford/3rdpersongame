@@ -102,6 +102,8 @@ import {
   nameStepEl,
   overlayMessageEl,
   playerNameInputEl,
+  playerPortraitNameEl,
+  playerPortraitEl,
   questObjectiveEl,
   questPanelEl,
   questTitleEl,
@@ -1849,6 +1851,7 @@ function confirmPlayerName() {
   }
 
   player.displayName = submittedName;
+  playerPortraitNameEl.textContent = player.displayName;
   savePlayerName(submittedName);
   nameStepEl.classList.add("hidden");
   classStepEl.classList.remove("hidden");
@@ -2402,6 +2405,14 @@ function updateStatsUI() {
   const currentHealth = Math.max(0, Math.round(hero.hp || 0));
   const speed = getHeroSpeed(selected);
   const regen = getHeroRegen(selected);
+
+  const portraitSrc = hero.hp < maxHealth / 2
+    ? "./images/soldier-damage.png"
+    : "./images/soldier-mugshot.png";
+  if (playerPortraitEl.getAttribute("src") !== portraitSrc) {
+    playerPortraitEl.src = portraitSrc;
+    playerPortraitEl.alt = hero.hp < maxHealth / 2 ? "Injured soldier portrait" : "Soldier portrait";
+  }
 
   armorValueEl.textContent = String(armor);
   healthValueEl.textContent = `${currentHealth}/${Math.round(maxHealth)}`;
@@ -6856,17 +6867,6 @@ function render() {
   }
   drawDodgeArenaBullets();
   drawHealthBar(hero.x, hero.y - 34, 60, hero.hp / hero.maxHp);
-  drawNameplate(
-    hero.x,
-    hero.y - 50,
-    player.displayName || "Player",
-    "rgba(10, 18, 14, 0.42)",
-    null,
-    "#ffd36b",
-    "rgba(255, 245, 210, 0.16)",
-    "rgba(255, 253, 242, 0.92)",
-    "500 14px Chakra Petch"
-  );
   drawHarvestProgress();
   drawSlashArc();
   drawGrenadeAimArc();
@@ -7528,6 +7528,7 @@ async function initializeGame() {
     const savedPlayerName = loadSavedPlayerName();
     if (savedPlayerName) {
       player.displayName = savedPlayerName;
+      playerPortraitNameEl.textContent = player.displayName;
       playerNameInputEl.value = savedPlayerName;
       nameStepEl.classList.add("hidden");
       classStepEl.classList.remove("hidden");

@@ -216,6 +216,51 @@ canvas {
   padding: 14px 16px;
 }
 
+.player-vitals {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 160px;
+}
+
+.hud-left {
+  padding-top: 110px;
+}
+
+.player-portrait {
+  padding: 6px;
+  margin-bottom: 3px;
+  background: #666a70;
+  border: 2px solid #969ba2;
+}
+
+.player-portrait-name {
+  display: block;
+  margin-bottom: 4px;
+  color: #fff;
+  font-size: 14px;
+  line-height: 18px;
+  text-align: center;
+  overflow-wrap: anywhere;
+}
+
+.player-vitals .stat-bar {
+  background: rgba(0, 0, 0, 0.45);
+}
+
+.player-vitals .stat-row {
+  gap: 2px;
+}
+
+.player-mugshot {
+  display: block;
+  width: 96px;
+  height: 96px;
+  margin: 0 auto;
+  object-fit: contain;
+  border-radius: 0;
+}
+
 .equipment-panel {
   margin-top: 16px;
   padding-top: 14px;

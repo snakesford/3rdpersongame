@@ -76,6 +76,8 @@ const dashCooldownTextEl = document.getElementById("dashCooldownText");
 const characterSelectEl = document.getElementById("characterSelect");
 const nameStepEl = document.getElementById("nameStep");
 const classStepEl = document.getElementById("classStep");
+const playerPortraitEl = document.getElementById("playerPortrait");
+const playerPortraitNameEl = document.getElementById("playerPortraitName");
 const playerNameInputEl = document.getElementById("playerNameInput");
 const confirmPlayerNameBtn = document.getElementById("confirmPlayerNameBtn");
 const classGridEl = document.querySelector(".class-grid");
@@ -141,6 +143,8 @@ export {
   nameStepEl,
   overlayMessageEl,
   playerNameInputEl,
+  playerPortraitNameEl,
+  playerPortraitEl,
   questObjectiveEl,
   questPanelEl,
   questTitleEl,

@@ -23,14 +23,19 @@
 
     <div class="hud-top">
       <div class="hud-left">
-        <div id="questPanel" class="quest-panel hidden">
-          <span class="stats-kicker">Quest</span>
-          <strong id="questTitle">Goblin Trouble</strong>
-          <span id="questObjective" class="quest-objective">Talk to the villager.</span>
+        <div class="player-vitals">
+          <div class="player-portrait">
+            <strong id="playerPortraitName" class="player-portrait-name">Player</strong>
+            <img id="playerPortrait" class="player-mugshot" src="./images/soldier-mugshot.png" alt="Soldier portrait" width="96" height="96" draggable="false">
+          </div>
+          <div class="stat-row">
+            <div class="stat-head hidden">
+              <span>Health <button class="upgrade-action hidden" data-upgrade="health" type="button" aria-label="Upgrade health">+</button></span>
+              <strong id="healthValue">0</strong>
+            </div>
+            <div class="stat-bar"><div id="healthFill" class="stat-fill health-fill"></div></div>
+          </div>
         </div>
-      </div>
-
-      <div class="hud-right">
         <div class="stats-panel">
           <span class="stats-kicker">Player Stats</span>
           <div class="stats-grid">
@@ -40,13 +45,6 @@
                 <strong id="armorValue">0</strong>
               </div>
               <div class="stat-bar"><div id="armorFill" class="stat-fill armor-fill"></div></div>
-            </div>
-            <div class="stat-row">
-              <div class="stat-head">
-                <span>Health <button class="upgrade-action hidden" data-upgrade="health" type="button" aria-label="Upgrade health">+</button></span>
-                <strong id="healthValue">0</strong>
-              </div>
-              <div class="stat-bar"><div id="healthFill" class="stat-fill health-fill"></div></div>
             </div>
             <div class="stat-row">
               <div class="stat-head">
@@ -114,6 +112,15 @@
         </div>
 
       </div>
+
+      <div class="hud-right">
+        <div id="questPanel" class="quest-panel hidden">
+          <span class="stats-kicker">Quest</span>
+          <strong id="questTitle">Goblin Trouble</strong>
+          <span id="questObjective" class="quest-objective">Talk to the villager.</span>
+        </div>
+      </div>
+
     </div>
 
     <div class="hud-bottom">
