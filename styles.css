@@ -765,19 +765,52 @@ button.hidden {
   gap: 10px;
 }
 
+.weapon-detail-effect {
+  color: #2fb344;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+
+.weapon-detail-effect.hidden {
+  display: none;
+}
+
 .weapon-detail-upgrade {
-  border: 1px solid rgba(255, 245, 210, 0.18);
+  position: relative;
+  width: 28px;
+  height: 28px;
+  border: 1px solid #2fb344;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.08);
-  color: #fff5d2;
-  padding: 5px 10px;
-  font: 600 11px "Chakra Petch", sans-serif;
-  letter-spacing: 0.08em;
+  background: #2fb344;
+  padding: 0;
   cursor: pointer;
 }
 
+.weapon-detail-upgrade::before,
+.weapon-detail-upgrade::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  background: #ffffff;
+  transform: translate(-50%, -50%);
+  border-radius: 999px;
+}
+
+.weapon-detail-upgrade::before {
+  width: 12px;
+  height: 2px;
+}
+
+.weapon-detail-upgrade::after {
+  width: 2px;
+  height: 12px;
+}
+
 .weapon-detail-upgrade:hover:not(:disabled) {
-  background: rgba(255, 226, 148, 0.16);
+  background: #27963a;
+  border-color: #27963a;
 }
 
 .weapon-detail-upgrade:disabled {

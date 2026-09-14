@@ -29,10 +29,15 @@ const weaponDetailsPanelEl = document.getElementById("weaponDetailsPanel");
 const weaponDetailsNameEl = document.getElementById("weaponDetailsName");
 const weaponDetailsMetaEl = document.getElementById("weaponDetailsMeta");
 const weaponDetailsDamageEl = document.getElementById("weaponDetailsDamage");
+const weaponDetailsDamageEffectEl = document.getElementById("weaponDetailsDamageEffect");
 const weaponDetailsAmmoEl = document.getElementById("weaponDetailsAmmo");
+const weaponDetailsAmmoEffectEl = document.getElementById("weaponDetailsAmmoEffect");
 const weaponDetailsReloadEl = document.getElementById("weaponDetailsReload");
+const weaponDetailsReloadEffectEl = document.getElementById("weaponDetailsReloadEffect");
 const weaponDetailsRangeEl = document.getElementById("weaponDetailsRange");
+const weaponDetailsRangeEffectEl = document.getElementById("weaponDetailsRangeEffect");
 const weaponDetailsFireRateEl = document.getElementById("weaponDetailsFireRate");
+const weaponDetailsFireRateEffectEl = document.getElementById("weaponDetailsFireRateEffect");
 const weaponDetailUpgradeEls = document.querySelectorAll(".weapon-detail-upgrade");
 const closeWeaponDetailsBtn = document.getElementById("closeWeaponDetailsBtn");
 const equipmentHelmetNameEl = document.getElementById("equipmentHelmetName");
@@ -156,12 +161,17 @@ export {
   weaponDetailsAmmoEl,
   weaponDetailsBtnEl,
   weaponDetailsDamageEl,
+  weaponDetailsDamageEffectEl,
   weaponDetailsFireRateEl,
+  weaponDetailsFireRateEffectEl,
   weaponDetailsMetaEl,
   weaponDetailsNameEl,
   weaponDetailsPanelEl,
   weaponDetailsRangeEl,
+  weaponDetailsRangeEffectEl,
   weaponDetailsReloadEl,
+  weaponDetailsReloadEffectEl,
+  weaponDetailsAmmoEffectEl,
   weaponDetailUpgradeEls,
   weaponFillEl,
   weaponValueEl,

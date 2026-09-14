@@ -118,14 +118,19 @@ import {
   upgradeActionEls,
   upgradePointsEl,
   weaponDetailsAmmoEl,
+  weaponDetailsAmmoEffectEl,
   weaponDetailsBtnEl,
   weaponDetailsDamageEl,
+  weaponDetailsDamageEffectEl,
   weaponDetailsFireRateEl,
+  weaponDetailsFireRateEffectEl,
   weaponDetailsMetaEl,
   weaponDetailsNameEl,
   weaponDetailsPanelEl,
   weaponDetailsRangeEl,
+  weaponDetailsRangeEffectEl,
   weaponDetailsReloadEl,
+  weaponDetailsReloadEffectEl,
   weaponDetailUpgradeEls,
   weaponFillEl,
   weaponValueEl,
@@ -1903,6 +1908,7 @@ function isUsingBattleMedicine() {
 function isSoldierRifleShooting() {
   return hero.selectedClass === "soldier" &&
     hero.hasRifle &&
+    hero.rifleFireMode === "automatic" &&
     mouse.leftDown &&
     !hero.isReloading &&
     hero.ammo > 0 &&
@@ -1914,6 +1920,24 @@ function isSoldierRifleShooting() {
 
 function cancelGrenadeAim() {
   grenadeAim.active = false;
+}
+
+function toggleRifleFireMode() {
+  if (!player.hasSelectedCharacter || hero.selectedClass !== "soldier" || !hero.hasRifle) {
+    return false;
+  }
+  hero.rifleFireMode = hero.rifleFireMode === "automatic" ? "semi" : "automatic";
+  statusTextEl.textContent = hero.rifleFireMode === "automatic"
+    ? "Fire Mode: Automatic"
+    : "Fire Mode: Semi-Automatic";
+  spawnTextPopup(
+    hero.x,
+    hero.y - hero.radius - 30,
+    hero.rifleFireMode === "automatic" ? "Fire Mode: Automatic" : "Fire Mode: Semi-Automatic",
+    "rgba(196, 234, 255, 1)",
+    1.1
+  );
+  return true;
 }
 
 function startBarracksPlacement() {
@@ -2119,6 +2143,11 @@ function syncWeaponDerivedStats() {
   }
 }
 
+function setWeaponDetailEffect(element, text, visible) {
+  element.textContent = text;
+  element.classList.toggle("hidden", !visible);
+}
+
 function updateWeaponDetailsUI() {
   weaponDetailsPanelEl.classList.toggle("hidden", !player.weaponDetailsOpen);
   if (!player.weaponDetailsOpen) {
@@ -2134,6 +2163,11 @@ function updateWeaponDetailsUI() {
     weaponDetailsReloadEl.textContent = "-";
     weaponDetailsRangeEl.textContent = "-";
     weaponDetailsFireRateEl.textContent = "-";
+    setWeaponDetailEffect(weaponDetailsDamageEffectEl, "", false);
+    setWeaponDetailEffect(weaponDetailsAmmoEffectEl, "", false);
+    setWeaponDetailEffect(weaponDetailsReloadEffectEl, "", false);
+    setWeaponDetailEffect(weaponDetailsRangeEffectEl, "", false);
+    setWeaponDetailEffect(weaponDetailsFireRateEffectEl, "", false);
     weaponDetailUpgradeEls.forEach((element) => {
       element.disabled = true;
     });
@@ -2147,6 +2181,40 @@ function updateWeaponDetailsUI() {
   weaponDetailsReloadEl.textContent = details.reload;
   weaponDetailsRangeEl.textContent = details.range;
   weaponDetailsFireRateEl.textContent = details.fireRate;
+  setWeaponDetailEffect(
+    weaponDetailsDamageEffectEl,
+    `+${player.weaponDetailDamageLevel * getWeaponUpgradeRules().damage.step}`,
+    player.weaponDetailDamageLevel > 0 && Boolean(details.upgrades?.damage)
+  );
+  setWeaponDetailEffect(
+    weaponDetailsAmmoEffectEl,
+    `+${player.weaponDetailAmmoLevel * getWeaponUpgradeRules().ammo.step}`,
+    player.weaponDetailAmmoLevel > 0 && Boolean(details.upgrades?.ammo)
+  );
+  setWeaponDetailEffect(
+    weaponDetailsReloadEffectEl,
+    `-${(player.weaponDetailReloadLevel * getWeaponUpgradeRules().reload.step).toFixed(1)}s`,
+    player.weaponDetailReloadLevel > 0 && Boolean(details.upgrades?.reload)
+  );
+  setWeaponDetailEffect(
+    weaponDetailsRangeEffectEl,
+    `+${player.weaponDetailRangeLevel * (details.type === "axe" || details.type === "class" && details.range === "Melee"
+      ? getWeaponUpgradeRules().range.meleeStep
+      : getWeaponUpgradeRules().range.step)}`,
+    player.weaponDetailRangeLevel > 0 && Boolean(details.upgrades?.range)
+  );
+  const fireRateEffectStep = details.type === "rifle"
+    ? getWeaponUpgradeRules().fireRate.rifleStep
+    : details.type === "bow"
+      ? getWeaponUpgradeRules().fireRate.bowStep
+      : details.type === "axe"
+        ? getWeaponUpgradeRules().fireRate.axeStep
+        : getWeaponUpgradeRules().fireRate.classStep;
+  setWeaponDetailEffect(
+    weaponDetailsFireRateEffectEl,
+    `-${(player.weaponDetailFireRateLevel * fireRateEffectStep).toFixed(1)}s`,
+    player.weaponDetailFireRateLevel > 0 && Boolean(details.upgrades?.fireRate)
+  );
   weaponDetailUpgradeEls.forEach((element) => {
     const upgradeId = element.dataset.weaponUpgrade;
     const allowed = Boolean(details.upgrades?.[upgradeId]);
@@ -3001,6 +3069,7 @@ function respawnHero() {
   hero.battleMedicineUseTimer = 0;
   hero.weaponPickupCooldown = 0;
   hero.hasRifle = hero.selectedClass === "soldier";
+  hero.rifleFireMode = "automatic";
   hero.rifleCooldown = 0;
   syncWeaponDerivedStats();
   hero.ammo = hero.hasRifle ? hero.maxAmmo : 0;
@@ -4051,6 +4120,7 @@ function equipPickup(pickup) {
     }
     swapHeroWeaponPickup("rifle", pickup.x, pickup.y, pickup.radius);
     hero.hasRifle = true;
+    hero.rifleFireMode = "automatic";
     hero.weaponPickupCooldown = 0.8;
     syncWeaponDerivedStats();
     hero.ammo = hero.maxAmmo;
@@ -6759,6 +6829,12 @@ window.addEventListener("keydown", (event) => {
     return;
   }
 
+  if (key === "x") {
+    if (!event.repeat && toggleRifleFireMode()) {
+      return;
+    }
+  }
+
   if (key === "q") {
     if (!event.repeat) {
       useBattleMedicine();
@@ -7102,6 +7178,7 @@ function selectCharacter(classId) {
   hero.battleMedicineUseTimer = 0;
   hero.weaponPickupCooldown = 0;
   hero.hasRifle = classId === "soldier";
+  hero.rifleFireMode = "automatic";
   hero.rifleCooldown = 0;
   syncWeaponDerivedStats();
   hero.ammo = hero.hasRifle ? hero.maxAmmo : 0;
