@@ -1334,6 +1334,10 @@ button.hidden {
   margin: auto;
   object-fit: contain;
 }
+.inventory-ability[data-ability-name="Battle Medicine"] {
+  justify-self: center;
+  padding: 20px;
+}
 .inventory-ability kbd {
   padding: 4px 9px;
   border: 1px solid var(--panel-border);

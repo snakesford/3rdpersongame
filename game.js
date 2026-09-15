@@ -2250,11 +2250,15 @@ function updateInventoryAbilities() {
     card.addEventListener("click", () => selectInventoryAbility(ability));
     const positions = ["left-upper", "left-lower", "top-left"];
     card.dataset.position = positions[index];
-    if (ability.name === "Grenade") {
-      card.setAttribute("aria-label", "Grenade");
+    const iconPath = {
+      "Grenade": "./images/grenade.png",
+      "Battle Medicine": "./images/medkit.png"
+    }[ability.name];
+    if (iconPath) {
+      card.setAttribute("aria-label", ability.name);
       const icon = document.createElement("img");
       icon.className = "inventory-ability-icon";
-      icon.src = "./images/grenade.png";
+      icon.src = iconPath;
       icon.alt = "";
       icon.draggable = false;
       card.appendChild(icon);
