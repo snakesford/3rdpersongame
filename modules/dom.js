@@ -3,16 +3,8 @@ const ctx = canvas.getContext("2d");
 ctx.imageSmoothingEnabled = true;
 ctx.imageSmoothingQuality = "high";
 
-const armorValueEl = document.getElementById("armorValue");
 const healthValueEl = document.getElementById("healthValue");
-const weaponValueEl = document.getElementById("weaponValue");
-const speedValueEl = document.getElementById("speedValue");
-const regenValueEl = document.getElementById("regenValue");
-const armorFillEl = document.getElementById("armorFill");
 const healthFillEl = document.getElementById("healthFill");
-const weaponFillEl = document.getElementById("weaponFill");
-const speedFillEl = document.getElementById("speedFill");
-const regenFillEl = document.getElementById("regenFill");
 const xpLevelEl = document.getElementById("xpLevel");
 const xpFillEl = document.getElementById("xpFill");
 const upgradePointsEl = document.getElementById("upgradePoints");
@@ -95,8 +87,6 @@ const dialogueHintEl = document.getElementById("dialogueHint");
 
 export {
   abilityNameEl,
-  armorFillEl,
-  armorValueEl,
   battleMedicineAbilityEl,
   battleMedicineAbilityNameEl,
   battleMedicineCooldownTextEl,
@@ -148,14 +138,10 @@ export {
   questObjectiveEl,
   questPanelEl,
   questTitleEl,
-  regenFillEl,
-  regenValueEl,
   shopPanelEl,
   shopSellWoodBtn,
   slashAbilityEl,
   slashCooldownTextEl,
-  speedFillEl,
-  speedValueEl,
   statusTextEl,
   traderPanelEl,
   traderStatusEl,
@@ -177,8 +163,6 @@ export {
   weaponDetailsReloadEffectEl,
   weaponDetailsAmmoEffectEl,
   weaponDetailUpgradeEls,
-  weaponFillEl,
-  weaponValueEl,
   xpFillEl,
   xpLevelEl,
   buyWeaponUpgradeBtn,

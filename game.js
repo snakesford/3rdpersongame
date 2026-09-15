@@ -52,8 +52,6 @@ import {
 } from "./modules/constants.js";
 import {
   abilityNameEl,
-  armorFillEl,
-  armorValueEl,
   battleMedicineAbilityEl,
   battleMedicineAbilityNameEl,
   battleMedicineCooldownTextEl,
@@ -107,14 +105,10 @@ import {
   questObjectiveEl,
   questPanelEl,
   questTitleEl,
-  regenFillEl,
-  regenValueEl,
   shopPanelEl,
   shopSellWoodBtn,
   slashAbilityEl,
   slashCooldownTextEl,
-  speedFillEl,
-  speedValueEl,
   statusTextEl,
   traderPanelEl,
   traderStatusEl,
@@ -136,8 +130,6 @@ import {
   weaponDetailsReloadEl,
   weaponDetailsReloadEffectEl,
   weaponDetailUpgradeEls,
-  weaponFillEl,
-  weaponValueEl,
   xpFillEl,
   xpLevelEl,
 } from "./modules/dom.js";
@@ -2444,12 +2436,8 @@ upgradeActionEls.forEach((element) => {
 function updateStatsUI() {
   const selected = getSelectedClassConfig();
   const stats = selected?.stats || { armor: 0, health: 0, weapon: 0, regen: 0 };
-  const armor = getTotalArmor(selected);
-  const damage = getDisplayedWeaponStat(selected);
   const maxHealth = hero.maxHp || stats.health;
   const currentHealth = Math.max(0, Math.round(hero.hp || 0));
-  const speed = getHeroSpeed(selected) * getRoadSpeedMultiplier();
-  const regen = getHeroRegen(selected);
 
   const portraitSrc = hero.hp < maxHealth / 2
     ? "./images/soldier-damage.png"
@@ -2459,16 +2447,8 @@ function updateStatsUI() {
     playerPortraitEl.alt = hero.hp < maxHealth / 2 ? "Injured soldier portrait" : "Soldier portrait";
   }
 
-  armorValueEl.textContent = String(armor);
   healthValueEl.textContent = `${currentHealth}/${Math.round(maxHealth)}`;
-  weaponValueEl.textContent = String(damage);
-  speedValueEl.textContent = String(speed);
-  regenValueEl.textContent = `${regen.toFixed(1)}/s`;
-  armorFillEl.style.width = `${armor}%`;
   healthFillEl.style.width = maxHealth > 0 ? `${Math.min(100, Math.max(0, (hero.hp / maxHealth) * 100))}%` : "0%";
-  weaponFillEl.style.width = `${Math.min(100, damage * 2)}%`;
-  speedFillEl.style.width = `${Math.min(100, (speed / 300) * 100)}%`;
-  regenFillEl.style.width = `${Math.min(100, regen * 20)}%`;
   updateEquipmentUI(selected, stats);
   updateWeaponDetailsUI();
 }
@@ -6935,12 +6915,12 @@ function render() {
   drawTutorialObjects();
   drawTutorialNpcs();
 
-  drawTrader();
   drawVillager();
 
   for (const building of buildings) {
     drawBuilding(building);
   }
+  drawTrader();
 
   if (hero.selectedClass === "stickman") {
     drawHeroStickFigure();
