@@ -2799,7 +2799,6 @@ function updateXpUI() {
   const inventoryXpProgress = document.getElementById("inventoryXpProgress");
   inventoryXpProgress.max = xpRequired;
   inventoryXpProgress.value = player.xp;
-  document.getElementById("inventoryXpText").textContent = `${player.xp} / ${xpRequired} XP`;
   xpLevelEl.textContent = `Level ${player.level} • ${player.xp}/${xpRequired} XP`;
   xpFillEl.style.width = `${Math.min(100, (player.xp / xpRequired) * 100)}%`;
   updateUpgradeUI();
