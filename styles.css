@@ -1172,12 +1172,35 @@ button.hidden {
 
 .inventory-level {
   padding: 14px 8px;
-  background: rgba(209, 165, 75, 0.2);
-  border: 1px solid rgba(209, 165, 75, 0.4);
+  background: transparent;
+  border: 0;
   color: #fff5d2;
   font-size: 25px;
   text-align: center;
 }
+
+.inventory-xp {
+  display: grid;
+  gap: 4px;
+  margin-top: 8px;
+  text-align: center;
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.inventory-xp progress {
+  appearance: none;
+  width: 100%;
+  height: 7px;
+  border: 0;
+  border-radius: 4px;
+  overflow: hidden;
+  background: rgba(0, 0, 0, 0.4);
+}
+
+.inventory-xp progress::-webkit-progress-bar { background: rgba(0, 0, 0, 0.4); }
+.inventory-xp progress::-webkit-progress-value { background: var(--accent); border-radius: 4px; }
+.inventory-xp progress::-moz-progress-bar { background: var(--accent); border-radius: 4px; }
 
 .inventory-stat-list {
   margin: 16px 0 0;
@@ -1299,11 +1322,21 @@ button.hidden {
   padding-bottom: 10px;
 }
 
-.inventory-tabs button { flex: 1; min-width: 0; }
+.inventory-tabs [data-inventory-tab="equipment"] { --tab-color: 205, 65, 65; }
+.inventory-tabs [data-inventory-tab="abilities"] { --tab-color: 55, 130, 220; }
+.inventory-tabs [data-inventory-tab="items"] { --tab-color: 60, 165, 85; }
+.inventory-tabs button {
+  flex: 1;
+  min-width: 0;
+  background: rgba(var(--tab-color), 0.3);
+  border-color: rgba(var(--tab-color), 0.7);
+  color: #fff;
+}
+.inventory-tabs button:hover { background: rgba(var(--tab-color), 0.5); }
 .inventory-tabs button[aria-selected="true"] {
-  background: rgba(209, 165, 75, 0.3);
-  border-color: var(--accent);
-  color: #fff5d2;
+  background: rgba(var(--tab-color), 0.65);
+  border-color: rgb(var(--tab-color));
+  color: #fff;
 }
 
 .inventory-layout > .abilities-panel { overflow-x: auto; }
