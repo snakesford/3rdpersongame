@@ -194,8 +194,16 @@ const tutorialDialogue = {
   options: [],
   progressView: null,
   taskOffered: false,
+  lineIndex: 0,
 };
 const SHOOTING_INSTRUCTOR_ID = "shootingInstructor";
+const SHOOTING_RANGE_DIALOGUE = [
+  "Welcome to the shooting range. You can practice your aim on the two targets here.",
+  "Stand behind the thick brown firing line. Keep your weapon pointed toward the targets and leave space for other shooters.",
+  "Use the mouse to aim and left-click to fire. In semi-automatic mode, each click fires one round. Release the trigger before firing again.",
+  "Stop firing before anyone goes downrange. Reload when needed, and keep your shots inside the target area.",
+  "That covers the range rules. You are free to practice now. I will wait behind the bottom end of the firing line.",
+];
 const SHOOTING_RANGE_CONFIG = {
   instructorStartX: TUTORIAL_WORLD.spawnX + 120,
   instructorStartY: TUTORIAL_WORLD.spawnY - 110,
@@ -225,6 +233,7 @@ function getShootingLine() {
 }
 
 const shootingRangeTutorial = {
+  movingTargets: false,
   state: "idle",
   started: false,
   completed: false,
@@ -295,6 +304,7 @@ const PROFESSION_REPUTATION_UNLOCKS = {
   ],
 };
 const SHOOTING_RANGE_TUTORIAL_XP = 12;
+const SHOOTING_RANGE_TARGET_XP = 5;
 const tutorialProfessionState = Object.fromEntries(
   Object.keys(TUTORIAL_PROFESSIONS).map((professionId) => [
     professionId,
@@ -739,15 +749,16 @@ function createSpecialTutorialNpc(npcConfig) {
 }
 
 function resetShootingRangeTutorial() {
+  shootingRangeTutorial.movingTargets = false;
   tutorialRangeTargets.length = 0;
-  shootingRangeTutorial.state = "idle";
-  shootingRangeTutorial.started = false;
-  shootingRangeTutorial.completed = false;
+  shootingRangeTutorial.state = shootingRangeTutorial.completed ? "completed" : "idle";
+  shootingRangeTutorial.started = shootingRangeTutorial.completed;
   shootingRangeTutorial.hits = 0;
   shootingRangeTutorial.introSeen = false;
   tutorialRangeTargets.push(
     {
       id: "rangeTargetNear",
+      resetTimer: 0,
       x: getShootingRangeConfig().targetLaneX,
       y: getShootingRangeConfig().nearTargetY,
       radius: 18,
@@ -758,6 +769,7 @@ function resetShootingRangeTutorial() {
     },
     {
       id: "rangeTargetFar",
+      resetTimer: 0,
       x: getShootingRangeConfig().targetLaneX + 86,
       y: getShootingRangeConfig().farTargetY,
       radius: 18,
@@ -769,11 +781,60 @@ function resetShootingRangeTutorial() {
   );
 }
 
+function getMovingTargetTile() {
+  const line = getShootingLine();
+  return { x: line.x - 164, y: line.y + 10, size: 64 };
+}
+
+function getStaticTargetTile() {
+  const movingTile = getMovingTargetTile();
+  return { ...movingTile, y: movingTile.y + movingTile.size + 24 };
+}
+
+function activateStaticTargets() {
+  if (!shootingRangeTutorial.movingTargets) return;
+  const range = getShootingRangeConfig();
+  const targets = tutorialRangeTargets.map((target, index) => ({
+    id: index === 0 ? "rangeTargetNear" : "rangeTargetFar",
+    x: range.targetLaneX + index * 86,
+    y: index === 0 ? range.nearTargetY : range.farTargetY,
+    radius: target.radius,
+    hit: false,
+    destroyed: false,
+    hp: target.maxHp,
+    maxHp: target.maxHp,
+    resetTimer: 0,
+  }));
+  tutorialRangeTargets.splice(0, tutorialRangeTargets.length, ...targets);
+  shootingRangeTutorial.movingTargets = false;
+  shootingRangeTutorial.hits = 0;
+  statusTextEl.textContent = "Static targets activated.";
+}
+
+function activateMovingTargets() {
+  if (shootingRangeTutorial.movingTargets) return;
+  const targets = tutorialRangeTargets.map((target, index) => ({
+    ...target,
+    id: `movingRangeTarget${index}`,
+    hit: false,
+    destroyed: false,
+    hp: target.maxHp,
+    resetTimer: 0,
+    originY: target.y,
+    movementPhase: index * Math.PI,
+  }));
+  tutorialRangeTargets.splice(0, tutorialRangeTargets.length, ...targets);
+  shootingRangeTutorial.movingTargets = true;
+  shootingRangeTutorial.hits = 0;
+  statusTextEl.textContent = "Moving targets activated.";
+}
+
 function resetTutorialRangeTargets() {
   for (const target of tutorialRangeTargets) {
     target.hit = false;
     target.destroyed = false;
     target.hp = target.maxHp;
+    target.resetTimer = 0;
   }
 }
 
@@ -1229,9 +1290,7 @@ function registerContractKill(enemy) {
 function getQuestObjectiveText() {
   if (player.inVillageWorld) {
     if (shootingRangeTutorial.started && !shootingRangeTutorial.completed) {
-      return shootingRangeTutorial.state === "leading"
-        ? "Follow the Shooting Instructor."
-        : `Hit the targets: ${shootingRangeTutorial.hits}/2`;
+      return "Speak to the Shooting Instructor and read the range rules.";
     }
     const task = getTutorialProfessionState("mercenary").activeTask;
     if (task) return task.status === "readyToTurnIn"
@@ -1251,10 +1310,7 @@ function getQuestObjectiveText() {
       return "Explore off the main forest paths to find the hidden goblin camp.";
     }
     if (shootingRangeTutorial.started && !shootingRangeTutorial.completed) {
-      if (shootingRangeTutorial.state === "leading") {
-        return "Follow the Shooting Instructor.";
-      }
-      return `Hit the targets: ${shootingRangeTutorial.hits}/2`;
+      return "Speak to the Shooting Instructor and read the range rules.";
     }
     const activeTasks = Object.entries(tutorialProfessionState)
       .filter(([, state]) => state.activeTask && state.activeTask.status !== "completed")
@@ -1373,6 +1429,7 @@ function closeTutorialDialogue() {
   tutorialDialogue.options = [];
   tutorialDialogue.progressView = null;
   tutorialDialogue.taskOffered = false;
+  tutorialDialogue.lineIndex = 0;
 }
 
 function getTutorialNpcById(npcId) {
@@ -1381,11 +1438,7 @@ function getTutorialNpcById(npcId) {
 
 function buildTutorialDialogueOptions(npc) {
   if (npc.kind === "shootingInstructor") {
-    return [
-      { id: "work", label: "1. Ask About Work" },
-      { id: "progress", label: "3. View Progress" },
-      { id: "leave", label: "4. Leave" },
-    ];
+    return [];
   }
 
   const state = getTutorialProfessionState(npc.professionId);
@@ -1411,11 +1464,15 @@ function buildTutorialDialogueOptions(npc) {
 function openTutorialNpcMenu(npc, text = null, taskOffered = false, progressView = null) {
   if (npc.kind === "shootingInstructor") {
     tutorialDialogue.npcId = npc.id;
-    tutorialDialogue.text = text || "I cover ranged combat. Ask about work and I will walk you through a short live-fire lesson.";
-    tutorialDialogue.progressView = progressView;
+    tutorialDialogue.lineIndex = 0;
+    tutorialDialogue.text = SHOOTING_RANGE_DIALOGUE[0];
+    tutorialDialogue.progressView = null;
     tutorialDialogue.taskOffered = false;
-    tutorialDialogue.options = buildTutorialDialogueOptions(npc);
+    tutorialDialogue.options = [];
     shootingRangeTutorial.introSeen = true;
+    shootingRangeTutorial.started = true;
+    if (!shootingRangeTutorial.completed) shootingRangeTutorial.state = "briefing";
+    updateQuestUI();
     updateDialogueUI();
     return;
   }
@@ -1476,6 +1533,23 @@ function turnInTutorialProfessionTask(professionId) {
   return true;
 }
 
+function advanceShootingInstructorDialogue() {
+  const npc = getTutorialNpcById(tutorialDialogue.npcId);
+  if (npc?.kind !== "shootingInstructor") return;
+  if (tutorialDialogue.lineIndex < SHOOTING_RANGE_DIALOGUE.length - 1) {
+    tutorialDialogue.lineIndex += 1;
+    tutorialDialogue.text = SHOOTING_RANGE_DIALOGUE[tutorialDialogue.lineIndex];
+    updateDialogueUI();
+    return;
+  }
+  const shootingLine = getShootingLine();
+  npc.targetX = shootingLine.x - npc.radius - 12;
+  npc.targetY = shootingLine.y + shootingLine.h - npc.radius;
+  closeTutorialDialogue();
+  updateDialogueUI();
+  completeShootingRangeTutorial();
+}
+
 function handleTutorialNpcOption(optionId) {
   const npc = getTutorialNpcById(tutorialDialogue.npcId);
   if (!npc) {
@@ -1483,53 +1557,8 @@ function handleTutorialNpcOption(optionId) {
   }
 
   if (npc.kind === "shootingInstructor") {
-    if (optionId === "leave") {
-      closeTutorialDialogue();
-      updateDialogueUI();
-      statusTextEl.textContent = getCharacterStatus();
-      return;
-    }
-
-    if (optionId === "work") {
-      if (shootingRangeTutorial.completed) {
-        openTutorialNpcMenu(npc, "Clean work. You cleared the range. Head to the main world when you are ready.");
-        return;
-      }
-      if (!shootingRangeTutorial.started) {
-        resetTutorialRangeTargets();
-        shootingRangeTutorial.hits = 0;
-        shootingRangeTutorial.started = true;
-        shootingRangeTutorial.state = "leading";
-        const shootingLine = getShootingLine();
-        npc.targetX = shootingLine.x - npc.radius - 12;
-        npc.targetY = shootingLine.y + shootingLine.h - npc.radius;
-        spawnTextPopup(npc.x, npc.y - 30, "Follow me.", "rgba(255, 226, 148, 1)", 1.2);
-        closeTutorialDialogue();
-        updateDialogueUI();
-        statusTextEl.textContent = "Instructor: Follow me to the range.";
-        updateQuestUI();
-        return;
-      }
-      if (shootingRangeTutorial.state === "leading") {
-        openTutorialNpcMenu(npc, "Stay with me. We are moving to the firing line.");
-      } else {
-        openTutorialNpcMenu(npc, `Take the shots. Hit the targets: ${shootingRangeTutorial.hits}/2.`);
-      }
-      return;
-    }
-
-    if (optionId === "progress") {
-      if (shootingRangeTutorial.completed) {
-        openTutorialNpcMenu(npc, "Both targets were hit.");
-      } else if (!shootingRangeTutorial.started) {
-        openTutorialNpcMenu(npc, "Lesson not started. Ask about work to begin.");
-      } else if (shootingRangeTutorial.state === "leading") {
-        openTutorialNpcMenu(npc, "Current step: follow me to the shooting position.");
-      } else {
-        openTutorialNpcMenu(npc, `Current step: hit the targets. Progress ${shootingRangeTutorial.hits}/2.`);
-      }
-      return;
-    }
+    if (optionId === "next") advanceShootingInstructorDialogue();
+    return;
   }
 
   const profession = TUTORIAL_PROFESSIONS[npc.professionId];
@@ -1636,6 +1665,21 @@ function updateDialogueUI() {
     const npc = getTutorialNpcById(tutorialDialogue.npcId);
     dialogueSpeakerEl.textContent = npc?.name || "Guide";
     dialogueTextEl.textContent = tutorialDialogue.text;
+    if (npc?.kind === "shootingInstructor") {
+      dialogueProgressEl.classList.add("hidden");
+      dialogueHintEl.textContent = "Press Space or click Next";
+      dialogueHintEl.classList.remove("hidden");
+      dialogueOptionsEl.textContent = "";
+      dialogueOptionsEl.classList.remove("hidden");
+      const nextButton = document.createElement("button");
+      nextButton.type = "button";
+      nextButton.className = "dialogue-option";
+      nextButton.style.gridColumn = "1 / -1";
+      nextButton.textContent = "Next";
+      nextButton.addEventListener("click", advanceShootingInstructorDialogue);
+      dialogueOptionsEl.appendChild(nextButton);
+      return;
+    }
     dialogueHintEl.textContent = "";
     dialogueHintEl.classList.add("hidden");
     if (tutorialDialogue.progressView) {
@@ -2975,10 +3019,6 @@ function completeShootingRangeTutorial() {
   shootingRangeTutorial.completed = true;
   shootingRangeTutorial.state = "completed";
   awardPlayerXp(SHOOTING_RANGE_TUTORIAL_XP);
-  const instructor = getShootingInstructor();
-  if (instructor) {
-    openTutorialNpcMenu(instructor, "Good shooting. Both targets are down.");
-  }
   statusTextEl.textContent = getCharacterStatus();
   updateQuestUI();
 }
@@ -3010,6 +3050,8 @@ function destroyTutorialRangeTarget(target, reason = "destroyed") {
 
   target.destroyed = true;
   target.hp = 0;
+  target.resetTimer = 2;
+  awardPlayerXp(SHOOTING_RANGE_TARGET_XP, target.x, target.y);
   if (shootingRangeTutorial.state === "shootTargets" || shootingRangeTutorial.state === "completed") {
     registerTutorialTargetHit(target);
   }
@@ -3074,6 +3116,33 @@ function tryHitTutorialRangeTarget(projectile) {
 }
 
 function updateTutorialWorldSystems(dt) {
+  const tile = getMovingTargetTile();
+  if (hero.x >= tile.x && hero.x <= tile.x + tile.size &&
+      hero.y >= tile.y && hero.y <= tile.y + tile.size) {
+    activateMovingTargets();
+  }
+  const staticTile = getStaticTargetTile();
+  if (hero.x >= staticTile.x && hero.x <= staticTile.x + staticTile.size &&
+      hero.y >= staticTile.y && hero.y <= staticTile.y + staticTile.size) {
+    activateStaticTargets();
+  }
+  for (const target of tutorialRangeTargets) {
+    if (!target.destroyed) {
+      if (shootingRangeTutorial.movingTargets) {
+        target.movementPhase += dt * 2;
+        target.y = target.originY + Math.sin(target.movementPhase) * 32;
+      }
+      continue;
+    }
+    target.resetTimer = Math.max(0, target.resetTimer - dt);
+    if (target.resetTimer === 0) {
+      target.destroyed = false;
+      target.hit = false;
+      target.hp = target.maxHp;
+      shootingRangeTutorial.hits = tutorialRangeTargets.filter((entry) => entry.hit).length;
+    }
+  }
+
   for (const plot of tutorialPlots) {
     if (!plot.active || plot.state !== "growing") {
       continue;
@@ -3096,18 +3165,8 @@ function updateTutorialWorldSystems(dt) {
   }
 
   const instructor = getShootingInstructor();
-  if (instructor && shootingRangeTutorial.state === "leading") {
-    const heroDistance = distance(hero, instructor);
-    if (heroDistance <= 220) {
-      const arrived = moveTutorialNpcToward(instructor, instructor.targetX, instructor.targetY, dt);
-      if (arrived) {
-        shootingRangeTutorial.state = "shootTargets";
-        spawnTextPopup(instructor.x, instructor.y - 30, "Hit both targets.", "rgba(255, 226, 148, 1)", 1.2);
-        openTutorialNpcMenu(instructor, "Stand behind the thick brown firing line and shoot both targets. I will wait at this end.");
-        statusTextEl.textContent = "Instructor: Hold here and shoot both targets.";
-        updateQuestUI();
-      }
-    }
+  if (instructor && shootingRangeTutorial.completed && distance(hero, instructor) <= 220) {
+    moveTutorialNpcToward(instructor, instructor.targetX, instructor.targetY, dt);
   }
 }
 
@@ -5777,12 +5836,6 @@ function drawTutorialNpcs() {
       drawNameplate(npc.x, npc.y - 40, npc.name, "rgba(15, 33, 24, 0.9)");
     }
     if (npc.kind === "shootingInstructor") {
-      if (distance(hero, npc) <= 90 && shootingRangeTutorial.started && !shootingRangeTutorial.completed) {
-        const label = shootingRangeTutorial.state === "leading"
-          ? "Follow me"
-          : `Targets ${shootingRangeTutorial.hits}/2`;
-        drawNameplate(npc.x, npc.y - 64, label, "rgba(33, 24, 15, 0.9)");
-      }
       continue;
     }
 
@@ -5823,6 +5876,25 @@ function drawTutorialObjects() {
   }
   if (player.inTutorialWorld || player.inVillageWorld) {
     const shootingLine = getShootingLine();
+    const targetTiles = [
+      { tile: getMovingTargetTile(), label: "MOVING", active: shootingRangeTutorial.movingTargets },
+      { tile: getStaticTargetTile(), label: "STATIC", active: !shootingRangeTutorial.movingTargets },
+    ];
+    for (const { tile, label, active } of targetTiles) {
+      ctx.fillStyle = active ? "#42735d" : "#486f91";
+      ctx.fillRect(tile.x, tile.y, tile.size, tile.size);
+      ctx.strokeStyle = "#c1edff";
+      ctx.lineWidth = 2;
+      ctx.strokeRect(tile.x, tile.y, tile.size, tile.size);
+      ctx.fillStyle = "#fff";
+      ctx.font = "700 11px Chakra Petch";
+      ctx.textAlign = "center";
+      ctx.fillText(label, tile.x + tile.size / 2, tile.y + 24);
+      ctx.fillText("TARGETS", tile.x + tile.size / 2, tile.y + 40);
+      if (distance(hero, { x: tile.x + 32, y: tile.y + 32 }) <= 100) {
+        ctx.fillText(active ? "Active" : "Step here to activate", tile.x + 32, tile.y - 10);
+      }
+    }
     ctx.fillStyle = "#5c492a";
     ctx.fillRect(shootingLine.x, shootingLine.y, shootingLine.w, shootingLine.h);
     ctx.fillStyle = "rgba(92, 73, 42, 0.55)";
@@ -6990,6 +7062,11 @@ window.addEventListener("keydown", (event) => {
 
   if (isDialogueOpen()) {
     if (tutorialDialogue.npcId) {
+      if (getTutorialNpcById(tutorialDialogue.npcId)?.kind === "shootingInstructor" && event.code === "Space") {
+        event.preventDefault();
+        if (!event.repeat) advanceShootingInstructorDialogue();
+        return;
+      }
       if (["1", "2", "3", "4"].includes(event.key)) {
         event.preventDefault();
         const option = tutorialDialogue.options.find((entry) => entry.label.startsWith(`${event.key}.`));
