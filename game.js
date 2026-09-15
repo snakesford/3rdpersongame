@@ -2234,6 +2234,21 @@ function updateInventoryAbilities() {
     inventoryAbilitiesListEl.appendChild(slot);
   }
   const abilities = getInventoryAbilities();
+  const sideAbilities = document.getElementById("inventorySideAbilities");
+  sideAbilities.replaceChildren();
+  for (const ability of abilities) {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.textContent = `${ability.name} (${ability.key})`;
+    button.addEventListener("click", () => selectInventoryAbility(ability));
+    sideAbilities.appendChild(button);
+  }
+  if (!abilities.length) {
+    const empty = document.createElement("p");
+    empty.className = "inventory-empty";
+    empty.textContent = "No abilities yet.";
+    sideAbilities.appendChild(empty);
+  }
   if (!abilities.length) {
     const empty = document.createElement("p");
     empty.className = "inventory-empty";

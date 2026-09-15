@@ -1120,7 +1120,7 @@ button.hidden {
 }
 
 .inventory-screen-panel {
-  width: min(1100px, 100%);
+  width: min(1500px, 100%);
   height: min(860px, calc(100vh - 48px));
   max-height: calc(100vh - 48px);
   overflow-y: auto;
@@ -1139,7 +1139,7 @@ button.hidden {
 
 .inventory-layout {
   display: grid;
-  grid-template-columns: 240px minmax(0, 1fr);
+  grid-template-columns: 240px minmax(0, 1fr) 260px;
   gap: 20px;
   margin-top: 24px;
   align-items: stretch;
@@ -1314,10 +1314,28 @@ button.hidden {
   z-index: 31;
 }
 
+.inventory-section-header {
+  display: grid;
+  grid-template-columns: 240px minmax(0, 1fr) 260px;
+  align-items: center;
+  gap: 20px;
+  margin-top: 20px;
+}
+
+.inventory-section-header h2 {
+  margin: 0;
+  font-size: 19px;
+  color: #fff5d2;
+}
+
+@media (max-width: 760px) {
+  .inventory-section-header { grid-template-columns: 1fr; }
+}
+
 .inventory-tabs {
   display: flex;
   gap: 8px;
-  margin-top: 20px;
+  margin-top: 0;
   border-bottom: 1px solid rgba(209, 165, 75, 0.3);
   padding-bottom: 10px;
 }
@@ -1337,6 +1355,31 @@ button.hidden {
   background: rgba(var(--tab-color), 0.65);
   border-color: rgb(var(--tab-color));
   color: #fff;
+}
+
+.inventory-side-panel {
+  grid-column: 3;
+  grid-row: 1 / 3;
+  min-width: 0;
+  padding: 18px;
+  border: 1px solid rgba(209, 165, 75, 0.3);
+  border-radius: 10px;
+  background: rgba(0, 0, 0, 0.22);
+}
+.inventory-side-panel h2 { margin: 0 0 18px; font-size: 19px; color: #fff5d2; }
+.inventory-side-abilities { display: grid; gap: 10px; }
+.inventory-side-abilities button { width: 100%; text-align: left; }
+.inventory-layout > .inventory-ability-details { grid-column: 1 / 3; }
+
+@media (max-width: 1100px) {
+  .inventory-layout,
+  .inventory-section-header { grid-template-columns: 240px minmax(0, 1fr); }
+  .inventory-side-panel { grid-column: 1 / -1; grid-row: auto; min-height: 160px; }
+}
+@media (max-width: 760px) {
+  .inventory-layout,
+  .inventory-section-header { grid-template-columns: 1fr; }
+  .inventory-layout > .inventory-ability-details { grid-column: 1; }
 }
 
 .inventory-layout > .abilities-panel { overflow-x: auto; }

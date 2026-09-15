@@ -221,14 +221,16 @@
   <div id="inventoryScreen" class="inventory-screen hidden" role="dialog" aria-modal="true" aria-labelledby="inventoryScreenTitle" tabindex="-1">
     <div class="inventory-screen-panel">
       <h1 id="inventoryScreenTitle">Inventory</h1>
+      <div class="inventory-section-header">
+        <h2 id="inventoryStatsTitle">Player Stats</h2>
       <div class="inventory-tabs" role="tablist" aria-label="Inventory sections">
         <button id="inventoryEquipmentTab" type="button" role="tab" data-inventory-tab="equipment" aria-selected="true" aria-controls="inventoryEquipmentPanel">Equipment</button>
         <button id="inventoryAbilitiesTab" type="button" role="tab" data-inventory-tab="abilities" aria-selected="false" aria-controls="inventoryAbilitiesPanel" tabindex="-1">Abilities</button>
         <button id="inventoryItemsTab" type="button" role="tab" data-inventory-tab="items" aria-selected="false" aria-controls="inventoryItemsPanel" tabindex="-1">Items</button>
       </div>
+      </div>
       <div class="inventory-layout">
         <section class="stats-panel inventory-attributes" aria-labelledby="inventoryStatsTitle">
-          <h2 id="inventoryStatsTitle">Player Stats</h2>
           <div class="inventory-level">Level <strong data-inventory-stat="level">1</strong></div>
           <div class="inventory-xp">
             <progress id="inventoryXpProgress" value="0" max="50" aria-label="Experience toward next level"></progress>
@@ -294,6 +296,16 @@
             <span class="inventory-empty">No items yet</span>
           </div>
         </div>
+        <aside class="inventory-side-panel" data-inventory-panel="equipment" aria-label="Available equipment">
+          <h2>Equipment</h2>
+        </aside>
+        <aside class="inventory-side-panel hidden" data-inventory-panel="abilities" aria-label="Available abilities">
+          <h2>Abilities</h2>
+          <div id="inventorySideAbilities" class="inventory-side-abilities"></div>
+        </aside>
+        <aside class="inventory-side-panel hidden" data-inventory-panel="items" aria-label="Available items">
+          <h2>Items</h2>
+        </aside>
         <section id="inventoryEquipmentDetails" class="inventory-ability-details" data-inventory-panel="equipment" aria-label="Equipment instructions" aria-live="polite">
           <p>Click one of the slots surrounding your character to change your equipment.</p>
         </section>
