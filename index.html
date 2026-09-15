@@ -10,7 +10,7 @@
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-  <canvas id="gameCanvas"></canvas>
+  <canvas id="gameCanvas" tabindex="-1"></canvas>
 
   <div class="hud">
     <div class="xp-shell">
@@ -24,10 +24,10 @@
     <div class="hud-top">
       <div class="hud-left">
         <div class="player-vitals">
-          <div class="player-portrait">
+          <button id="openInventoryBtn" class="player-portrait" type="button" aria-label="Open inventory" aria-haspopup="dialog" aria-controls="inventoryScreen">
             <strong id="playerPortraitName" class="player-portrait-name">Player</strong>
             <img id="playerPortrait" class="player-mugshot" src="./images/soldier-mugshot.png" alt="Soldier portrait" width="96" height="96" draggable="false">
-          </div>
+          </button>
           <div class="stat-row">
             <div class="stat-head hidden">
               <span>Health <button class="upgrade-action hidden" data-upgrade="health" type="button" aria-label="Upgrade health">+</button></span>
@@ -36,50 +36,7 @@
             <div class="stat-bar"><div id="healthFill" class="stat-fill health-fill"></div></div>
           </div>
         </div>
-        <div class="stats-panel">
-          <span class="stats-kicker">Player Stats</span>
-          <div class="equipment-panel">
-            <span class="stats-kicker equipment-kicker">Equipment</span>
-            <div class="equipment-grid">
-              <div class="equipment-slot">
-                <span class="equipment-label">Helmet <button class="upgrade-action hidden" data-upgrade="helmet" type="button" aria-label="Upgrade helmet">+</button></span>
-                <div class="equipment-content">
-                  <img id="equipmentHelmetIcon" class="equipment-icon" alt="Equipped helmet icon">
-                  <div class="equipment-copy">
-                    <strong id="equipmentHelmetName">None</strong>
-                    <span id="equipmentHelmetMeta" class="equipment-meta">No helmet equipped</span>
-                  </div>
-                </div>
-              </div>
-              <div class="equipment-slot">
-                <span class="equipment-label">Body Armor</span>
-                <div class="equipment-content">
-                  <img id="equipmentBodyArmorIcon" class="equipment-icon" alt="Equipped body armor icon">
-                  <div class="equipment-copy">
-                    <strong id="equipmentBodyArmorName"></strong>
-                    <span id="equipmentBodyArmorMeta" class="equipment-meta"></span>
-                  </div>
-                </div>
-              </div>
-              <button id="weaponDetailsBtn" class="equipment-slot equipment-slot-button" type="button" aria-label="View weapon details">
-                <span class="equipment-label">Weapon</span>
-                <div class="equipment-content">
-                  <img id="equipmentWeaponIcon" class="equipment-icon" alt="Equipped weapon icon">
-                  <div class="equipment-copy">
-                    <strong id="equipmentWeaponName"></strong>
-                    <span id="equipmentWeaponMeta" class="equipment-meta"></span>
-                  </div>
-                </div>
-              </button>
-            </div>
-          </div>
-          <div class="inventory-panel">
-            <span class="stats-kicker inventory-kicker">Inventory</span>
-            <div id="inventoryList" class="inventory-list">
-              <span class="inventory-empty">No items yet</span>
-            </div>
-          </div>
-        </div>
+
 
       </div>
 
@@ -251,6 +208,77 @@
         <span class="start-kicker">Choose Your Hero</span>
         <h2>Pick a character before the match starts</h2>
         <div class="class-grid"></div>
+      </div>
+    </div>
+  </div>
+
+  <div id="inventoryScreen" class="inventory-screen hidden" role="dialog" aria-modal="true" aria-labelledby="inventoryScreenTitle" tabindex="-1">
+    <div class="inventory-screen-panel">
+      <h1 id="inventoryScreenTitle">Inventory</h1>
+      <div class="inventory-tabs" role="tablist" aria-label="Inventory sections">
+        <button id="inventoryEquipmentTab" type="button" role="tab" data-inventory-tab="equipment" aria-selected="true" aria-controls="inventoryEquipmentPanel">Equipment</button>
+        <button id="inventoryAbilitiesTab" type="button" role="tab" data-inventory-tab="abilities" aria-selected="false" aria-controls="inventoryAbilitiesPanel" tabindex="-1">Abilities</button>
+        <button id="inventoryItemsTab" type="button" role="tab" data-inventory-tab="items" aria-selected="false" aria-controls="inventoryItemsPanel" tabindex="-1">Items</button>
+      </div>
+      <div class="inventory-layout">
+        <section class="stats-panel inventory-attributes" aria-labelledby="inventoryStatsTitle">
+          <h2 id="inventoryStatsTitle">Player Stats</h2>
+          <div class="inventory-level">Level <strong data-inventory-stat="level">1</strong></div>
+          <dl class="inventory-stat-list">
+            <div><dt>Health</dt><dd data-inventory-stat="health">0/0</dd></div>
+            <div><dt>Armor</dt><dd data-inventory-stat="armor">0</dd></div>
+            <div><dt>Damage</dt><dd data-inventory-stat="damage">0</dd></div>
+            <div><dt>Speed</dt><dd data-inventory-stat="speed">0</dd></div>
+            <div><dt>Regen</dt><dd data-inventory-stat="regen">0/s</dd></div>
+            <div class="inventory-gold"><dt><img class="inventory-coin" src="./images/coin.png" alt="Coins" width="32" height="32"></dt><dd data-inventory-stat="gold">0</dd></div>
+          </dl>
+        </section>
+        <div id="inventoryEquipmentPanel" class="equipment-panel" role="tabpanel" data-inventory-panel="equipment" aria-labelledby="inventoryEquipmentTab" tabindex="0">
+          <h2>Equipment</h2>
+          <div class="equipment-grid">
+            <div class="equipment-slot">
+              <span class="equipment-label">Helmet <button class="upgrade-action hidden" data-upgrade="helmet" type="button" aria-label="Upgrade helmet">+</button></span>
+              <div class="equipment-content">
+                <img id="equipmentHelmetIcon" class="equipment-icon" alt="Equipped helmet icon">
+                <div class="equipment-copy">
+                  <strong id="equipmentHelmetName">None</strong>
+                  <span id="equipmentHelmetMeta" class="equipment-meta">No helmet equipped</span>
+                </div>
+              </div>
+            </div>
+            <div class="equipment-slot">
+              <span class="equipment-label">Body Armor</span>
+              <div class="equipment-content">
+                <img id="equipmentBodyArmorIcon" class="equipment-icon" alt="Equipped body armor icon">
+                <div class="equipment-copy">
+                  <strong id="equipmentBodyArmorName"></strong>
+                  <span id="equipmentBodyArmorMeta" class="equipment-meta"></span>
+                </div>
+              </div>
+            </div>
+            <button id="weaponDetailsBtn" class="equipment-slot equipment-slot-button" type="button" aria-label="View weapon details">
+              <span class="equipment-label">Weapon</span>
+              <div class="equipment-content">
+                <img id="equipmentWeaponIcon" class="equipment-icon" alt="Equipped weapon icon">
+                <div class="equipment-copy">
+                  <strong id="equipmentWeaponName"></strong>
+                  <span id="equipmentWeaponMeta" class="equipment-meta"></span>
+                </div>
+              </div>
+            </button>
+          </div>
+        </div>
+        <div id="inventoryAbilitiesPanel" class="abilities-panel hidden" role="tabpanel" data-inventory-panel="abilities" aria-labelledby="inventoryAbilitiesTab" tabindex="0">
+          <h2>Abilities</h2>
+          <div id="inventoryAbilitiesList" class="inventory-abilities-list"></div>
+        </div>
+        <div id="inventoryItemsPanel" class="inventory-panel hidden" role="tabpanel" data-inventory-panel="items" aria-labelledby="inventoryItemsTab" tabindex="0">
+          <h2>Items</h2>
+          <div id="inventoryList" class="inventory-list">
+            <span class="inventory-empty">No items yet</span>
+          </div>
+        </div>
+        <section id="inventoryAbilityDetails" class="inventory-ability-details hidden" data-inventory-panel="abilities" aria-label="Ability description" aria-live="polite"></section>
       </div>
     </div>
   </div>

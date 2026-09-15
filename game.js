@@ -101,6 +101,14 @@ import {
   overlayMessageEl,
   playerNameInputEl,
   playerPortraitNameEl,
+  inventoryScreenEl,
+  inventoryTabEls,
+  inventoryTabPanelEls,
+  inventoryAbilitiesListEl,
+  inventoryAbilityDetailsEl,
+  inventoryStatEls,
+  inventoryStatsPanelEl,
+  openInventoryBtn,
   playerPortraitEl,
   questObjectiveEl,
   questPanelEl,
@@ -173,6 +181,7 @@ let playerBase = null;
 let enemyBase = null;
 let enemyHero = null;
 let lastSoldierAnimationName = null;
+let selectedInventoryAbilityName = null;
 const BATTLE_MEDICINE_USE_DURATION = 0.9;
 const ROAD_SPEED_MULTIPLIER = 1.3;
 const MAIN_WORLD_TRADER_POSITION = { x: trader.x, y: trader.y };
@@ -2128,8 +2137,159 @@ function updateTraderUI() {
   traderStatusEl.textContent = `Current bonus: +${player.weaponBonusStat} weapon`;
 }
 
+function getInventoryAbilities() {
+  const selected = getSelectedClassConfig();
+  const abilities = [];
+  if (selected?.abilityName) {
+    const descriptions = {
+      cone: "Strike enemies in an arc in front of you.",
+      nova: "Release a blast that damages nearby enemies.",
+      burst: `Fire a burst of ${selected.rounds || 7} rounds toward your aim.`,
+      projectile: "Fire an arrow toward your aim.",
+    };
+    abilities.push({ name: selected.abilityName, key: "F", description: descriptions[selected.effect] || "Use your class ability.", cooldown: (!hero.hasRifle && !hero.hasBow && !hero.hasAxe) ? getClassWeaponCooldown(selected) : selected.cooldown, remaining: hero.slashTimer });
+  }
+  if (hero.selectedClass === "soldier") {
+    abilities.push(
+      { name: "Battle Medicine", key: "Q", description: `Restore ${SOLDIER_BATTLE_MEDICINE_HEAL} HP and gain +${SOLDIER_BATTLE_MEDICINE_REGEN_BONUS} regeneration for ${SOLDIER_BATTLE_MEDICINE_DURATION} seconds.`, cooldown: SOLDIER_BATTLE_MEDICINE_COOLDOWN, remaining: hero.battleMedicineCooldownRemaining },
+      { name: "Grenade", key: "G", description: "Hold G to aim, then release to throw a grenade that damages nearby enemies.", cooldown: SOLDIER_GRENADE_COOLDOWN, remaining: hero.grenadeCooldownRemaining }
+    );
+  }
+  if (hero.selectedClass === "robot") {
+    abilities.push({ name: "Dash", key: "Shift", description: "Quickly dash in your movement direction.", cooldown: hero.dashCooldown, remaining: hero.dashCooldownRemaining });
+  }
+  return abilities;
+}
+
+function syncInventoryPanelHeights() {
+  const height = inventoryStatsPanelEl.getBoundingClientRect().height;
+  if (height > 0) {
+    inventoryScreenEl.style.setProperty("--inventory-section-height", `${height}px`);
+  }
+}
+
+const inventoryStatsResizeObserver = new ResizeObserver(syncInventoryPanelHeights);
+inventoryStatsResizeObserver.observe(inventoryStatsPanelEl);
+
+function selectInventoryAbility(ability) {
+  selectedInventoryAbilityName = ability?.name || null;
+  inventoryAbilitiesListEl.querySelectorAll(".inventory-ability").forEach((card) => {
+    card.setAttribute("aria-pressed", String(card.dataset.abilityName === selectedInventoryAbilityName));
+  });
+  inventoryAbilityDetailsEl.textContent = "";
+  const title = document.createElement("h2");
+  title.textContent = ability?.name || "Abilities";
+  const description = document.createElement("p");
+  description.textContent = ability?.description || "This character has no special abilities.";
+  inventoryAbilityDetailsEl.append(title, description);
+  if (ability) {
+    const timing = document.createElement("p");
+    timing.className = "inventory-ability-timing";
+    timing.textContent = `Control: ${ability.key} • ${ability.cooldown}s cooldown • ${ability.remaining > 0 ? `${ability.remaining.toFixed(1)}s remaining` : "Ready"}`;
+    inventoryAbilityDetailsEl.appendChild(timing);
+  }
+}
+
+function updateInventoryAbilities() {
+  inventoryAbilitiesListEl.textContent = "";
+  const characterImage = document.createElement("img");
+  characterImage.className = "inventory-ability-character";
+  characterImage.src = "./images/soldier-stationary.png";
+  characterImage.alt = "Soldier standing between abilities";
+  characterImage.draggable = false;
+  inventoryAbilitiesListEl.appendChild(characterImage);
+  const abilities = getInventoryAbilities();
+  if (!abilities.length) {
+    const empty = document.createElement("p");
+    empty.className = "inventory-empty";
+    empty.textContent = "This character has no special abilities.";
+    inventoryAbilitiesListEl.appendChild(empty);
+    selectInventoryAbility(null);
+    return;
+  }
+  for (const [index, ability] of abilities.entries()) {
+    const card = document.createElement("button");
+    card.type = "button";
+    card.className = "inventory-ability";
+    card.dataset.abilityName = ability.name;
+    card.setAttribute("aria-controls", "inventoryAbilityDetails");
+    card.addEventListener("click", () => selectInventoryAbility(ability));
+    const positions = abilities.length === 1 ? ["top"] : abilities.length === 2 ? ["left", "right"] : ["left", "top", "right"];
+    card.dataset.position = positions[index];
+    const heading = document.createElement("span");
+    heading.className = "inventory-ability-name";
+    heading.textContent = ability.name;
+    const key = document.createElement("kbd");
+    key.textContent = ability.key;
+    heading.appendChild(key);
+    card.appendChild(heading);
+    inventoryAbilitiesListEl.appendChild(card);
+  }
+  selectInventoryAbility(abilities.find((ability) => ability.name === selectedInventoryAbilityName) || abilities[0]);
+}
+
+function selectInventoryTab(tabName) {
+  inventoryTabEls.forEach((tab) => {
+    const active = tab.dataset.inventoryTab === tabName;
+    tab.setAttribute("aria-selected", String(active));
+    tab.tabIndex = active ? 0 : -1;
+  });
+  inventoryTabPanelEls.forEach((panel) => {
+    panel.classList.toggle("hidden", panel.dataset.inventoryPanel !== tabName);
+  });
+  if (tabName === "abilities") updateInventoryAbilities();
+}
+
+inventoryTabEls.forEach((tab, index) => {
+  tab.addEventListener("click", () => selectInventoryTab(tab.dataset.inventoryTab));
+  tab.addEventListener("keydown", (event) => {
+    let next = index;
+    if (event.key === "ArrowRight") next = (index + 1) % inventoryTabEls.length;
+    else if (event.key === "ArrowLeft") next = (index + inventoryTabEls.length - 1) % inventoryTabEls.length;
+    else if (event.key === "Home") next = 0;
+    else if (event.key === "End") next = inventoryTabEls.length - 1;
+    else return;
+    event.preventDefault();
+    selectInventoryTab(inventoryTabEls[next].dataset.inventoryTab);
+    inventoryTabEls[next].focus();
+  });
+});
+
+openInventoryBtn.addEventListener("click", () => {
+  if (player.hasSelectedCharacter && !player.inventoryOpen) {
+    toggleInventoryScreen();
+  }
+});
+
+function toggleInventoryScreen() {
+  player.inventoryOpen = !player.inventoryOpen;
+  keys.clear();
+  mouse.leftDown = false;
+  cancelGrenadeAim();
+  cancelHarvest();
+  if (player.inventoryOpen) {
+    closeTutorialDialogue();
+    closeQuestDialogue();
+    closeShop();
+    closeTrader();
+    closeWeaponDetails();
+    player.isPlacingBuilding = false;
+    selectionBox = null;
+  }
+  if (!player.inventoryOpen) closeWeaponDetails();
+  inventoryScreenEl.classList.toggle("hidden", !player.inventoryOpen);
+  if (player.inventoryOpen) {
+    updateStatsUI();
+    updateInventoryUI();
+    updateInventoryAbilities();
+    syncInventoryPanelHeights();
+    inventoryScreenEl.focus();
+  }
+  else canvas.focus();
+}
+
 function isInterfacePanelOpen() {
-  return player.shopOpen || player.traderOpen || player.weaponDetailsOpen;
+  return player.inventoryOpen || player.shopOpen || player.traderOpen || player.weaponDetailsOpen;
 }
 
 function getWeaponUpgradeRules() {
@@ -2438,6 +2598,18 @@ function updateStatsUI() {
   const stats = selected?.stats || { armor: 0, health: 0, weapon: 0, regen: 0 };
   const maxHealth = hero.maxHp || stats.health;
   const currentHealth = Math.max(0, Math.round(hero.hp || 0));
+  const inventoryStats = {
+    level: player.level,
+    health: `${currentHealth}/${Math.round(maxHealth)}`,
+    armor: Math.round(getTotalArmor(selected)),
+    damage: Math.round(getDisplayedWeaponStat(selected)),
+    speed: Math.round(getHeroSpeed(selected) * getRoadSpeedMultiplier()),
+    regen: `${getHeroRegen(selected).toFixed(1)}/s`,
+    gold: player.money,
+  };
+  inventoryStatEls.forEach((element) => {
+    element.textContent = String(inventoryStats[element.dataset.inventoryStat]);
+  });
 
   const portraitSrc = hero.hp < maxHealth / 2
     ? "./images/soldier-damage.png"
@@ -5231,6 +5403,7 @@ function triggerLoss() {
 }
 
 function update(dt) {
+  if (player.inventoryOpen) return;
   if (!player.hasSelectedCharacter || player.victory || player.loss) {
     return;
   }
@@ -7037,6 +7210,23 @@ window.addEventListener("keydown", (event) => {
   keys.add(key);
 
   if (!player.hasSelectedCharacter) {
+    return;
+  }
+
+  if (event.key === "Tab") {
+    event.preventDefault();
+    if (!event.repeat) toggleInventoryScreen();
+    return;
+  }
+  if (player.inventoryOpen) {
+    keys.delete(key);
+    if (event.key === "Escape") {
+      event.preventDefault();
+      if (!event.repeat) {
+        if (player.weaponDetailsOpen) closeWeaponDetails();
+        else toggleInventoryScreen();
+      }
+    }
     return;
   }
 

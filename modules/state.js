@@ -17,6 +17,7 @@ const player = {
   loss: false,
   hasBuiltBarracks: false,
   hasSelectedCharacter: false,
+  inventoryOpen: false,
   shopOpen: false,
   traderOpen: false,
   weaponDetailsOpen: false,

@@ -68,6 +68,14 @@ const dashCooldownTextEl = document.getElementById("dashCooldownText");
 const characterSelectEl = document.getElementById("characterSelect");
 const nameStepEl = document.getElementById("nameStep");
 const classStepEl = document.getElementById("classStep");
+const openInventoryBtn = document.getElementById("openInventoryBtn");
+const inventoryStatsPanelEl = document.querySelector(".inventory-attributes");
+const inventoryStatEls = document.querySelectorAll("[data-inventory-stat]");
+const inventoryTabEls = document.querySelectorAll("[data-inventory-tab]");
+const inventoryTabPanelEls = document.querySelectorAll("[data-inventory-panel]");
+const inventoryAbilityDetailsEl = document.getElementById("inventoryAbilityDetails");
+const inventoryAbilitiesListEl = document.getElementById("inventoryAbilitiesList");
+const inventoryScreenEl = document.getElementById("inventoryScreen");
 const playerPortraitEl = document.getElementById("playerPortrait");
 const playerPortraitNameEl = document.getElementById("playerPortraitName");
 const playerNameInputEl = document.getElementById("playerNameInput");
@@ -134,6 +142,14 @@ export {
   overlayMessageEl,
   playerNameInputEl,
   playerPortraitNameEl,
+  inventoryScreenEl,
+  inventoryTabEls,
+  inventoryTabPanelEls,
+  inventoryAbilitiesListEl,
+  inventoryAbilityDetailsEl,
+  inventoryStatEls,
+  inventoryStatsPanelEl,
+  openInventoryBtn,
   playerPortraitEl,
   questObjectiveEl,
   questPanelEl,
