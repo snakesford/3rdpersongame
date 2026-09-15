@@ -1028,6 +1028,28 @@ button.hidden {
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.25);
 }
 
+.ability-icon-image {
+  position: relative;
+  flex-shrink: 0;
+}
+
+.ability-icon-image img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.ability-key {
+  position: absolute;
+  right: -4px;
+  bottom: -4px;
+  padding: 1px 4px;
+  border-radius: 4px;
+  background: #25231e;
+  color: #fff5d2;
+  font-size: 11px;
+}
+
 .ability-copy {
   display: flex;
   flex-direction: column;

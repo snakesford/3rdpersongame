@@ -4,6 +4,7 @@ import {
   archerRunningImage,
   archerShootingImage,
   bowImage,
+  grenadeImage,
   skeletonImage,
   soldierIdleImage,
   soldierMedkitImage,
@@ -6847,6 +6848,14 @@ function drawHeroGrenades() {
   for (const grenade of heroGrenades) {
     const progress = 1 - grenade.ttl / grenade.maxTtl;
     const arcOffset = Math.sin(progress * Math.PI) * grenade.arcHeight;
+    if (grenadeImage.complete && grenadeImage.naturalWidth > 0) {
+      const size = grenade.radius * 3;
+      const scale = size / Math.max(grenadeImage.naturalWidth, grenadeImage.naturalHeight);
+      const width = grenadeImage.naturalWidth * scale;
+      const height = grenadeImage.naturalHeight * scale;
+      ctx.drawImage(grenadeImage, grenade.x - width / 2, grenade.y - arcOffset - height / 2, width, height);
+      continue;
+    }
     ctx.beginPath();
     ctx.fillStyle = "#61726d";
     ctx.arc(grenade.x, grenade.y - arcOffset, grenade.radius, 0, Math.PI * 2);
