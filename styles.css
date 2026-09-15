@@ -1212,8 +1212,53 @@ button.hidden {
 }
 
 .inventory-layout .equipment-grid {
-  grid-template-columns: 1fr;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-rows: auto minmax(110px, auto) minmax(110px, auto);
+  align-items: center;
+  gap: 20px 14px;
+  min-width: 560px;
 }
+
+.inventory-layout .equipment-slot {
+  align-items: center;
+  justify-content: center;
+  padding: 8px;
+}
+
+.inventory-layout .equipment-label,
+.inventory-layout .equipment-copy {
+  display: none;
+}
+
+.inventory-layout .equipment-icon {
+  width: 104px;
+  height: 104px;
+  flex-basis: 104px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+
+#equipmentWeaponIcon[src$="/rifle.png"] {
+  transform: scale(1.35);
+}
+
+.inventory-equipment-character {
+  grid-column: 2;
+  grid-row: 2 / 4;
+  width: 100%;
+  max-width: 200px;
+  height: 240px;
+  object-fit: contain;
+  justify-self: center;
+  filter: drop-shadow(0 12px 12px rgba(0, 0, 0, 0.4));
+}
+
+.equipment-slot[data-position="left"] { grid-column: 1; grid-row: 3; }
+.equipment-slot[data-position="left-upper"] { grid-column: 1; grid-row: 2; }
+.equipment-slot[data-position="top"] { grid-column: 2; grid-row: 1; }
+.inventory-equipment-locked[data-position="right-upper"] { grid-column: 3; grid-row: 2; }
+.inventory-equipment-locked[data-position="right-lower"] { grid-column: 3; grid-row: 3; }
 
 @media (max-width: 760px) {
   .inventory-screen-panel { padding: 18px; }
@@ -1242,15 +1287,15 @@ button.hidden {
 .inventory-layout > .abilities-panel { overflow-x: auto; }
 .inventory-abilities-list {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  grid-template-rows: auto auto;
+  grid-template-columns: minmax(150px, 1fr) repeat(2, minmax(100px, 0.7fr)) minmax(150px, 1fr);
+  grid-template-rows: minmax(80px, auto) 110px 110px;
   align-items: center;
   gap: 20px 14px;
   min-width: 560px;
 }
 .inventory-ability-character {
-  grid-column: 2;
-  grid-row: 2;
+  grid-column: 2 / 4;
+  grid-row: 2 / 4;
   width: 100%;
   max-width: 200px;
   height: 240px;
@@ -1258,10 +1303,13 @@ button.hidden {
   justify-self: center;
   filter: drop-shadow(0 12px 12px rgba(0, 0, 0, 0.4));
 }
-.inventory-ability[data-position="left"] { grid-column: 1; grid-row: 2; }
-.inventory-ability[data-position="top"] { grid-column: 2; grid-row: 1; }
-.inventory-ability[data-position="right"] { grid-column: 3; grid-row: 2; }
-.inventory-abilities-list > .inventory-empty { grid-column: 1 / -1; grid-row: 1; }
+.inventory-abilities-list > [data-position="left-upper"] { grid-column: 1; grid-row: 2; }
+.inventory-abilities-list > [data-position="left-lower"] { grid-column: 1; grid-row: 3; }
+.inventory-abilities-list > [data-position="top-left"] { grid-column: 2; grid-row: 1; }
+.inventory-abilities-list > [data-position="top-right"] { grid-column: 3; grid-row: 1; }
+.inventory-abilities-list > [data-position="right-upper"] { grid-column: 4; grid-row: 2; }
+.inventory-abilities-list > [data-position="right-lower"] { grid-column: 4; grid-row: 3; }
+.inventory-abilities-list > .inventory-empty { grid-column: 1 / -1; grid-row: 4; }
 .inventory-ability {
   padding: 16px;
   border: 1px solid var(--panel-border);
@@ -1307,3 +1355,59 @@ button.hidden {
 }
 .inventory-ability-details p { margin: 10px 0 0; color: var(--text); line-height: 1.6; }
 .inventory-ability-details .inventory-ability-timing { color: #dfc889; font-size: 13px; }
+
+.inventory-ability-locked,
+.inventory-equipment-locked {
+  justify-self: center;
+  display: grid;
+  place-items: center;
+  width: 80px;
+  height: 80px;
+  padding: 0;
+  border: 2px solid #77716a;
+  border-radius: 0;
+  background: rgba(0, 0, 0, 0.3);
+}
+.inventory-ability-locked,
+.inventory-equipment-locked { cursor: pointer; }
+.inventory-ability-locked:hover,
+.inventory-equipment-locked:hover,
+.inventory-ability-locked[aria-pressed="true"],
+.inventory-equipment-locked[aria-pressed="true"] {
+  border-color: var(--accent);
+  background: rgba(209, 165, 75, 0.18);
+}
+.inventory-ability-locked:focus-visible,
+.inventory-equipment-locked:focus-visible {
+  outline: 2px solid #ffe6a3;
+  outline-offset: 3px;
+}
+.ability-lock-icon {
+  position: relative;
+  width: 26px;
+  height: 21px;
+  margin-top: 12px;
+  border-radius: 3px;
+  background: #a59a86;
+}
+.ability-lock-icon::before {
+  content: "";
+  position: absolute;
+  left: 4px;
+  top: -13px;
+  width: 18px;
+  height: 17px;
+  border: 4px solid #a59a86;
+  border-bottom: 0;
+  border-radius: 10px 10px 0 0;
+}
+.ability-lock-icon::after {
+  content: "";
+  position: absolute;
+  left: 11px;
+  top: 7px;
+  width: 4px;
+  height: 8px;
+  border-radius: 3px;
+  background: #37352f;
+}

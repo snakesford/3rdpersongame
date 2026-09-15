@@ -2171,8 +2171,27 @@ function syncInventoryPanelHeights() {
 const inventoryStatsResizeObserver = new ResizeObserver(syncInventoryPanelHeights);
 inventoryStatsResizeObserver.observe(inventoryStatsPanelEl);
 
+function selectLockedInventorySlot(slot, type) {
+  const isSkill = type === "skill";
+  const container = isSkill ? inventoryAbilitiesListEl : document.getElementById("inventoryEquipmentPanel");
+  container.querySelectorAll("button[aria-pressed]").forEach((button) => {
+    button.setAttribute("aria-pressed", String(button === slot));
+  });
+  const details = isSkill ? inventoryAbilityDetailsEl : document.getElementById("inventoryEquipmentDetails");
+  const description = document.createElement("p");
+  description.textContent = `This ${type} is not yet available. Increase your character level to unlock more skill slots!`;
+  details.replaceChildren(description);
+}
+
+document.querySelectorAll(".inventory-equipment-locked").forEach((slot) => {
+  slot.addEventListener("click", () => selectLockedInventorySlot(slot, "equipment"));
+});
+
 function selectInventoryAbility(ability) {
   selectedInventoryAbilityName = ability?.name || null;
+  inventoryAbilitiesListEl.querySelectorAll(".inventory-ability-locked").forEach((slot) => {
+    slot.setAttribute("aria-pressed", "false");
+  });
   inventoryAbilitiesListEl.querySelectorAll(".inventory-ability").forEach((card) => {
     card.setAttribute("aria-pressed", String(card.dataset.abilityName === selectedInventoryAbilityName));
   });
@@ -2198,6 +2217,21 @@ function updateInventoryAbilities() {
   characterImage.alt = "Soldier standing between abilities";
   characterImage.draggable = false;
   inventoryAbilitiesListEl.appendChild(characterImage);
+  for (let index = 0; index < 3; index += 1) {
+    const slot = document.createElement("button");
+    slot.type = "button";
+    slot.className = "inventory-ability-locked";
+    slot.setAttribute("aria-pressed", "false");
+    slot.setAttribute("aria-controls", "inventoryAbilityDetails");
+    slot.addEventListener("click", () => selectLockedInventorySlot(slot, "skill"));
+    slot.setAttribute("aria-label", `Locked ability slot ${index + 1}`);
+    slot.dataset.position = ["top-right", "right-upper", "right-lower"][index];
+    const lock = document.createElement("span");
+    lock.className = "ability-lock-icon";
+    lock.setAttribute("aria-hidden", "true");
+    slot.appendChild(lock);
+    inventoryAbilitiesListEl.appendChild(slot);
+  }
   const abilities = getInventoryAbilities();
   if (!abilities.length) {
     const empty = document.createElement("p");
@@ -2214,7 +2248,7 @@ function updateInventoryAbilities() {
     card.dataset.abilityName = ability.name;
     card.setAttribute("aria-controls", "inventoryAbilityDetails");
     card.addEventListener("click", () => selectInventoryAbility(ability));
-    const positions = abilities.length === 1 ? ["top"] : abilities.length === 2 ? ["left", "right"] : ["left", "top", "right"];
+    const positions = ["left-upper", "left-lower", "top-left"];
     card.dataset.position = positions[index];
     const heading = document.createElement("span");
     heading.className = "inventory-ability-name";
