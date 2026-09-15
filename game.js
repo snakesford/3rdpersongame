@@ -6247,7 +6247,7 @@ function drawSoldierHero() {
   const isRifleShooting = isSoldierRifleShooting();
   const isSemiAutoShooting = hero.hasRifle && hero.rifleFireMode === "semi" && hero.rifleShotAnimationTimer > 0;
   const isUsingMedicine = isUsingBattleMedicine();
-  const isReloading = hero.hasRifle && hero.isReloading && hero.ammo === 0;
+  const isReloading = hero.hasRifle && hero.isReloading;
   const runningFrames = [
     soldierRunningTransitionImage,
     soldierRunningImage,
@@ -6264,22 +6264,22 @@ function drawSoldierHero() {
   const runningFrameName = runningFrameNames[Math.floor(hero.runAnimationTimer / 0.3) % runningFrameNames.length];
   const image = isUsingMedicine
     ? soldierMedkitImage
-    : (isBurstShooting || isRifleShooting || isSemiAutoShooting)
-      ? soldierShootingImage
-    : hero.isMoving
-      ? runningFrame
     : isReloading
       ? soldierReloadingImage
-      : soldierIdleImage;
+      : (isBurstShooting || isRifleShooting || isSemiAutoShooting)
+        ? soldierShootingImage
+        : hero.isMoving
+          ? runningFrame
+          : soldierIdleImage;
   const animationName = isUsingMedicine
     ? "soldierMedkit"
-    : (isBurstShooting || isRifleShooting || isSemiAutoShooting)
-      ? "soldierShooting"
-      : hero.isMoving
-        ? runningFrameName
-      : isReloading
-        ? "soldierReloading"
-        : "soldierIdle";
+    : isReloading
+      ? "soldierReloading"
+      : (isBurstShooting || isRifleShooting || isSemiAutoShooting)
+        ? "soldierShooting"
+        : hero.isMoving
+          ? runningFrameName
+          : "soldierIdle";
   const shootingAngle = isRifleShooting
     ? Math.atan2(mouse.worldY - hero.y, mouse.worldX - hero.x)
     : isSemiAutoShooting
