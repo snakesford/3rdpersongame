@@ -2250,13 +2250,23 @@ function updateInventoryAbilities() {
     card.addEventListener("click", () => selectInventoryAbility(ability));
     const positions = ["left-upper", "left-lower", "top-left"];
     card.dataset.position = positions[index];
-    const heading = document.createElement("span");
-    heading.className = "inventory-ability-name";
-    heading.textContent = ability.name;
-    const key = document.createElement("kbd");
-    key.textContent = ability.key;
-    heading.appendChild(key);
-    card.appendChild(heading);
+    if (ability.name === "Grenade") {
+      card.setAttribute("aria-label", "Grenade");
+      const icon = document.createElement("img");
+      icon.className = "inventory-ability-icon";
+      icon.src = "./images/grenade.png";
+      icon.alt = "";
+      icon.draggable = false;
+      card.appendChild(icon);
+    } else {
+      const heading = document.createElement("span");
+      heading.className = "inventory-ability-name";
+      heading.textContent = ability.name;
+      const key = document.createElement("kbd");
+      key.textContent = ability.key;
+      heading.appendChild(key);
+      card.appendChild(heading);
+    }
     inventoryAbilitiesListEl.appendChild(card);
   }
   selectInventoryAbility(abilities.find((ability) => ability.name === selectedInventoryAbilityName) || abilities[0]);
