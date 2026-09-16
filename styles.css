@@ -1246,15 +1246,17 @@ button.hidden {
   border-top: 1px solid rgba(209, 165, 75, 0.4);
 }
 
-.inventory-gold dt {
-  flex: 0 0 32px;
-}
-
 .inventory-gold dd {
   flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
   padding: 12px;
   font-size: 22px;
 }
+
+.inventory-gold .inventory-coin { flex-shrink: 0; }
 
 .inventory-layout .equipment-grid {
   grid-template-columns: repeat(3, minmax(0, 1fr));
