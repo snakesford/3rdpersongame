@@ -1368,6 +1368,44 @@ function updateQuestUI() {
   questObjectiveEl.textContent = getQuestObjectiveText();
 }
 
+let draggedBackpackHelmetIndex = null;
+const equipmentHelmetSlot = document.getElementById("equipmentHelmetSlot");
+
+function equipBackpackHelmet(index) {
+  const helmet = player.backpack[index];
+  if (!Number.isInteger(index) || !helmet || !["helmet", "rareHelmet", "goldHelmet", "enemyHelmet"].includes(helmet.type)) return;
+  const previousHelmet = hero.equippedHelmetType ? {
+    type: hero.equippedHelmetType,
+    armorValue: hero.equippedArmorValue,
+    radius: 18,
+  } : null;
+  if (previousHelmet) player.backpack[index] = previousHelmet;
+  else player.backpack.splice(index, 1);
+  hero.equippedHelmetType = helmet.type;
+  hero.equippedArmorValue = helmet.armorValue;
+  hero.latestPickup = { ...helmet };
+  updateStatsUI();
+  updateInventoryUI();
+}
+
+equipmentHelmetSlot.addEventListener("dragover", (event) => {
+  if (draggedBackpackHelmetIndex === null) return;
+  event.preventDefault();
+  event.dataTransfer.dropEffect = "move";
+  equipmentHelmetSlot.classList.add("helmet-drop-ready");
+});
+equipmentHelmetSlot.addEventListener("dragleave", (event) => {
+  if (!equipmentHelmetSlot.contains(event.relatedTarget)) equipmentHelmetSlot.classList.remove("helmet-drop-ready");
+});
+equipmentHelmetSlot.addEventListener("drop", (event) => {
+  event.preventDefault();
+  equipmentHelmetSlot.classList.remove("helmet-drop-ready");
+  if (draggedBackpackHelmetIndex === null || !player.inventoryOpen) return;
+  const index = draggedBackpackHelmetIndex;
+  draggedBackpackHelmetIndex = null;
+  equipBackpackHelmet(index);
+});
+
 function updateInventoryUI() {
   inventoryListEl.textContent = "";
   const backpackSlots = document.getElementById("inventoryBackpackSlots");
@@ -1390,6 +1428,17 @@ function updateInventoryUI() {
         const icon = document.createElement("img");
         icon.src = buildHelmetIcon(fill, stroke);
         icon.alt = name;
+        icon.draggable = false;
+        slot.draggable = true;
+        slot.addEventListener("dragstart", (event) => {
+          draggedBackpackHelmetIndex = index;
+          event.dataTransfer.effectAllowed = "move";
+          event.dataTransfer.setData("text/plain", String(index));
+        });
+        slot.addEventListener("dragend", () => {
+          draggedBackpackHelmetIndex = null;
+          equipmentHelmetSlot.classList.remove("helmet-drop-ready");
+        });
         slot.title = `${name} • Armor ${item.armorValue}`;
         slot.setAttribute("aria-label", slot.title);
         slot.appendChild(icon);

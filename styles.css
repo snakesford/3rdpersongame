@@ -1384,6 +1384,13 @@ button.hidden {
   background: rgba(0, 0, 0, 0.3);
 }
 .inventory-backpack-slot img { width: 80%; height: 80%; object-fit: contain; }
+.inventory-backpack-slot[draggable="true"] { cursor: grab; }
+.inventory-backpack-slot[draggable="true"]:active { cursor: grabbing; }
+#equipmentHelmetSlot.helmet-drop-ready {
+  border-color: var(--accent);
+  background: rgba(209, 165, 75, 0.25);
+  outline: 2px solid var(--accent);
+}
 .inventory-side-abilities button { width: 100%; text-align: left; }
 .inventory-layout > .inventory-ability-details { grid-column: 1 / 3; }
 
