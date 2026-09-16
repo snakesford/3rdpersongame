@@ -1369,6 +1369,7 @@ function updateQuestUI() {
 }
 
 let draggedBackpackHelmetIndex = null;
+let helmetSwapFeedbackTimeout;
 const equipmentHelmetSlot = document.getElementById("equipmentHelmetSlot");
 
 function equipBackpackHelmet(index) {
@@ -1386,6 +1387,18 @@ function equipBackpackHelmet(index) {
   hero.latestPickup = { ...helmet };
   updateStatsUI();
   updateInventoryUI();
+  const confirmation = document.createElement("p");
+  const previousArmor = previousHelmet ? previousHelmet.armorValue + player.helmetBonusArmor : 0;
+  confirmation.textContent = `${equipmentHelmetNameEl.textContent} equipped. Helmet armor: ${previousArmor} → ${getHelmetArmorValue()}.${previousHelmet ? " Previous helmet returned to your backpack." : " Helmet moved from your backpack."}`;
+  document.getElementById("inventoryEquipmentDetails").replaceChildren(confirmation);
+  clearTimeout(helmetSwapFeedbackTimeout);
+  equipmentHelmetSlot.classList.remove("helmet-swap-complete");
+  // Restart the single pulse for each swap, including rapid clicks.
+  void equipmentHelmetSlot.offsetWidth;
+  equipmentHelmetSlot.classList.add("helmet-swap-complete");
+  helmetSwapFeedbackTimeout = setTimeout(() => {
+    equipmentHelmetSlot.classList.remove("helmet-swap-complete");
+  }, 2400);
 }
 
 equipmentHelmetSlot.addEventListener("dragover", (event) => {
@@ -1439,9 +1452,23 @@ function updateInventoryUI() {
           draggedBackpackHelmetIndex = null;
           equipmentHelmetSlot.classList.remove("helmet-drop-ready");
         });
-        slot.title = `${name} • Armor ${item.armorValue}`;
-        slot.setAttribute("aria-label", slot.title);
-        slot.appendChild(icon);
+        slot.title = `${name} • Armor ${item.armorValue} • Click or drag to equip`;
+        slot.setAttribute("aria-label", `${name} • Armor ${item.armorValue}`);
+        const equipButton = document.createElement("button");
+        equipButton.type = "button";
+        equipButton.className = "inventory-backpack-equip";
+        equipButton.setAttribute("aria-label", `Equip ${name}, armor ${item.armorValue}`);
+        equipButton.appendChild(icon);
+        equipButton.addEventListener("click", () => {
+          if (!player.inventoryOpen || draggedBackpackHelmetIndex !== null) return;
+          const restoreFocus = document.activeElement === equipButton;
+          equipBackpackHelmet(index);
+          if (restoreFocus) {
+            const nextButton = backpackSlots.children[index]?.querySelector("button") || backpackSlots.querySelector("button");
+            (nextButton || document.getElementById("inventoryEquipmentPanel")).focus({ preventScroll: true });
+          }
+        });
+        slot.appendChild(equipButton);
       }
       backpackSlots.appendChild(slot);
     }
@@ -1988,9 +2015,19 @@ function confirmPlayerName() {
   statusTextEl.textContent = `Welcome, ${player.displayName}. Choose your hero.`;
 }
 
+// Keep gameplay coordinates in CSS pixels while rendering at display resolution.
+const viewport = { width: 0, height: 0, pixelRatio: 1 };
+
 function resizeCanvas() {
-  canvas.width = window.innerWidth;
-  canvas.height = window.innerHeight;
+  viewport.width = window.innerWidth;
+  viewport.height = window.innerHeight;
+  viewport.pixelRatio = window.devicePixelRatio || 1;
+  canvas.width = Math.round(viewport.width * viewport.pixelRatio);
+  canvas.height = Math.round(viewport.height * viewport.pixelRatio);
+  ctx.setTransform(canvas.width / viewport.width, 0, 0, canvas.height / viewport.height, 0, 0);
+  // Setting canvas dimensions resets the context, including smoothing settings.
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = "high";
 }
 
 window.addEventListener("resize", resizeCanvas);
@@ -2494,7 +2531,7 @@ function getCurrentWeaponDetails() {
   }
 
   if (hero.hasBow) {
-    const bowRange = Math.round(canvas.width * 0.5) + player.weaponDetailRangeLevel * getWeaponUpgradeRules().range.step;
+    const bowRange = Math.round(viewport.width * 0.5) + player.weaponDetailRangeLevel * getWeaponUpgradeRules().range.step;
     const bowFireInterval = Math.max(0.12, 0.45 - player.weaponDetailFireRateLevel * getWeaponUpgradeRules().fireRate.bowStep);
     return {
       type: "bow",
@@ -4151,7 +4188,7 @@ function buildArcherArrowProjectile(damageOverride = null) {
   return spawnAbilityProjectile({
     damage: damageOverride ?? getAbilityDamage(archerClass),
     width: archerClass.width || 10,
-    range: Math.round(canvas.width * 0.5) + player.weaponDetailRangeLevel * getWeaponUpgradeRules().range.step,
+    range: Math.round(viewport.width * 0.5) + player.weaponDetailRangeLevel * getWeaponUpgradeRules().range.step,
     style: "arrow",
     speed: 820,
     projectileType: "arrow",
@@ -4349,8 +4386,8 @@ function updateBurstProjectile(projectile, dt) {
     projectile.traveled >= projectile.maxDistance ||
     projectile.x < camera.x - offscreenMargin ||
     projectile.y < camera.y - offscreenMargin ||
-    projectile.x > camera.x + canvas.width + offscreenMargin ||
-    projectile.y > camera.y + canvas.height + offscreenMargin
+    projectile.x > camera.x + viewport.width + offscreenMargin ||
+    projectile.y > camera.y + viewport.height + offscreenMargin
   ) {
     projectile.active = false;
   }
@@ -4407,8 +4444,8 @@ function updateAbilityProjectile(projectile, dt) {
     projectile.traveled >= projectile.maxDistance ||
     projectile.x < camera.x - offscreenMargin ||
     projectile.y < camera.y - offscreenMargin ||
-    projectile.x > camera.x + canvas.width + offscreenMargin ||
-    projectile.y > camera.y + canvas.height + offscreenMargin
+    projectile.x > camera.x + viewport.width + offscreenMargin ||
+    projectile.y > camera.y + viewport.height + offscreenMargin
   ) {
     projectile.active = false;
   }
@@ -5040,8 +5077,8 @@ function getRoadSpeedMultiplier() {
 }
 
 function updateCamera(dt) {
-  camera.x = clamp(hero.x - canvas.width / 2, 0, Math.max(0, WORLD.width - canvas.width));
-  camera.y = clamp(hero.y - canvas.height / 2, 0, Math.max(0, getWorldHeight() - canvas.height));
+  camera.x = clamp(hero.x - viewport.width / 2, 0, Math.max(0, WORLD.width - viewport.width));
+  camera.y = clamp(hero.y - viewport.height / 2, 0, Math.max(0, getWorldHeight() - viewport.height));
 }
 
 function updateHero(dt) {
@@ -5929,8 +5966,8 @@ function drawMinimap() {
   minimapCtx.strokeRect(
     toMapX(camera.x),
     toMapY(camera.y),
-    Math.max(8, canvas.width * scaleX),
-    Math.max(8, canvas.height * scaleY)
+    Math.max(8, viewport.width * scaleX),
+    Math.max(8, viewport.height * scaleY)
   );
 
   minimapCtx.strokeStyle = "rgba(255, 255, 255, 0.22)";
@@ -6546,6 +6583,13 @@ function drawHeroStickFigure() {
   }
 }
 
+function drawHeroSprite(image, x, y, size) {
+  const scale = size / Math.max(image.naturalWidth, image.naturalHeight);
+  const width = image.naturalWidth * scale;
+  const height = image.naturalHeight * scale;
+  ctx.drawImage(image, x - width / 2, y - height / 2, width, height);
+}
+
 function drawSoldierHero() {
   const isBurstShooting = hero.abilityEffect?.effect === "burst" &&
     Boolean(hero.abilityEffect?.pendingShots && hero.abilityEffect.pendingShots.length > 0);
@@ -6625,7 +6669,14 @@ function drawSoldierHero() {
       ctx.scale(-1, 1);
     }
   }
-  ctx.drawImage(image, -size / 2, -size / 2, size, size);
+  // Use stationary dimensions, with a little extra width for running poses.
+  const stationaryWidth = soldierIdleImage.naturalWidth || 1122;
+  const stationaryHeight = soldierIdleImage.naturalHeight || 1402;
+  const stationaryScale = size / Math.max(stationaryWidth, stationaryHeight);
+  const runningWidthScale = runningFrames.includes(image) ? 1.30 : 1;
+  const width = stationaryWidth * stationaryScale * runningWidthScale;
+  const height = stationaryHeight * stationaryScale;
+  ctx.drawImage(image, -width / 2, -height / 2, width, height);
   const helmetStyle = getHeroHelmetStyle();
   if (helmetStyle) {
     ctx.fillStyle = helmetStyle.fill;
@@ -6651,7 +6702,7 @@ function drawArcherHero() {
     }
 
     const size = 46;
-    ctx.drawImage(archerDeadImage, hero.x - size / 2, hero.y - size / 2, size, size);
+    drawHeroSprite(archerDeadImage, hero.x, hero.y, size);
     return;
   }
 
@@ -6674,7 +6725,7 @@ function drawArcherHero() {
   if (isFacingLeft) {
     ctx.scale(-1, 1);
   }
-  ctx.drawImage(image, -size / 2, -size / 2, size, size);
+  drawHeroSprite(image, 0, 0, size);
   ctx.restore();
 }
 
@@ -7222,7 +7273,10 @@ function drawModeHint() {
 }
 
 function render() {
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  if (viewport.pixelRatio !== (window.devicePixelRatio || 1)) {
+    resizeCanvas();
+  }
+  ctx.clearRect(0, 0, viewport.width, viewport.height);
   ctx.save();
   ctx.translate(-camera.x, -camera.y);
 
