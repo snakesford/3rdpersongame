@@ -7437,9 +7437,28 @@ function gameLoop(timestamp) {
 
 window.addEventListener("keydown", (event) => {
   const key = event.key.length === 1 ? event.key.toLowerCase() : event.key;
+  if (event.target?.closest("input, textarea, select, [contenteditable]:not([contenteditable='false'])")) return;
   keys.add(key);
 
   if (!player.hasSelectedCharacter) {
+    return;
+  }
+
+  const inventoryTabName = { "1": "equipment", "2": "abilities", "3": "items" }[key];
+  if (inventoryTabName && !event.ctrlKey && !event.metaKey && !event.altKey &&
+      (player.inventoryOpen || !isDialogueOpen())) {
+    event.preventDefault();
+    keys.delete(key);
+    if (event.repeat) return;
+    const tab = Array.from(inventoryTabEls).find((entry) => entry.dataset.inventoryTab === inventoryTabName);
+    if (player.inventoryOpen && tab.getAttribute("aria-selected") === "true") {
+      toggleInventoryScreen();
+    } else {
+      closeWeaponDetails();
+      selectInventoryTab(inventoryTabName);
+      if (!player.inventoryOpen) toggleInventoryScreen();
+      tab.focus();
+    }
     return;
   }
 
