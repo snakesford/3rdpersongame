@@ -2800,11 +2800,11 @@ function updateStatsUI() {
   const currentHealth = Math.max(0, Math.round(hero.hp || 0));
   const inventoryStats = {
     level: player.level,
-    health: `${currentHealth}/${Math.round(maxHealth)}`,
+    health: `${Math.round(maxHealth)}`,
     armor: Math.round(getTotalArmor(selected)),
     damage: Math.round(getDisplayedWeaponStat(selected)),
     speed: Math.round(getHeroSpeed(selected) * getRoadSpeedMultiplier()),
-    regen: `${getHeroRegen(selected).toFixed(1)}/s`,
+    regen: getHeroRegen(selected).toFixed(1),
     gold: player.money,
   };
   inventoryStatEls.forEach((element) => {
