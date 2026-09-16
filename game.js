@@ -1362,6 +1362,18 @@ function updateQuestUI() {
 
 function updateInventoryUI() {
   inventoryListEl.textContent = "";
+  const backpackSlots = document.getElementById("inventoryBackpackSlots");
+  const slotCount = hero.selectedClass === "soldier" ? 8 : 0;
+  if (backpackSlots.children.length !== slotCount) {
+    backpackSlots.replaceChildren();
+    for (let index = 0; index < slotCount; index += 1) {
+      const slot = document.createElement("div");
+      slot.className = "inventory-backpack-slot";
+      slot.setAttribute("role", "listitem");
+      slot.setAttribute("aria-label", `Empty backpack slot ${index + 1}`);
+      backpackSlots.appendChild(slot);
+    }
+  }
 
   const resources = [
     { label: "Wood", value: player.wood },

@@ -1370,6 +1370,17 @@ button.hidden {
 }
 .inventory-side-panel h2 { margin: 0 0 18px; font-size: 19px; color: #fff5d2; }
 .inventory-side-abilities { display: grid; gap: 10px; }
+.inventory-backpack-slots {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+.inventory-backpack-slot {
+  aspect-ratio: 1;
+  border: 1px solid var(--panel-border);
+  border-radius: 6px;
+  background: rgba(0, 0, 0, 0.3);
+}
 .inventory-side-abilities button { width: 100%; text-align: left; }
 .inventory-layout > .inventory-ability-details { grid-column: 1 / 3; }
 
