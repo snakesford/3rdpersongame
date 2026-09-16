@@ -1376,11 +1376,14 @@ button.hidden {
   gap: 10px;
 }
 .inventory-backpack-slot {
+  display: grid;
+  place-items: center;
   aspect-ratio: 1;
   border: 1px solid var(--panel-border);
   border-radius: 6px;
   background: rgba(0, 0, 0, 0.3);
 }
+.inventory-backpack-slot img { width: 80%; height: 80%; object-fit: contain; }
 .inventory-side-abilities button { width: 100%; text-align: left; }
 .inventory-layout > .inventory-ability-details { grid-column: 1 / 3; }
 

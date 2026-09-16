@@ -672,6 +672,14 @@ function initializeMainWorld() {
   playerBase.w = 180;
   playerBase.h = 200;
   initializeVillage();
+  // Spare helmets just north of the main-world village.
+  [
+    { type: "enemyHelmet", armorValue: 80, x: 250 },
+    { type: "helmet", armorValue: 60, x: 330 },
+    { type: "goldHelmet", armorValue: 100, x: 410 },
+  ].forEach((helmet) => {
+    spawnPickupDrop({ type: helmet.type, armorValue: helmet.armorValue, radius: 18 }, helmet.x, 1150);
+  });
   initializeForest();
   enemyBase = createBuilding("enemyBase", WORLD.width - 290, getWorldHeight() - 320, false);
   enemyBase.hp = 800;
@@ -1363,17 +1371,31 @@ function updateQuestUI() {
 function updateInventoryUI() {
   inventoryListEl.textContent = "";
   const backpackSlots = document.getElementById("inventoryBackpackSlots");
-  const slotCount = hero.selectedClass === "soldier" ? 8 : 0;
-  if (backpackSlots.children.length !== slotCount) {
+  const slotCount = player.backpackCapacity;
     backpackSlots.replaceChildren();
     for (let index = 0; index < slotCount; index += 1) {
       const slot = document.createElement("div");
       slot.className = "inventory-backpack-slot";
       slot.setAttribute("role", "listitem");
       slot.setAttribute("aria-label", `Empty backpack slot ${index + 1}`);
+      const item = player.backpack[index];
+      if (item) {
+        const helmets = {
+          helmet: ["Helmet", "#9ca7b8", "#edf3ff"],
+          rareHelmet: ["Rare Helmet", "#4ea0ff", "#d2efff"],
+          goldHelmet: ["Gold Helmet", "#d3a63a", "#fff0b3"],
+          enemyHelmet: ["Enemy Helmet", "#78bf6f", "#ecffd8"]
+        };
+        const [name, fill, stroke] = helmets[item.type];
+        const icon = document.createElement("img");
+        icon.src = buildHelmetIcon(fill, stroke);
+        icon.alt = name;
+        slot.title = `${name} • Armor ${item.armorValue}`;
+        slot.setAttribute("aria-label", slot.title);
+        slot.appendChild(icon);
+      }
       backpackSlots.appendChild(slot);
     }
-  }
 
   const resources = [
     { label: "Wood", value: player.wood },
@@ -4523,16 +4545,17 @@ function equipPickup(pickup) {
 
   if (pickup.type === "helmet" || pickup.type === "rareHelmet" || pickup.type === "goldHelmet" || pickup.type === "enemyHelmet") {
     const previousArmor = getTotalArmor();
-    if (hero.equippedHelmetType && hero.equippedArmorValue > 0) {
-      spawnPickupDrop(
-        {
-          type: hero.equippedHelmetType,
-          armorValue: hero.equippedArmorValue,
-          radius: pickup.radius,
-        },
-        pickup.x + 20,
-        pickup.y
-      );
+    if (hero.equippedHelmetType) {
+      if (player.backpack.length >= player.backpackCapacity) {
+        pickup.collected = false;
+        statusTextEl.textContent = "Backpack full. Make room before picking up another helmet.";
+        return;
+      }
+      player.backpack.push({
+        type: hero.equippedHelmetType,
+        armorValue: hero.equippedArmorValue,
+        radius: 18,
+      });
     }
     hero.equippedArmorValue = pickup.armorValue;
     hero.equippedHelmetType = pickup.type;
@@ -4543,6 +4566,7 @@ function equipPickup(pickup) {
     };
     const armorDelta = getTotalArmor() - previousArmor;
     updateStatsUI();
+    updateInventoryUI();
     if (pickup.type === "rareHelmet") {
       spawnTextPopup(pickup.x, pickup.y - 22, "Rare Helmet picked up!", "rgba(120, 196, 255, 1)", 1.8);
       spawnTextPopup(pickup.x, pickup.y + 4, `Rare Armor ${armorDelta >= 0 ? "+" : ""}${armorDelta}`, "rgba(120, 196, 255, 1)", 1.8);

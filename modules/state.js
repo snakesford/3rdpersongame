@@ -18,6 +18,8 @@ const player = {
   hasBuiltBarracks: false,
   hasSelectedCharacter: false,
   inventoryOpen: false,
+  backpack: [],
+  backpackCapacity: 8,
   shopOpen: false,
   traderOpen: false,
   weaponDetailsOpen: false,
