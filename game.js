@@ -1401,6 +1401,22 @@ function equipBackpackHelmet(index) {
   }, 2400);
 }
 
+function showEquippedHelmetDetails() {
+  const description = document.createElement("p");
+  description.textContent = equipmentHelmetNameEl.textContent === "None"
+    ? "No helmet equipped."
+    : `${equipmentHelmetNameEl.textContent} • Armor ${getHelmetArmorValue()}`;
+  document.getElementById("inventoryEquipmentDetails").replaceChildren(description);
+}
+
+equipmentHelmetSlot.addEventListener("click", showEquippedHelmetDetails);
+equipmentHelmetSlot.addEventListener("keydown", (event) => {
+  if (event.target === equipmentHelmetSlot && (event.key === "Enter" || event.key === " ")) {
+    event.preventDefault();
+    showEquippedHelmetDetails();
+  }
+});
+
 equipmentHelmetSlot.addEventListener("dragover", (event) => {
   if (draggedBackpackHelmetIndex === null) return;
   event.preventDefault();

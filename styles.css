@@ -1421,6 +1421,7 @@ button.hidden {
 }
 #equipmentHelmetSlot {
   position: relative;
+  cursor: pointer;
   justify-self: center;
   padding: 4px 8px;
   gap: 2px;
@@ -1435,10 +1436,11 @@ button.hidden {
   gap: 2px;
 }
 .inventory-layout #equipmentHelmetSlot .equipment-copy {
-  display: flex;
-  align-items: center;
-  text-align: center;
-  gap: 2px;
+  display: none;
+}
+#equipmentHelmetSlot:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
 }
 #equipmentHelmetSlot.helmet-swap-complete {
   animation: helmet-equip-pulse 700ms ease-in-out 1;
