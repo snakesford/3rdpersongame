@@ -2922,6 +2922,15 @@ upgradeActionEls.forEach((element) => {
   });
 });
 
+function getHeroHeadshotChance(selected = getSelectedClassConfig()) {
+  if (hero.hasRifle) return buildProjectileHeadshotConfig("bullet").headshotChance;
+  if (hero.hasBow) return buildProjectileHeadshotConfig("arrow").headshotChance;
+  if (hero.hasAxe) return 0;
+  if (selected?.effect === "burst") return buildProjectileHeadshotConfig("bullet").headshotChance;
+  if (selected?.effect === "projectile") return buildProjectileHeadshotConfig("arrow").headshotChance;
+  return 0;
+}
+
 function updateStatsUI() {
   const selected = getSelectedClassConfig();
   const stats = selected?.stats || { armor: 0, health: 0, weapon: 0, regen: 0 };
@@ -2934,6 +2943,7 @@ function updateStatsUI() {
     damage: Math.round(getDisplayedWeaponStat(selected)),
     speed: Math.round(getHeroSpeed(selected) * getRoadSpeedMultiplier()),
     regen: getHeroRegen(selected).toFixed(1),
+    headshotChance: `${Number((getHeroHeadshotChance(selected) * 100).toFixed(1))}%`,
     gold: player.money,
   };
   inventoryStatEls.forEach((element) => {
