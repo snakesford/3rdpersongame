@@ -2314,6 +2314,11 @@ function selectLockedInventorySlot(slot, type) {
   container.querySelectorAll("button[aria-pressed]").forEach((button) => {
     button.setAttribute("aria-pressed", String(button === slot));
   });
+  if (isSkill) {
+    document.querySelectorAll(".inventory-side-ability").forEach((button) => {
+      button.setAttribute("aria-pressed", "false");
+    });
+  }
   const details = isSkill ? inventoryAbilityDetailsEl : document.getElementById("inventoryEquipmentDetails");
   const description = document.createElement("p");
   description.textContent = `This ${type} is not yet available. Increase your character level to unlock more skill slots!`;
@@ -2329,7 +2334,7 @@ function selectInventoryAbility(ability) {
   inventoryAbilitiesListEl.querySelectorAll(".inventory-ability-locked").forEach((slot) => {
     slot.setAttribute("aria-pressed", "false");
   });
-  inventoryAbilitiesListEl.querySelectorAll(".inventory-ability").forEach((card) => {
+  inventoryScreenEl.querySelectorAll("[data-ability-name]").forEach((card) => {
     card.setAttribute("aria-pressed", String(card.dataset.abilityName === selectedInventoryAbilityName));
   });
   inventoryAbilityDetailsEl.textContent = "";
@@ -2344,6 +2349,24 @@ function selectInventoryAbility(ability) {
     timing.textContent = `Control: ${ability.key} • ${ability.cooldown}s cooldown • ${ability.remaining > 0 ? `${ability.remaining.toFixed(1)}s remaining` : "Ready"}`;
     inventoryAbilityDetailsEl.appendChild(timing);
   }
+}
+
+function getInventoryAbilityIcon(ability) {
+  const imagePath = {
+    "Slash": "./images/sword.png",
+    "Wild Swing": "./images/sword.png",
+    "Burst Shot": "./images/rifle.png",
+    "Arrow Shot": "./images/bow.png",
+    "Grenade": "./images/grenade.png",
+    "Battle Medicine": "./images/medkit.png",
+  }[ability.name];
+  if (imagePath) return imagePath;
+  const shapes = {
+    "Arcane Nova": '<path d="m32 6 6 18 18 8-18 6-6 20-6-20-18-6 18-8Z"/><circle cx="32" cy="32" r="23" opacity=".4"/>',
+    "Pulse Wave": '<circle cx="32" cy="32" r="7"/><path d="M20 20a17 17 0 0 0 0 24m24-24a17 17 0 0 1 0 24M12 12a28 28 0 0 0 0 40m40-40a28 28 0 0 1 0 40"/>',
+    "Dash": '<path d="m28 12 20 20-20 20M14 18l14 14-14 14M8 32h40"/>',
+  }[ability.name] || '<path d="m36 6-22 30h16l-2 22 22-30H34Z"/>';
+  return `data:image/svg+xml,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none" stroke="#a9d9ff" stroke-width="4" stroke-linecap="round" stroke-linejoin="round">${shapes}</svg>`)}`;
 }
 
 function updateInventoryAbilities() {
@@ -2375,7 +2398,16 @@ function updateInventoryAbilities() {
   for (const ability of abilities) {
     const button = document.createElement("button");
     button.type = "button";
-    button.textContent = `${ability.name} (${ability.key})`;
+    button.className = "inventory-side-ability inventory-backpack-slot";
+    button.dataset.abilityName = ability.name;
+    button.setAttribute("aria-label", `${ability.name} (${ability.key})`);
+    button.setAttribute("aria-controls", "inventoryAbilityDetails");
+    button.title = `${ability.name} (${ability.key})`;
+    const icon = document.createElement("img");
+    icon.src = getInventoryAbilityIcon(ability);
+    icon.alt = "";
+    icon.draggable = false;
+    button.appendChild(icon);
     button.addEventListener("click", () => selectInventoryAbility(ability));
     sideAbilities.appendChild(button);
   }
