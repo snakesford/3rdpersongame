@@ -2401,6 +2401,33 @@ function enableInventoryAbilityDrag(slot, ability) {
     draggedInventoryAbility = { name: ability.name, classId: hero.selectedClass };
     event.dataTransfer.effectAllowed = "move";
     event.dataTransfer.setData("text/plain", ability.name);
+    // Snapshot a detached copy so grid transforms and scroll containers cannot clip it.
+    const preview = slot.cloneNode(true);
+    const originals = [slot, ...slot.querySelectorAll("*")];
+    const copies = [preview, ...preview.querySelectorAll("*")];
+    originals.forEach((original, index) => {
+      const computed = getComputedStyle(original);
+      for (const property of computed) {
+        copies[index].style.setProperty(property, computed.getPropertyValue(property));
+      }
+      copies[index].removeAttribute("id");
+    });
+    const bounds = slot.getBoundingClientRect();
+    Object.assign(preview.style, {
+      position: "relative", inset: "auto", transform: "none", margin: "0",
+      width: `${bounds.width}px`, height: `${bounds.height}px`, boxSizing: "border-box",
+    });
+    const dragImage = document.createElement("div");
+    dragImage.setAttribute("aria-hidden", "true");
+    Object.assign(dragImage.style, {
+      position: "fixed", top: "0", left: "0", padding: "12px",
+      width: "max-content", height: "max-content", pointerEvents: "none", zIndex: "2147483647",
+    });
+    dragImage.appendChild(preview);
+    document.body.appendChild(dragImage);
+    event.dataTransfer.setDragImage(dragImage, bounds.width / 2 + 12, bounds.height / 2 + 12);
+    // Keep the copy rendered until the browser has captured the drag image.
+    setTimeout(() => dragImage.remove(), 0);
   });
   const canDrop = () => player.inventoryOpen && draggedInventoryAbility
     && draggedInventoryAbility.classId === hero.selectedClass
