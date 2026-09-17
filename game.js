@@ -183,6 +183,8 @@ let enemyBase = null;
 let enemyHero = null;
 let lastSoldierAnimationName = null;
 let selectedInventoryAbilityName = null;
+const inventoryAbilityOrders = new Map();
+let draggedInventoryAbility = null;
 const BATTLE_MEDICINE_USE_DURATION = 0.9;
 const ROAD_SPEED_MULTIPLIER = 1.3;
 const MAIN_WORLD_TRADER_POSITION = { x: trader.x, y: trader.y };
@@ -2352,21 +2354,61 @@ function selectInventoryAbility(ability) {
 }
 
 function getInventoryAbilityIcon(ability) {
-  const imagePath = {
-    "Slash": "./images/sword.png",
-    "Wild Swing": "./images/sword.png",
-    "Burst Shot": "./images/rifle.png",
-    "Arrow Shot": "./images/bow.png",
+  return {
     "Grenade": "./images/grenade.png",
     "Battle Medicine": "./images/medkit.png",
-  }[ability.name];
-  if (imagePath) return imagePath;
-  const shapes = {
-    "Arcane Nova": '<path d="m32 6 6 18 18 8-18 6-6 20-6-20-18-6 18-8Z"/><circle cx="32" cy="32" r="23" opacity=".4"/>',
-    "Pulse Wave": '<circle cx="32" cy="32" r="7"/><path d="M20 20a17 17 0 0 0 0 24m24-24a17 17 0 0 1 0 24M12 12a28 28 0 0 0 0 40m40-40a28 28 0 0 1 0 40"/>',
-    "Dash": '<path d="m28 12 20 20-20 20M14 18l14 14-14 14M8 32h40"/>',
-  }[ability.name] || '<path d="m36 6-22 30h16l-2 22 22-30H34Z"/>';
-  return `data:image/svg+xml,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none" stroke="#a9d9ff" stroke-width="4" stroke-linecap="round" stroke-linejoin="round">${shapes}</svg>`)}`;
+  }[ability.name] || null;
+}
+
+function getOrderedInventoryAbilities() {
+  const abilities = getInventoryAbilities();
+  const savedOrder = inventoryAbilityOrders.get(hero.selectedClass) || [];
+  const names = [...savedOrder.filter((name) => abilities.some((ability) => ability.name === name))];
+  for (const ability of abilities) {
+    if (!names.includes(ability.name)) names.push(ability.name);
+  }
+  return names.map((name) => abilities.find((ability) => ability.name === name));
+}
+
+function clearInventoryAbilityDrag() {
+  draggedInventoryAbility = null;
+  inventoryScreenEl.querySelectorAll(".ability-drop-ready").forEach((slot) => {
+    slot.classList.remove("ability-drop-ready");
+  });
+}
+
+function enableInventoryAbilityDrag(slot, ability) {
+  slot.draggable = true;
+  slot.addEventListener("dragstart", (event) => {
+    draggedInventoryAbility = { name: ability.name, classId: hero.selectedClass };
+    event.dataTransfer.effectAllowed = "move";
+    event.dataTransfer.setData("text/plain", ability.name);
+  });
+  const canDrop = () => player.inventoryOpen && draggedInventoryAbility
+    && draggedInventoryAbility.classId === hero.selectedClass
+    && draggedInventoryAbility.name !== ability.name;
+  slot.addEventListener("dragover", (event) => {
+    if (!canDrop()) return;
+    event.preventDefault();
+    event.dataTransfer.dropEffect = "move";
+    slot.classList.add("ability-drop-ready");
+  });
+  slot.addEventListener("dragleave", (event) => {
+    if (!slot.contains(event.relatedTarget)) slot.classList.remove("ability-drop-ready");
+  });
+  slot.addEventListener("dragend", clearInventoryAbilityDrag);
+  slot.addEventListener("drop", (event) => {
+    if (!canDrop()) return;
+    event.preventDefault();
+    const order = getOrderedInventoryAbilities().map((entry) => entry.name);
+    const source = order.indexOf(draggedInventoryAbility.name);
+    const target = order.indexOf(ability.name);
+    clearInventoryAbilityDrag();
+    if (source < 0 || target < 0) return;
+    [order[source], order[target]] = [order[target], order[source]];
+    inventoryAbilityOrders.set(hero.selectedClass, order);
+    updateInventoryAbilities();
+  });
 }
 
 function updateInventoryAbilities() {
@@ -2392,7 +2434,7 @@ function updateInventoryAbilities() {
     slot.appendChild(lock);
     inventoryAbilitiesListEl.appendChild(slot);
   }
-  const abilities = getInventoryAbilities();
+  const abilities = getOrderedInventoryAbilities();
   const sideAbilities = document.getElementById("inventorySideAbilities");
   sideAbilities.replaceChildren();
   for (const ability of abilities) {
@@ -2400,14 +2442,23 @@ function updateInventoryAbilities() {
     button.type = "button";
     button.className = "inventory-side-ability inventory-backpack-slot";
     button.dataset.abilityName = ability.name;
+    enableInventoryAbilityDrag(button, ability);
     button.setAttribute("aria-label", `${ability.name} (${ability.key})`);
     button.setAttribute("aria-controls", "inventoryAbilityDetails");
     button.title = `${ability.name} (${ability.key})`;
-    const icon = document.createElement("img");
-    icon.src = getInventoryAbilityIcon(ability);
-    icon.alt = "";
-    icon.draggable = false;
-    button.appendChild(icon);
+    const iconPath = getInventoryAbilityIcon(ability);
+    if (iconPath) {
+      const icon = document.createElement("img");
+      icon.src = iconPath;
+      icon.alt = "";
+      icon.draggable = false;
+      button.appendChild(icon);
+    } else {
+      const name = document.createElement("span");
+      name.className = "inventory-ability-name";
+      name.textContent = ability.name;
+      button.appendChild(name);
+    }
     button.addEventListener("click", () => selectInventoryAbility(ability));
     sideAbilities.appendChild(button);
   }
@@ -2430,14 +2481,12 @@ function updateInventoryAbilities() {
     card.type = "button";
     card.className = "inventory-ability";
     card.dataset.abilityName = ability.name;
+    enableInventoryAbilityDrag(card, ability);
     card.setAttribute("aria-controls", "inventoryAbilityDetails");
     card.addEventListener("click", () => selectInventoryAbility(ability));
     const positions = ["left-upper", "left-lower", "top-left"];
     card.dataset.position = positions[index];
-    const iconPath = {
-      "Grenade": "./images/grenade.png",
-      "Battle Medicine": "./images/medkit.png"
-    }[ability.name];
+    const iconPath = getInventoryAbilityIcon(ability);
     if (iconPath) {
       card.setAttribute("aria-label", ability.name);
       const icon = document.createElement("img");
