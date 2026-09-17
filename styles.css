@@ -1166,8 +1166,47 @@ button.hidden {
 }
 
 .inventory-layout > .equipment-panel {
+  min-height: 510px;
   overflow: hidden;
 }
+
+.inventory-equipment-stats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  margin: 12px 0 0;
+  text-align: center;
+}
+
+.inventory-equipment-stats dt {
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.inventory-equipment-stats dd {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  margin: 4px 0 0;
+  color: #fff5d2;
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.inventory-stat-icon {
+  width: 24px;
+  height: 24px;
+  background: var(--accent);
+  -webkit-mask: var(--stat-icon) center / contain no-repeat;
+  mask: var(--stat-icon) center / contain no-repeat;
+}
+
+.inventory-stat-plus { --stat-icon: url("./images/plus.png"); }
+.inventory-stat-sword { --stat-icon: url("./images/sword.png"); }
+.inventory-stat-shield { --stat-icon: url("./images/shield.png"); }
 
 .inventory-layout h2 {
   margin: 0 0 18px;
@@ -1475,7 +1514,10 @@ button.hidden {
   .inventory-layout > .inventory-ability-details { grid-column: 1; }
 }
 
-.inventory-layout > .abilities-panel { overflow-x: auto; }
+.inventory-layout > .abilities-panel {
+  min-height: 480px;
+  overflow-x: auto;
+}
 .inventory-abilities-list {
   display: grid;
   grid-template-columns: minmax(150px, 1fr) repeat(2, minmax(100px, 0.7fr)) minmax(150px, 1fr);

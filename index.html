@@ -236,9 +236,6 @@
             <progress id="inventoryXpProgress" value="0" max="50" aria-label="Experience toward next level"></progress>
           </div>
           <dl class="inventory-stat-list">
-            <div><dt>Health</dt><dd data-inventory-stat="health">0</dd></div>
-            <div><dt>Armor</dt><dd data-inventory-stat="armor">0</dd></div>
-            <div><dt>Damage</dt><dd data-inventory-stat="damage">0</dd></div>
             <div><dt>Speed</dt><dd data-inventory-stat="speed">0</dd></div>
             <div><dt>Regen</dt><dd data-inventory-stat="regen">0</dd></div>
             <div class="inventory-gold"><dt class="hidden">Coins</dt><dd aria-label="Coins"><img class="inventory-coin" src="./images/coin.png" alt="" width="32" height="32"><span data-inventory-stat="gold">0</span></dd></div>
@@ -284,9 +281,31 @@
               <span class="ability-lock-icon" aria-hidden="true"></span>
             </button>
           </div>
+          <dl class="inventory-equipment-stats">
+            <div>
+              <dd><span data-inventory-stat="health">0</span><span class="inventory-stat-icon inventory-stat-plus" role="img" aria-label="Health"></span></dd>
+            </div>
+            <div>
+              <dd><span data-inventory-stat="damage">0</span><span class="inventory-stat-icon inventory-stat-sword" role="img" aria-label="Damage"></span></dd>
+            </div>
+            <div>
+              <dd><span data-inventory-stat="armor">0</span><span class="inventory-stat-icon inventory-stat-shield" role="img" aria-label="Armor"></span></dd>
+            </div>
+          </dl>
         </div>
         <div id="inventoryAbilitiesPanel" class="abilities-panel hidden" role="tabpanel" data-inventory-panel="abilities" aria-labelledby="inventoryAbilitiesTab" tabindex="0">
           <div id="inventoryAbilitiesList" class="inventory-abilities-list"></div>
+          <dl class="inventory-equipment-stats">
+            <div>
+              <dd><span data-inventory-stat="health">0</span><span class="inventory-stat-icon inventory-stat-plus" role="img" aria-label="Health"></span></dd>
+            </div>
+            <div>
+              <dd><span data-inventory-stat="damage">0</span><span class="inventory-stat-icon inventory-stat-sword" role="img" aria-label="Damage"></span></dd>
+            </div>
+            <div>
+              <dd><span data-inventory-stat="armor">0</span><span class="inventory-stat-icon inventory-stat-shield" role="img" aria-label="Armor"></span></dd>
+            </div>
+          </dl>
         </div>
         <div id="inventoryItemsPanel" class="inventory-panel hidden" role="tabpanel" data-inventory-panel="items" aria-labelledby="inventoryItemsTab" tabindex="0">
           <div id="inventoryList" class="inventory-list">
