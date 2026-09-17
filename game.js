@@ -2120,7 +2120,7 @@ function startGrenadeAim() {
     return false;
   }
   grenadeAim.active = true;
-  statusTextEl.textContent = "Grenade readied. Release G to throw.";
+  statusTextEl.textContent = `Grenade readied. Release ${getOrderedInventoryAbilities().find((ability) => ability.actionKey === "G")?.key || "G"} to throw.`;
   return true;
 }
 
@@ -2215,6 +2215,15 @@ function startBarracksPlacement() {
 }
 
 function updateAbilityUI() {
+  for (const ability of getOrderedInventoryAbilities()) {
+    const keyLabel = {
+      F: "#slashAbility .ability-icon",
+      Q: "#battleMedicineAbility .ability-key",
+      G: "#grenadeAbility .ability-key",
+      Shift: "#dashAbility .ability-icon",
+    }[ability.actionKey];
+    if (keyLabel) document.querySelector(keyLabel).textContent = ability.key;
+  }
   const selectedAbilityName = hero.selectedClass ? CHARACTER_OPTIONS[hero.selectedClass].abilityName : "";
   const showSlashAbility = Boolean(selectedAbilityName);
   const ready = hero.slashTimer <= 0;
@@ -2367,7 +2376,16 @@ function getOrderedInventoryAbilities() {
   for (const ability of abilities) {
     if (!names.includes(ability.name)) names.push(ability.name);
   }
-  return names.map((name) => abilities.find((ability) => ability.name === name));
+  return names.map((name, index) => {
+    const ability = abilities.find((entry) => entry.name === name);
+    const key = ["F", "Q", "G"][index];
+    return {
+      ...ability,
+      actionKey: ability.key,
+      key,
+      description: ability.key === "G" ? ability.description.replace("Hold G", `Hold ${key}`) : ability.description,
+    };
+  });
 }
 
 function clearInventoryAbilityDrag() {
@@ -2486,9 +2504,10 @@ function updateInventoryAbilities() {
     card.addEventListener("click", () => selectInventoryAbility(ability));
     const positions = ["left-upper", "left-lower", "top-left"];
     card.dataset.position = positions[index];
+    card.setAttribute("aria-label", `${ability.name} — press ${ability.key} in game`);
+    card.title = `Press ${ability.key} in game to use ${ability.name}`;
     const iconPath = getInventoryAbilityIcon(ability);
     if (iconPath) {
-      card.setAttribute("aria-label", ability.name);
       const icon = document.createElement("img");
       icon.className = "inventory-ability-icon";
       icon.src = iconPath;
@@ -2499,11 +2518,13 @@ function updateInventoryAbilities() {
       const heading = document.createElement("span");
       heading.className = "inventory-ability-name";
       heading.textContent = ability.name;
-      const key = document.createElement("kbd");
-      key.textContent = ability.key;
-      heading.appendChild(key);
       card.appendChild(heading);
     }
+    const keyBadge = document.createElement("kbd");
+    keyBadge.className = "inventory-ability-key";
+    keyBadge.textContent = ability.key;
+    keyBadge.setAttribute("aria-hidden", "true");
+    card.appendChild(keyBadge);
     inventoryAbilitiesListEl.appendChild(card);
   }
   selectInventoryAbility(abilities.find((ability) => ability.name === selectedInventoryAbilityName) || abilities[0]);
@@ -7645,9 +7666,13 @@ window.addEventListener("keydown", (event) => {
     return;
   }
 
-  if (key === "g") {
-    if (!event.repeat) {
-      startGrenadeAim();
+  if (["f", "q", "g"].includes(key)) {
+    const ability = getOrderedInventoryAbilities().find((entry) => entry.key.toLowerCase() === key);
+    if (ability?.actionKey === "F") useSlash(mouse.worldX, mouse.worldY);
+    else if (!event.repeat) {
+      if (ability?.actionKey === "Q") useBattleMedicine();
+      else if (ability?.actionKey === "G") startGrenadeAim();
+      else if (ability?.actionKey === "Shift") useRobotDash();
     }
     return;
   }
@@ -7656,13 +7681,6 @@ window.addEventListener("keydown", (event) => {
     if (!event.repeat && toggleRifleFireMode()) {
       return;
     }
-  }
-
-  if (key === "q") {
-    if (!event.repeat) {
-      useBattleMedicine();
-    }
-    return;
   }
 
   if (key === "e") {
@@ -7684,10 +7702,6 @@ window.addEventListener("keydown", (event) => {
     }
   }
 
-  if (key === "f") {
-    useSlash(mouse.worldX, mouse.worldY);
-  }
-
   if (event.key === "Shift" && hero.selectedClass === "robot") {
     useRobotDash();
   }
@@ -7703,7 +7717,8 @@ window.addEventListener("keydown", (event) => {
 window.addEventListener("keyup", (event) => {
   const key = event.key.length === 1 ? event.key.toLowerCase() : event.key;
   keys.delete(key);
-  if (key === "g" && grenadeAim.active) {
+  const grenadeKey = getOrderedInventoryAbilities().find((ability) => ability.actionKey === "G")?.key.toLowerCase();
+  if (key === grenadeKey && grenadeAim.active) {
     if (!useSoldierGrenade(mouse.worldX, mouse.worldY)) {
       cancelGrenadeAim();
       statusTextEl.textContent = getCharacterStatus();

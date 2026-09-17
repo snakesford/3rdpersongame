@@ -1623,6 +1623,25 @@ button.hidden {
 .inventory-ability .inventory-ability-timing { color: #dfc889; font-size: 12px; }
 
 .inventory-ability { text-align: left; cursor: pointer; }
+.inventory-abilities-list > .inventory-ability { position: relative; }
+.inventory-ability .inventory-ability-key {
+  position: absolute;
+  right: -9px;
+  bottom: -9px;
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 1px solid var(--accent);
+  border-bottom-width: 3px;
+  border-radius: 6px;
+  background: #28231a;
+  color: #fff5d2;
+  font: 700 14px monospace;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.45);
+  pointer-events: none;
+}
 .inventory-ability:hover,
 .inventory-ability[aria-pressed="true"] {
   border-color: var(--accent);
