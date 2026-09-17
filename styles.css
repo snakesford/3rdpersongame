@@ -1567,7 +1567,7 @@ button.hidden {
   height: 80px;
   padding: 0;
   border: 2px solid #77716a;
-  border-radius: 0;
+  border-radius: 10px;
   background: rgba(0, 0, 0, 0.3);
 }
 .inventory-ability-locked,
