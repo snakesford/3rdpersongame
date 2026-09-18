@@ -4,6 +4,10 @@ module.exports = async function checkSpawn(send, firstSession, url) {
   const {targetId} = await send('Target.createTarget', {url: 'about:blank'});
   const {sessionId: secondSession} = await send('Target.attachToTarget', {targetId, flatten: true});
   let secondClosed = false;
+  // Chrome otherwise suspends requestAnimationFrame in the inactive test tab.
+  for (const session of [firstSession, secondSession]) {
+    await send('Emulation.setFocusEmulationEnabled', {enabled: true}, session);
+  }
   const evaluate = async (session, expression) => {
     const result = await send('Runtime.evaluate', {expression, awaitPromise: true, returnByValue: true}, session);
     if (result.exceptionDetails) throw new Error(JSON.stringify(result.exceptionDetails));
@@ -93,6 +97,7 @@ module.exports = async function checkSpawn(send, firstSession, url) {
     })()`);
     assert.equal((await inspect(firstSession)).game.x, first.game.x + 20);
     assert.deepEqual((await inspect(secondSession)).remote.spawnPosition, first.local.spawnPosition);
+    await require('./movement-browser.cjs')(evaluate, wait, firstSession, secondSession);
     await send('Target.closeTarget', {targetId});
     secondClosed = true;
     await wait(firstSession, 'network.getRemotePlayers().length === 0');

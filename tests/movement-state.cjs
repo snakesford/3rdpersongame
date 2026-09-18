@@ -1,0 +1,32 @@
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+
+(async () => {
+  const source = fs.readFileSync('modules/multiplayer.js', 'utf8');
+  const {createPlayerRegistry} = await import('data:text/javascript;base64,' + Buffer.from(source).toString('base64'));
+  const registry = createPlayerRegistry();
+  registry.setIdentity('local');
+  const initial = {x: 100, y: 100, facingAngle: 3.1, worldId: 'village', isMoving: false, sequence: 0, spawnId: 'spawn'};
+  registry.setRoomPlayers([{id: 'local'}, {id: 'remote', spawnPosition: {x:100,y:100}, movement: initial}]);
+  const start = Date.now();
+  const update = {id:'remote', ...initial, x:180, facingAngle:-3.1, isMoving:true, sequence:1};
+  assert.equal(registry.applyMovement(update, start), true);
+  const half = registry.getRenderState('remote', start + 40);
+  assert.equal(half.x, 140);
+  assert.ok(Math.abs(Math.abs(half.facingAngle) - Math.PI) < 0.01, 'Direction should take the short path across π');
+  assert.equal(registry.getRenderState('remote', start + 80).x, 180);
+  assert.equal(registry.getRenderState('remote', start + 1100).isMoving, false);
+  assert.equal(registry.applyMovement({...update, x:0}, start + 100), false, 'Repeated sequence ignored');
+  assert.equal(registry.applyMovement({...update, spawnId:'old', sequence:2}), false);
+  assert.equal(registry.applyMovement({...update, id:'stranger'}), false);
+  assert.equal(registry.applyMovement({...update, id:'local'}), false);
+  registry.setRoomPlayers([{id:'remote',spawnPosition:{x:100,y:100},movement:initial}]);
+  assert.equal(registry.getRemotePlayers()[0].movement.sequence, 1, 'Old roster must not rewind movement');
+  registry.applyMovement({...update, worldId:'main', x:900, sequence:2}, start + 200);
+  assert.equal(registry.getRenderState('remote', start + 200).x, 900, 'World travel snaps instead of sliding');
+  registry.setRoomPlayers();
+  assert.equal(registry.getRenderState('remote'), null);
+  registry.reset();
+  assert.equal(registry.players.size, 0);
+  console.log('Movement interpolation, stale updates, identity guards, world changes, and cleanup checks passed');
+})().catch(error => {console.error(error); process.exitCode = 1;});

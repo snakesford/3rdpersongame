@@ -1,4 +1,5 @@
 import { clamp, distance } from "./modules/math.js";
+import { getPlayerWorldId } from "./modules/multiplayer.js";
 import {
   buildings,
   camera,
@@ -1673,19 +1674,28 @@ function createRenderingSystem(services) {
   }
 
   function drawRemotePlayers() {
-    if (!player.inVillageWorld) return;
+    const worldId = getPlayerWorldId(player);
     for (const remote of multiplayer.getRemotePlayers()) {
       if (!remote.spawnPosition || !remote.selectedCharacter) continue;
+      const movement = multiplayer.getRenderState(remote.id);
+      if ((movement?.worldId || 'village') !== worldId || movement?.onFoot === false) continue;
       const subject = { ...remote.spawnPosition, radius: 18, facingAngle: 0,
-        hasAxe: false, hasRifle: false, isMoving: false, runAnimationTimer: 0 };
+        hasAxe: false, hasRifle: false, isMoving: false, runAnimationTimer: 0, ...movement };
       const character = runtime.CHARACTER_OPTIONS[remote.selectedCharacter];
       if (remote.selectedCharacter === 'engineer') services.drawEngineerHero(subject);
       else if (remote.selectedCharacter === 'bountyHunter') services.drawBountyHunter(subject);
       else if (remote.selectedCharacter === 'stickman') drawHeroStickFigure(subject);
       else if (remote.selectedCharacter === 'soldier' || remote.selectedCharacter === 'archer') {
-        const image = remote.selectedCharacter === 'soldier' ? soldierIdleImage : archerImage;
+        const runningFrames = [soldierRunningTransitionImage, soldierRunningImage, soldierRunningTransitionImage, soldierRunningRightFootImage];
+        const image = remote.selectedCharacter === 'soldier'
+          ? (subject.isMoving ? runningFrames[Math.floor(subject.runAnimationTimer / 0.3) % runningFrames.length] : soldierIdleImage)
+          : (subject.isMoving ? archerRunningImage : archerImage);
         if (image.complete && image.naturalWidth > 0) {
-          drawHeroSprite(image, subject.x, subject.y, remote.selectedCharacter === 'soldier' ? 54 : 46);
+          ctx.save();
+          ctx.translate(subject.x, subject.y);
+          if (Math.cos(subject.lastMoveAngle ?? subject.facingAngle) < 0) ctx.scale(-1, 1);
+          drawHeroSprite(image, 0, 0, remote.selectedCharacter === 'soldier' ? 54 : 46);
+          ctx.restore();
         } else drawEntityCircle(subject, COLORS.hero, COLORS.heroAccent);
       } else drawEntityCircle(subject, COLORS.hero, COLORS.heroAccent);
       drawNameplate(subject.x, subject.y - 82, `${remote.name} · ${character?.name || remote.selectedCharacter}`, 'rgba(25, 47, 70, 0.9)');

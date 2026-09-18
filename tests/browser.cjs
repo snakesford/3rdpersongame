@@ -58,7 +58,7 @@ function cleanup(code) {
 (async () => {
   await new Promise((resolve, reject) => {server.on('error', reject); server.listen(0, '127.0.0.1', resolve);});
   browser = spawn('/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
-    ['--headless=new', '--no-first-run', '--no-default-browser-check', '--disable-background-networking', '--disable-extensions', '--remote-debugging-pipe', '--user-data-dir=' + profile, 'about:blank'],
+    ['--headless=new', '--no-first-run', '--no-default-browser-check', '--disable-background-networking', '--disable-extensions', '--disable-background-timer-throttling', '--disable-renderer-backgrounding', '--disable-backgrounding-occluded-windows', '--remote-debugging-pipe', '--user-data-dir=' + profile, 'about:blank'],
     {stdio: ['ignore', 'ignore', 'pipe', 'pipe', 'pipe']});
   browser.on('error', error => {console.error(error); cleanup(1);});
   let buffer = '';

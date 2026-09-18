@@ -1,6 +1,8 @@
-import { getRoom, getLocalPlayer, readyPlayer, on } from './network.js';
-import { getSelectedPlayerProfile, onCharacterSelected, spawnMultiplayerPlayer } from './game.js';
+import { getRoom, getLocalPlayer, readyPlayer, sendMovement, on } from './network.js';
+import { getSelectedPlayerProfile, onCharacterSelected, onGameFrame, spawnMultiplayerPlayer } from './game.js';
 import { characterSelectEl } from './modules/dom.js';
+import { hero, player } from './modules/state.js';
+import { getPlayerWorldId } from './modules/multiplayer.js';
 
 let submittedProfile = null;
 let appliedSpawn = null;
@@ -34,4 +36,12 @@ function sync() {
 onCharacterSelected(sync);
 on('room:state', sync);
 on('disconnect', sync);
+onGameFrame(timestamp => {
+  if (!appliedSpawn) return;
+  sendMovement({ x: hero.x, y: hero.y, worldId: getPlayerWorldId(player),
+    facingAngle: hero.facingAngle ?? 0, lastMoveAngle: hero.lastMoveAngle,
+    isMoving: hero.isMoving && !player.inventoryOpen && !player.victory && !player.loss,
+    onFoot: hero.vehicleId === null,
+  }, timestamp);
+});
 sync();

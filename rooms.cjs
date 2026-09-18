@@ -40,6 +40,7 @@ function attachRooms(io) {
       player.name = '';
       player.selectedCharacter = null;
       player.spawnPosition = null;
+      player.movement = null;
       if (room.players.size === 0) rooms.delete(code);
       else publish(room);
     }
@@ -84,10 +85,33 @@ function attachRooms(io) {
       if (room.players.size === 2 && [...room.players.values()].every(p => p.selectedCharacter) &&
           [...room.players.values()].some(p => !p.spawnPosition)) {
         room.spawnId = randomUUID();
-        [...room.players.values()].forEach((p, index) => { p.spawnPosition = { ...spawnPositions[index] }; });
+        [...room.players.values()].forEach((p, index) => {
+          p.spawnPosition = { ...spawnPositions[index] };
+          p.movement = { ...p.spawnPosition, worldId: 'village', facingAngle: 0,
+            lastMoveAngle: null, isMoving: false, onFoot: true, sequence: 0, spawnId: room.spawnId };
+        });
       }
       publish(room);
       reply(ack, { ok: true, room: snapshot(room) });
+    });
+    socket.on('player:movement', (payload, ack) => {
+      const room = rooms.get(socket.data.roomCode);
+      if (!room || !player.spawnPosition || !payload || payload.spawnId !== room.spawnId) {
+        return fail(ack, 'Movement requires the current room spawn.');
+      }
+      const { x, y, worldId, facingAngle, lastMoveAngle, isMoving, onFoot, sequence } = payload;
+      if (!Number.isFinite(x) || !Number.isFinite(y) || x < 0 || x > 2400 || y < 0 || y > 2800 ||
+          !['village', 'main', 'tutorial', 'waves', 'arena'].includes(worldId) ||
+          !Number.isFinite(facingAngle) || Math.abs(facingAngle) > Math.PI * 2 ||
+          !(lastMoveAngle === null || (Number.isFinite(lastMoveAngle) && Math.abs(lastMoveAngle) <= Math.PI * 2)) ||
+          typeof isMoving !== 'boolean' || typeof onFoot !== 'boolean' ||
+          !Number.isSafeInteger(sequence) || sequence <= (player.movement?.sequence ?? 0)) {
+        return fail(ack, 'Invalid or stale movement.');
+      }
+      // Only movement fields are relayed; identity, room, and combat fields are ignored.
+      player.movement = { x, y, worldId, facingAngle, lastMoveAngle, isMoving, onFoot, sequence, spawnId: room.spawnId };
+      socket.to(channel(room.code)).volatile.emit('player:movement', { id: player.id, ...player.movement });
+      reply(ack, { ok: true });
     });
     socket.on('room:message', (payload, ack) => {
       const room = rooms.get(socket.data.roomCode);

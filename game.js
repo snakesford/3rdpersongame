@@ -26,6 +26,11 @@ import {
 
 let lastTimestamp = 0;
 const characterSelectionListeners = new Set();
+const frameListeners = new Set();
+export function onGameFrame(listener) {
+  frameListeners.add(listener);
+  return () => frameListeners.delete(listener);
+}
 export function onCharacterSelected(listener) {
   characterSelectionListeners.add(listener);
   return () => characterSelectionListeners.delete(listener);
@@ -182,6 +187,7 @@ function gameLoop(timestamp) {
   const dt = Math.min((timestamp - lastTimestamp) / 1000 || 0, 0.05);
   lastTimestamp = timestamp;
   update(dt);
+  for (const listener of frameListeners) listener(timestamp);
   render();
   requestAnimationFrame(gameLoop);
 }

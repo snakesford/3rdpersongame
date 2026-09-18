@@ -91,7 +91,7 @@ Rooms live in memory in one server process. Leaving or disconnecting releases a
 slot and updates the remaining member; the last departure deletes the room.
 There is no special host role, so the remaining player can keep using the code.
 Reconnecting starts outside a room and requires joining again. Restarting the
-server clears all rooms. Movement and combat remain local and unsynchronized.
+server clears all rooms. Movement is relayed within the room; combat remains local.
 
 `tests/rooms-browser.cjs`, run by `npm run test:browser`, checks the lobby controls,
 concurrent joins against the two-player limit, invalid/missing codes, single-room
@@ -148,15 +148,46 @@ players. Character changes after spawning require leaving the room first.
 The renderer draws remote players using their selected character at the assigned
 spawn position, with name/character labels. The local character is labeled “You.”
 Remote records are never passed into local movement/combat updates. Remote
-characters disappear on leaving/disconnecting and are hidden outside the village.
+characters disappear on leaving/disconnecting and are hidden when in a different world.
 If a replacement player joins and becomes ready, both current room members get a
-new shared spawn. Movement, actions, combat, and world travel are not replicated.
+new shared spawn. Actions and combat are not replicated. World travel stays local;
+movement includes a world ID so peers only appear together in the same world.
 
 `tests/spawn-browser.cjs` opens two actual game tabs, chooses different names and
 characters, and checks identical rosters/world IDs, distinct positions, local
 hero coordinates, nameplates, and canvas sprite drawing on both clients. It also
 checks invalid character rejection, waiting for readiness, forged spawn fields,
 duplicate readiness without teleporting, and peer cleanup.
+
+### Movement synchronization
+
+After each local simulation frame, `multiplayer-game.js` calls
+`network.sendMovement()` with position, facing angle, last movement angle,
+moving/idle state, world ID, and whether the player is on foot. `network.js` limits
+transmission to 20 Hz and repeats unchanged state every 250 ms to repair dropped
+stop packets. [Socket.IO volatile events](https://socket.io/docs/v4/emitting-events/#volatile-events)
+discard obsolete updates when the transport is unavailable instead of queuing them.
+
+The server's `player:movement` handler accepts only spawned room members, checks
+finite coordinates/angles and valid state fields, and rejects stale sequence
+numbers or spawn IDs. It derives player identity and room destination from the
+connection and relays only the movement fields to the peer. Position remains
+client-simulated; the server does not simulate movement or validate travel speed.
+No health, attacks, projectiles, damage, or other combat state is transmitted.
+
+Each remote record holds the latest immutable movement snapshot. Rendering eases
+positions and facing angles toward it over 80 ms and uses moving/idle sprites,
+sprite direction, and running animation time. World changes and large position
+jumps snap immediately. Missing updates stop the walking animation after one
+second. Local hero movement is never overwritten by received packets. Vehicles
+remain local; the on-foot flag hides the remote character while driving.
+
+`tests/movement-browser.cjs` extends the two-tab test with real keyboard movement
+in both directions, rendered position checks, final stop convergence, invalid
+and stale packet rejection, cross-room isolation, and combat-field exclusion.
+The browser harness keeps both tabs active so Chrome runs both animation loops.
+`tests/movement-state.cjs` checks interpolation, angle wrapping, stale snapshots,
+identity guards, world changes, and cleanup with deterministic sample times.
 
 ### Remaining gameplay work
 
