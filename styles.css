@@ -1003,6 +1003,11 @@ button.hidden {
 
 .start-panel {
   width: min(860px, 100%);
+  max-height: calc(100vh - 48px);
+  max-height: calc(100dvh - 48px);
+  display: flex;
+  flex-direction: column;
+  overflow: auto;
   padding: 28px;
   border-radius: 22px;
   background: rgba(15, 33, 24, 0.92);
@@ -1054,9 +1059,21 @@ button.hidden {
   box-shadow: 0 0 0 3px rgba(209, 165, 75, 0.18);
 }
 
+#classStep {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
 .class-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-auto-rows: max-content;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+  padding: 4px;
   gap: 14px;
   margin-top: 24px;
 }
