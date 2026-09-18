@@ -26,6 +26,7 @@ const player = {
   inDodgeArena: false,
   inTutorialWorld: false,
   inVillageWorld: false,
+  inWaveWorld: false,
   dodgeArenaReturnX: PLAYER_BASE_SPAWN.x + 40,
   dodgeArenaReturnY: PLAYER_BASE_SPAWN.y,
   weaponBonusStat: 0,

@@ -222,6 +222,9 @@ const trainingAmmoStockpile = {
   occupantId: null,
 };
 const driverTriggerTile = { x: TUTORIAL_WORLD.spawnX - 300, y: TUTORIAL_WORLD.spawnY + 130, size: 96, triggered: false };
+const WAVE_MODE_TILE = { x: 1520, y: 1270, size: 96, destination: "waves", label: ["WAVE", "MODE"] };
+const WAVE_MODE = { counts: [3, 5], spawnX: WORLD.width / 2, spawnY: WORLD.height / 2, delay: 3 };
+const waveMode = { wave: 0, timer: 0, completed: false };
 let trainingDriver = null;
 const tutorialDialogue = {
   npcId: null,
@@ -657,6 +660,7 @@ function initializeEnemyForces() {
 }
 
 function clearWorldEntities() {
+  Object.assign(waveMode, { wave: 0, timer: 0, completed: false });
   clearEngineerDeployables();
   trainingDriver = null;
   trainingAmmoStockpile.occupantId = null;
@@ -693,6 +697,7 @@ function initializeMainWorld() {
   SPAWN_WAVE_TILE.triggered = false;
   SPAWN_STREAM_TILE.timer = 0;
   DODGE_ARENA.timer = 0;
+  player.inWaveWorld = false;
   player.inTutorialWorld = false;
   player.inVillageWorld = false;
   player.inDodgeArena = false;
@@ -1434,6 +1439,7 @@ function registerContractKill(enemy) {
 }
 
 function getQuestObjectiveText() {
+  if (player.inWaveWorld) return getWaveModeStatus();
   if (player.inVillageWorld) {
     if (shootingRangeTutorial.started && !shootingRangeTutorial.completed) {
       return "Speak to the Shooting Instructor and read the range rules.";
@@ -1477,6 +1483,12 @@ function getQuestObjectiveText() {
 }
 
 function updateQuestUI() {
+  if (player.inWaveWorld) {
+    questPanelEl.classList.remove("hidden");
+    questTitleEl.textContent = "Wave Mode";
+    questObjectiveEl.textContent = getWaveModeStatus();
+    return;
+  }
   if (player.inVillageWorld) {
     questPanelEl.classList.remove("hidden");
     questTitleEl.textContent = "Village";
@@ -1661,7 +1673,7 @@ function updateInventoryUI() {
 }
 
 function isHeroNearVillager() {
-  return !player.inVillageWorld && distance(hero, villager) <= 80;
+  return !player.inWaveWorld && !player.inVillageWorld && distance(hero, villager) <= 80;
 }
 
 function isDialogueOpen() {
@@ -2189,6 +2201,7 @@ window.addEventListener("resize", resizeCanvas);
 resizeCanvas();
 
 function getCharacterStatus() {
+  if (player.inWaveWorld) return getWaveModeStatus();
   if (player.inVillageWorld) {
     const npc = getNearbyTutorialNpc();
     return npc
@@ -3623,7 +3636,7 @@ function isHeroNearShop() {
 }
 
 function isHeroNearTrader() {
-  return distance(hero, trader) <= 190;
+  return !player.inWaveWorld && distance(hero, trader) <= 190;
 }
 
 function isHeroOnSpawnWaveTile() {
@@ -4067,7 +4080,7 @@ function getHumveeTravelTiles() {
   if (player.inTutorialWorld) {
     tiles.push({ x: TUTORIAL_WORLD.returnTileX, y: TUTORIAL_WORLD.returnTileY,
       size: TUTORIAL_WORLD.returnTileSize, destination: "main" });
-  } else if (!player.inVillageWorld) {
+  } else if (!player.inVillageWorld && !player.inWaveWorld) {
     tiles.push({ ...TUTORIAL_TILE, destination: "training" });
     if (!player.inDodgeArena) tiles.push({ ...DODGE_ARENA_TILE, destination: "arena" });
   }
@@ -4125,6 +4138,7 @@ function updateHumveePortals(vehicle) {
     training: activateTutorialWorld,
     village: activateVillageWorld,
     arena: enterDodgeArena,
+    waves: activateWaveWorld,
   }[tile.destination];
   return travel ? teleportHumvee(travel) : false;
 }
@@ -4153,6 +4167,7 @@ function activateVillageWorld() {
   prepareWorldTravel();
   clearWorldEntities();
   player.inVillageWorld = true;
+  player.inWaveWorld = false;
   player.inTutorialWorld = false;
   player.inDodgeArena = false;
   playerBase = null;
@@ -4214,18 +4229,23 @@ function activateVillageWorld() {
 }
 
 function getVillagePortals() {
+  if (player.inWaveWorld) return [];
+  if (player.inTutorialWorld) return [VILLAGE_RETURN_TILES.training, WAVE_MODE_TILE];
   if (player.inVillageWorld) return VILLAGE_WORLD.portals;
   return [player.inTutorialWorld ? VILLAGE_RETURN_TILES.training : VILLAGE_RETURN_TILES.main];
 }
 
 function updateVillagePortals() {
   const portal = getVillagePortals().find((tile) =>
-    hero.x >= tile.x && hero.x <= tile.x + tile.size &&
-    hero.y >= tile.y && hero.y <= tile.y + tile.size
+    (tile.destination === "waves"
+      ? Math.hypot(hero.x - clamp(hero.x, tile.x, tile.x + tile.size), hero.y - clamp(hero.y, tile.y, tile.y + tile.size)) <= hero.radius
+      : hero.x >= tile.x && hero.x <= tile.x + tile.size &&
+        hero.y >= tile.y && hero.y <= tile.y + tile.size)
   );
   if (!portal) return false;
   if (portal.destination === "main") travelToMainWorld();
   else if (portal.destination === "training") activateTutorialWorld();
+  else if (portal.destination === "waves") activateWaveWorld();
   else activateVillageWorld();
   return true;
 }
@@ -4248,6 +4268,64 @@ function drawVillagePortals() {
   }
 }
 
+function getWaveModeStatus() {
+  if (waveMode.completed) return "Wave mode complete! Returning to training…";
+  if (waveMode.timer > 0) return `Wave ${waveMode.wave + 1}/${WAVE_MODE.counts.length} starts in ${Math.ceil(waveMode.timer)}…`;
+  return `Wave ${waveMode.wave}/${WAVE_MODE.counts.length} — ${enemies.filter(enemy => enemy.hp > 0).length} enemies remaining`;
+}
+
+function activateWaveWorld() {
+  prepareWorldTravel();
+  clearWorldEntities();
+  player.inWaveWorld = true;
+  player.inTutorialWorld = false;
+  player.inVillageWorld = false;
+  player.inDodgeArena = false;
+  playerBase = null;
+  enemyBase = null;
+  enemyHero.active = false;
+  enemyHero.hp = 0;
+  hero.x = WAVE_MODE.spawnX;
+  hero.y = WAVE_MODE.spawnY;
+  hero.hp = hero.maxHp;
+  waveMode.timer = WAVE_MODE.delay;
+  overlayMessageEl.classList.add("hidden");
+  updateCamera(1);
+  statusTextEl.textContent = getWaveModeStatus();
+  updateQuestUI();
+  updateStatsUI();
+  updateAbilityUI();
+  updateTrainButton();
+  updateBuildBarracksButton();
+}
+
+function updateWaveMode(dt) {
+  if (!player.inWaveWorld || hero.isDead || hero.hp <= 0) return;
+  if (waveMode.timer > 0) {
+    waveMode.timer = Math.max(0, waveMode.timer - dt);
+    if (waveMode.timer === 0) {
+      if (waveMode.completed) {
+        if (getOccupiedHumvee()) teleportHumvee(activateTutorialWorld);
+        else activateTutorialWorld();
+        return;
+      }
+      const count = WAVE_MODE.counts[waveMode.wave++];
+      for (let i = 0; i < count; i += 1) {
+        const angle = i * Math.PI * 2 / count;
+        // Keep the entire spawn ring within the map, even when the hero is at an edge.
+        const centerX = clamp(hero.x, 400, WORLD.width - 400);
+        const centerY = clamp(hero.y, 400, getWorldHeight() - 400);
+        createUnit("skeleton", centerX + Math.cos(angle) * 340, centerY + Math.sin(angle) * 340, false);
+      }
+    }
+  } else if (waveMode.wave > 0 && !enemies.some(enemy => enemy.hp > 0)) {
+    waveMode.completed = waveMode.wave === WAVE_MODE.counts.length;
+    waveMode.timer = WAVE_MODE.delay;
+  }
+  statusTextEl.textContent = getWaveModeStatus();
+  updateQuestUI();
+}
+
 function activateTutorialWorld() {
   if (player.inTutorialWorld) {
     return;
@@ -4255,6 +4333,7 @@ function activateTutorialWorld() {
 
   prepareWorldTravel();
   player.inVillageWorld = false;
+  player.inWaveWorld = false;
   player.inTutorialWorld = true;
   Object.assign(trader, MAIN_WORLD_TRADER_POSITION);
   player.inDodgeArena = false;
@@ -4714,6 +4793,7 @@ function respawnHero() {
   closeWeaponDetails();
   updateStatsUI();
   statusTextEl.textContent = player.inVillageWorld ? "You respawned in the village." : player.inTutorialWorld ? "You respawned in the tutorial world." : "You respawned at base.";
+  if (player.inWaveWorld) activateWaveWorld();
   spawnTextPopup(hero.x, hero.y - 30, "Respawned!", "rgba(196, 234, 255, 1)", 1.4);
 }
 
@@ -6201,7 +6281,7 @@ function getWorldHeight() {
 }
 
 function isHeroOnRoad() {
-  if (player.inTutorialWorld || player.inDodgeArena) return false;
+  if (player.inWaveWorld || player.inTutorialWorld || player.inDodgeArena) return false;
   if (villagePaths.some((path) =>
     hero.x >= path.x && hero.x <= path.x + path.w &&
     hero.y >= path.y && hero.y <= path.y + path.h
@@ -6380,7 +6460,7 @@ function updateHero(dt) {
   if (updateVillagePortals()) {
     return;
   }
-  const inMainWorld = !player.inTutorialWorld && !player.inVillageWorld;
+  const inMainWorld = !player.inTutorialWorld && !player.inVillageWorld && !player.inWaveWorld;
   if (inMainWorld && !SPAWN_WAVE_TILE.triggered && isHeroOnSpawnWaveTile()) {
     spawnSkeletonWave();
   }
@@ -6941,7 +7021,7 @@ function update(dt) {
   updateHumveeExhaust(dt);
   updateHumveeTech(dt);
   updateGrenades(dt);
-  if (!player.inTutorialWorld && !player.inVillageWorld) {
+  if (!player.inTutorialWorld && !player.inVillageWorld && !player.inWaveWorld) {
     updateDodgeArena(dt);
   }
   updateEngineerDeployables(dt);
@@ -6949,13 +7029,14 @@ function update(dt) {
   updateEnemyProjectiles(dt);
   updateUnits(dt, units, enemies, buildings.filter((b) => !b.isPlayer));
   updateUnits(dt, enemies, [hero, ...units, ...engineerDeployables.filter(d => d.kind === "autoTurret" && d.hp > 0)], buildings.filter((b) => b.isPlayer));
-  if (!player.inTutorialWorld && !player.inVillageWorld) {
+  if (!player.inTutorialWorld && !player.inVillageWorld && !player.inWaveWorld) {
     updateForestSystems(dt);
     cleanupDeathZoneEntities();
   }
   updateDamagePopups(dt);
   updateSparkEffects(dt);
   cleanupDefeatedEnemies();
+  updateWaveMode(dt);
   cleanupDestroyedBuildings();
   updateTrainButton();
   updateBuildBarracksButton();
@@ -6973,6 +7054,7 @@ function update(dt) {
 function drawBackground() {
   ctx.fillStyle = COLORS.ground;
   ctx.fillRect(0, 0, WORLD.width, getWorldHeight());
+  if (player.inWaveWorld) return;
 
   if (player.inVillageWorld) {
     drawVillageGround();
@@ -7132,6 +7214,16 @@ function drawMinimap() {
   minimapCtx.clearRect(0, 0, mapWidth, mapHeight);
   minimapCtx.fillStyle = "#19301f";
   minimapCtx.fillRect(0, 0, mapWidth, mapHeight);
+  if (player.inWaveWorld) {
+    for (const entity of [hero, ...enemies]) {
+      if (entity.hp <= 0) continue;
+      minimapCtx.fillStyle = entity === hero ? "#9de0ff" : "#ff7878";
+      minimapCtx.beginPath();
+      minimapCtx.arc(toMapX(entity.x), toMapY(entity.y), 3, 0, Math.PI * 2);
+      minimapCtx.fill();
+    }
+    return;
+  }
 
   if (player.inVillageWorld) {
     minimapCtx.fillStyle = "#9b895b";
@@ -7474,6 +7566,7 @@ function drawPickup(pickup) {
 }
 
 function drawTrader() {
+  if (player.inWaveWorld) return;
   ctx.beginPath();
   ctx.fillStyle = "#c8a15e";
   ctx.arc(trader.x, trader.y, trader.radius, 0, Math.PI * 2);
@@ -7491,7 +7584,7 @@ function drawTrader() {
 }
 
 function drawVillager() {
-  if (player.inVillageWorld) return;
+  if (player.inWaveWorld || player.inVillageWorld) return;
   ctx.beginPath();
   ctx.fillStyle = "#c45d44";
   ctx.arc(villager.x, villager.y, villager.radius, 0, Math.PI * 2);
@@ -9776,7 +9869,7 @@ function updateEngineerDeployables(dt) {
       if (deployable.ttl === 0) engineerDeployables.splice(i, 1);
       continue;
     }
-    if (deployable.hp <= 0 || (!player.inVillageWorld && !player.inTutorialWorld && isInsideDeathZone(deployable))) {
+    if (deployable.hp <= 0 || (!player.inVillageWorld && !player.inTutorialWorld && !player.inWaveWorld && isInsideDeathZone(deployable))) {
       spawnTextPopup(deployable.x, deployable.y - 30, "Turret destroyed", "#efb07a", 0.8);
       engineerDeployables.splice(i, 1);
       continue;
