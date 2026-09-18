@@ -3618,6 +3618,18 @@ function crushHumveeTrees(vehicle) {
   }
 }
 
+function getHumveeGrenadeTarget(vehicle, targetX, targetY) {
+  const startX = vehicle.x + vehicle.w / 2;
+  const startY = vehicle.y + vehicle.h * 0.2;
+  const dx = targetX - startX;
+  const dy = targetY - startY;
+  const distance = Math.hypot(dx, dy);
+  const range = Math.min(distance, HUMVEE_WEAPONS.grenade40.range);
+  const scale = distance > 0 ? range / distance : 0;
+  return { startX, startY, x: startX + dx * scale, y: startY + dy * scale,
+    distance: range, arcHeight: clamp(range * 0.18, 30, 110) };
+}
+
 function fireHumveeGun(targetX, targetY) {
   const vehicle = getOccupiedHumvee();
   if (!vehicle || vehicle.hp <= 0 || hero.hp <= 0 || vehicle.ammo <= 0
@@ -3627,16 +3639,27 @@ function fireHumveeGun(targetX, targetY) {
   if (Math.hypot(targetX - x, targetY - y) < 1) return false;
   const angle = Math.atan2(targetY - y, targetX - x);
   const weapon = HUMVEE_WEAPONS[vehicle.mountedWeapon];
-  const range = weapon.radius ? Math.min(weapon.range, Math.hypot(targetX - x, targetY - y)) : getRifleRange();
-  const projectile = spawnBurstProjectile({ baseAngle: angle, angleOffset: 0, range }, weapon.damage, weapon.width);
-  projectile.speed = weapon.speed;
-  projectile.explosionRadius = weapon.radius;
-  projectile.ownerId = vehicle.id;
-  if (weapon.radius) projectile.canHeadshot = false;
-  projectile.x = x;
-  projectile.y = y;
-  projectile.hitIds.add(vehicle.id);
-  heroProjectiles.push(projectile);
+  if (vehicle.mountedWeapon === "grenade40") {
+    const target = getHumveeGrenadeTarget(vehicle, targetX, targetY);
+    const travelTime = Math.max(0.25, target.distance / weapon.speed);
+    heroGrenades.push({
+      x, y, startX: x, startY: y, targetX: target.x, targetY: target.y,
+      radius: 12, arcHeight: target.arcHeight, arcCurve: "quadratic",
+      ttl: travelTime, maxTtl: travelTime, damage: weapon.damage,
+      explosionRadius: weapon.radius, ownerId: vehicle.id,
+    });
+  } else {
+    const range = weapon.radius ? Math.min(weapon.range, Math.hypot(targetX - x, targetY - y)) : getRifleRange();
+    const projectile = spawnBurstProjectile({ baseAngle: angle, angleOffset: 0, range }, weapon.damage, weapon.width);
+    projectile.speed = weapon.speed;
+    projectile.explosionRadius = weapon.radius;
+    projectile.ownerId = vehicle.id;
+    if (weapon.radius) projectile.canHeadshot = false;
+    projectile.x = x;
+    projectile.y = y;
+    projectile.hitIds.add(vehicle.id);
+    heroProjectiles.push(projectile);
+  }
   vehicle.ammo -= 1;
   vehicle.weaponAmmo[vehicle.mountedWeapon] = vehicle.ammo;
   vehicle.gunCooldown = weapon.interval || getRifleFireInterval() * 2;
@@ -3680,7 +3703,7 @@ function updateHumveeDriving(dt) {
   vehicle.portalCooldown = Math.max(0, (vehicle.portalCooldown || 0) - dt);
   if (!isInterfacePanelOpen() && !player.victory && !player.loss && updateHumveePortals(vehicle)) return;
   if (mouse.leftDown) fireHumveeGun(mouse.worldX, mouse.worldY);
-  statusTextEl.textContent = `Humvee ammo: ${vehicle.ammo}/${vehicle.maxAmmo}. WASD to move. Hold left-click to fire. E to exit.`;
+  statusTextEl.textContent = `Humvee ammo: ${vehicle.ammo}/${vehicle.maxAmmo}. WASD to move. ${vehicle.mountedWeapon === "grenade40" ? "Hold left-click to aim and auto-fire." : "Hold left-click to fire."} E to exit.`;
   updateAbilityUI();
 }
 
@@ -7744,7 +7767,7 @@ function drawArrowProjectile(projectile) {
 function drawHeroGrenades() {
   for (const grenade of heroGrenades) {
     const progress = 1 - grenade.ttl / grenade.maxTtl;
-    const arcOffset = Math.sin(progress * Math.PI) * grenade.arcHeight;
+    const arcOffset = (grenade.arcCurve === "quadratic" ? 4 * progress * (1 - progress) : Math.sin(progress * Math.PI)) * grenade.arcHeight;
     if (grenadeImage.complete && grenadeImage.naturalWidth > 0) {
       const size = grenade.radius * 3;
       const scale = size / Math.max(grenadeImage.naturalWidth, grenadeImage.naturalHeight);
@@ -7787,6 +7810,33 @@ function drawGrenadeShockwaves() {
       ctx.fill();
     }
   }
+}
+
+function drawHumveeGrenadeAim() {
+  const vehicle = getOccupiedHumvee();
+  if (!vehicle || vehicle.mountedWeapon !== "grenade40" || !mouse.leftDown || isInterfacePanelOpen()) return;
+  const target = getHumveeGrenadeTarget(vehicle, mouse.worldX, mouse.worldY);
+  const ready = vehicle.ammo > 0 && vehicle.gunCooldown <= 0;
+  ctx.save();
+  ctx.strokeStyle = ready ? "rgba(255, 226, 170, 0.95)" : "rgba(255, 120, 100, 0.8)";
+  ctx.lineWidth = 3;
+  ctx.setLineDash([10, 8]);
+  ctx.beginPath();
+  ctx.moveTo(target.startX, target.startY);
+  ctx.quadraticCurveTo((target.startX + target.x) / 2,
+    (target.startY + target.y) / 2 - target.arcHeight * 2, target.x, target.y);
+  ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.beginPath();
+  ctx.fillStyle = "rgba(255, 186, 86, 0.16)";
+  ctx.arc(target.x, target.y, HUMVEE_WEAPONS.grenade40.radius, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.fillStyle = "#fff4d2";
+  ctx.arc(target.x, target.y, 5, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
 }
 
 function drawGrenadeAimArc() {
@@ -8074,6 +8124,7 @@ function render() {
   drawHarvestProgress();
   drawSlashArc();
   drawGrenadeAimArc();
+  drawHumveeGrenadeAim();
   drawGrenadeShockwaves();
   drawHeroGrenades();
   drawHeroProjectiles();
