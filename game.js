@@ -3570,9 +3570,76 @@ function updateHumveeDriving(dt) {
   hero.x = vehicle.x + vehicle.w / 2;
   hero.y = vehicle.y + vehicle.h / 2;
   hero.isMoving = false;
+  vehicle.portalCooldown = Math.max(0, (vehicle.portalCooldown || 0) - dt);
+  if (!isInterfacePanelOpen() && !player.victory && !player.loss && updateHumveePortals(vehicle)) return;
   if (mouse.leftDown) fireHumveeGun(mouse.worldX, mouse.worldY);
   statusTextEl.textContent = `Humvee ammo: ${vehicle.ammo}/${vehicle.maxAmmo}. WASD to move. Hold left-click to fire. E to exit.`;
   updateAbilityUI();
+}
+
+function getHumveeTravelTiles() {
+  const tiles = getVillagePortals().map((tile) => ({ ...tile }));
+  if (player.inTutorialWorld) {
+    tiles.push({ x: TUTORIAL_WORLD.returnTileX, y: TUTORIAL_WORLD.returnTileY,
+      size: TUTORIAL_WORLD.returnTileSize, destination: "main" });
+  } else if (!player.inVillageWorld) {
+    tiles.push({ ...TUTORIAL_TILE, destination: "training" });
+    if (!player.inDodgeArena) tiles.push({ ...DODGE_ARENA_TILE, destination: "arena" });
+  }
+  return tiles;
+}
+
+function humveeOverlapsTile(vehicle, tile) {
+  return vehicle.x < tile.x + tile.size && vehicle.x + vehicle.w > tile.x
+    && vehicle.y < tile.y + tile.size && vehicle.y + vehicle.h > tile.y;
+}
+
+function teleportHumvee(travel) {
+  const vehicle = getOccupiedHumvee();
+  if (!vehicle) return false;
+  // World initialization clears entities; retain this vehicle and its state.
+  hero.vehicleId = null;
+  travel();
+  for (let index = buildings.length - 1; index >= 0; index -= 1) {
+    if (buildings[index].type === "humvee") buildings.splice(index, 1);
+  }
+  buildings.push(vehicle);
+  const arrivalX = hero.x - vehicle.w / 2;
+  const arrivalY = hero.y - vehicle.h / 2;
+  const tiles = getHumveeTravelTiles();
+  let arrival = null;
+  // Search outward from the destination spawn for a clear parking space.
+  for (let radius = 0; radius <= Math.max(WORLD.width, getWorldHeight()) && !arrival; radius += 40) {
+    for (let dx = -radius; dx <= radius && !arrival; dx += 40) {
+      for (const dy of radius === 0 ? [0] : [-radius, radius]) {
+        const x = arrivalX + dx;
+        const y = arrivalY + dy;
+        if (canMoveHumvee(vehicle, x, y) && !tiles.some((tile) => humveeOverlapsTile({ ...vehicle, x, y }, tile))) {
+          arrival = { x, y };
+          break;
+        }
+      }
+    }
+  }
+  vehicle.x = arrival?.x ?? clamp(arrivalX, 0, WORLD.width - vehicle.w);
+  vehicle.y = arrival?.y ?? clamp(arrivalY, 0, getWorldHeight() - vehicle.h);
+  vehicle.portalCooldown = 1;
+  enterHumvee(vehicle);
+  updateCamera(1);
+  return true;
+}
+
+function updateHumveePortals(vehicle) {
+  if (vehicle.portalCooldown > 0) return false;
+  const tile = getHumveeTravelTiles().find((entry) => humveeOverlapsTile(vehicle, entry));
+  if (!tile) return false;
+  const travel = {
+    main: travelToMainWorld,
+    training: activateTutorialWorld,
+    village: activateVillageWorld,
+    arena: enterDodgeArena,
+  }[tile.destination];
+  return travel ? teleportHumvee(travel) : false;
 }
 
 function prepareWorldTravel() {
