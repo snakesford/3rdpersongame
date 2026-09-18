@@ -86,6 +86,7 @@ const hero = {
   dashSpeed: 680,
   dashDuration: 0.18,
   selectedClass: null,
+  vehicleId: null,
   abilityEffect: null,
   harvestTime: 1.4,
   harvestProgress: 0,

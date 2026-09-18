@@ -1139,6 +1139,11 @@ function createBuilding(type, x, y, isPlayer, options = {}) {
     isPlayer,
     selectable: options.selectable ?? true,
   };
+  if (type === "humvee") {
+    building.ammo = 300;
+    building.maxAmmo = 300;
+    building.gunCooldown = 0;
+  }
   buildings.push(building);
   return building;
 }
@@ -2211,6 +2216,7 @@ function canAimSoldierGrenade() {
 }
 
 function startGrenadeAim() {
+  if (hero.vehicleId !== null) return false;
   if (!canAimSoldierGrenade()) {
     return false;
   }
@@ -2220,6 +2226,7 @@ function startGrenadeAim() {
 }
 
 function useBattleMedicine() {
+  if (hero.vehicleId !== null) return false;
   if (
     !player.hasSelectedCharacter ||
     hero.selectedClass !== "soldier" ||
@@ -2310,6 +2317,10 @@ function startBarracksPlacement() {
 }
 
 function updateAbilityUI() {
+  document.querySelectorAll(".ability-chip").forEach((chip) => {
+    chip.style.opacity = hero.vehicleId !== null ? "0.35" : "";
+    chip.setAttribute("aria-disabled", String(hero.vehicleId !== null));
+  });
   const sprint = getOrderedInventoryAbilities().find((ability) => ability.name === "Sprint");
   const sprintChip = document.getElementById("sprintAbility");
   sprintChip.classList.toggle("hidden", !sprint);
@@ -3437,7 +3448,113 @@ function leaveDodgeArena(message = "Returned from the Dodge Arena.") {
   spawnTextPopup(hero.x, hero.y - 28, "Returned", "rgba(196, 234, 255, 1)", 1.2);
 }
 
+function getOccupiedHumvee() {
+  return buildings.find((building) => building.id === hero.vehicleId && building.type === "humvee") || null;
+}
+
+function getNearbyHumvee() {
+  return buildings.find((building) => building.type === "humvee" && building.hp > 0
+    && Math.hypot(hero.x - clamp(hero.x, building.x, building.x + building.w),
+      hero.y - clamp(hero.y, building.y, building.y + building.h)) <= hero.radius + 36) || null;
+}
+
+function exitHumvee() {
+  const vehicle = getOccupiedHumvee();
+  hero.vehicleId = null;
+  if (vehicle) {
+    hero.x = clamp(vehicle.x + vehicle.w / 2, hero.radius, WORLD.width - hero.radius);
+    hero.y = clamp(vehicle.y + vehicle.h + hero.radius + 8, hero.radius, getWorldHeight() - hero.radius);
+    resolveHeroObstacleCollisions();
+  }
+  mouse.leftDown = false;
+  hero.isMoving = false;
+  updateAbilityUI();
+}
+
+function enterHumvee(vehicle) {
+  if (!vehicle || vehicle.hp <= 0 || hero.isDead || hero.hp <= 0) return;
+  cancelHarvest();
+  cancelGrenadeAim();
+  mouse.leftDown = false;
+  player.isPlacingBuilding = false;
+  hero.sprintTimer = 0;
+  hero.dashTimer = 0;
+  hero.slashArcTimer = 0;
+  hero.abilityEffect = null;
+  hero.battleMedicineUseTimer = 0;
+  hero.isReloading = false;
+  hero.vehicleId = vehicle.id;
+  hero.x = vehicle.x + vehicle.w / 2;
+  hero.y = vehicle.y + vehicle.h / 2;
+  updateAbilityUI();
+  statusTextEl.textContent = "Driving Humvee. WASD to move. E to exit. Abilities disabled.";
+}
+
+function canMoveHumvee(vehicle, x, y) {
+  if (x < 0 || y < 0 || x + vehicle.w > WORLD.width || y + vehicle.h > getWorldHeight()) return false;
+  const overlapsRect = (rect) => x < rect.x + rect.w && x + vehicle.w > rect.x
+    && y < rect.y + rect.h && y + vehicle.h > rect.y;
+  if (buildings.some((other) => other !== vehicle && other.hp > 0 && overlapsRect(other))) return false;
+  if (villageProps.some((prop) => prop.collidable && prop.shape === "rect" && overlapsRect(prop))) return false;
+  const circles = [...trees, ...stones, ...villageProps.filter((prop) => prop.collidable && prop.shape !== "rect")];
+  if (circles.some((circle) => Math.hypot(circle.x - clamp(circle.x, x, x + vehicle.w),
+    circle.y - clamp(circle.y, y, y + vehicle.h)) < circle.radius)) return false;
+  return !villageFences.some((fence) => overlapsRect({
+    x: Math.min(fence.x1, fence.x2) - 3, y: Math.min(fence.y1, fence.y2) - 3,
+    w: Math.abs(fence.x2 - fence.x1) + 6, h: Math.abs(fence.y2 - fence.y1) + 6,
+  }));
+}
+
+function fireHumveeGun(targetX, targetY) {
+  const vehicle = getOccupiedHumvee();
+  if (!vehicle || vehicle.hp <= 0 || hero.hp <= 0 || vehicle.ammo <= 0
+    || vehicle.gunCooldown > 0 || isInterfacePanelOpen() || player.victory || player.loss) return false;
+  const x = vehicle.x + vehicle.w / 2;
+  const y = vehicle.y + vehicle.h * 0.2;
+  if (Math.hypot(targetX - x, targetY - y) < 1) return false;
+  const angle = Math.atan2(targetY - y, targetX - x);
+  const projectile = spawnBurstProjectile({ baseAngle: angle, angleOffset: 0, range: getRifleRange() }, 50, 30);
+  projectile.x = x;
+  projectile.y = y;
+  projectile.hitIds.add(vehicle.id);
+  heroProjectiles.push(projectile);
+  vehicle.ammo -= 1;
+  vehicle.gunCooldown = getRifleFireInterval() * 2;
+  return true;
+}
+
+function updateHumveeDriving(dt) {
+  const vehicle = getOccupiedHumvee();
+  if (!vehicle || vehicle.hp <= 0 || hero.hp <= 0) {
+    exitHumvee();
+    return;
+  }
+  vehicle.gunCooldown = Math.max(0, vehicle.gunCooldown - dt);
+  if (!isInterfacePanelOpen() && !player.victory && !player.loss) {
+    const dx = (keys.has("d") ? 1 : 0) - (keys.has("a") ? 1 : 0);
+    const dy = (keys.has("s") ? 1 : 0) - (keys.has("w") ? 1 : 0);
+    const length = Math.hypot(dx, dy) || 1;
+    const travel = 320 * dt;
+    // Small steps prevent driving through thin obstacles during long frames.
+    const steps = Math.max(1, Math.ceil(travel / 8));
+    for (let step = 0; step < steps; step += 1) {
+      const nextX = vehicle.x + dx / length * travel / steps;
+      if (canMoveHumvee(vehicle, nextX, vehicle.y)) vehicle.x = nextX;
+      const nextY = vehicle.y + dy / length * travel / steps;
+      if (canMoveHumvee(vehicle, vehicle.x, nextY)) vehicle.y = nextY;
+    }
+    if (dx) vehicle.facingLeft = dx < 0;
+  }
+  hero.x = vehicle.x + vehicle.w / 2;
+  hero.y = vehicle.y + vehicle.h / 2;
+  hero.isMoving = false;
+  if (mouse.leftDown) fireHumveeGun(mouse.worldX, mouse.worldY);
+  statusTextEl.textContent = `Humvee ammo: ${vehicle.ammo}/${vehicle.maxAmmo}. WASD to move. Hold left-click to fire. E to exit.`;
+  updateAbilityUI();
+}
+
 function prepareWorldTravel() {
+  if (hero.vehicleId !== null) exitHumvee();
   player.isPlacingBuilding = false;
   player.selectedUnits = [];
   player.selectedBuildingId = null;
@@ -3966,6 +4083,7 @@ function dropLatestPickupFromEnemyHero() {
 }
 
 function respawnHero() {
+  hero.vehicleId = null;
   dropLatestPickupFromHero();
   const selectedClass = hero.selectedClass ? CHARACTER_OPTIONS[hero.selectedClass] : null;
   player.inDodgeArena = false;
@@ -4230,6 +4348,7 @@ function applyRangedProjectileHit(target, projectile) {
 }
 
 function dealDamage(target, amount, showPopup = false) {
+  if (target === hero && getOccupiedHumvee()) target = getOccupiedHumvee();
   target.hp -= amount;
   if (showPopup) {
     spawnDamagePopup(target, amount);
@@ -4427,6 +4546,7 @@ function explodeGrenade(grenade) {
 }
 
 function useSoldierGrenade(targetX, targetY) {
+  if (hero.vehicleId !== null) return false;
   if (
     !player.hasSelectedCharacter ||
     player.victory ||
@@ -5177,6 +5297,7 @@ function cancelHarvest() {
 }
 
 function useSlash(targetX = null, targetY = null) {
+  if (hero.vehicleId !== null) return false;
   if (!player.hasSelectedCharacter || player.victory || player.loss || hero.slashTimer > 0) {
     return false;
   }
@@ -5239,6 +5360,7 @@ function useSlash(targetX = null, targetY = null) {
 }
 
 function useAxeSwing() {
+  if (hero.vehicleId !== null) return false;
   if (!player.hasSelectedCharacter || player.victory || player.loss || !hero.hasAxe) {
     return;
   }
@@ -5252,6 +5374,7 @@ function useAxeSwing() {
 }
 
 function useSprint() {
+  if (hero.vehicleId !== null) return false;
   if (!player.hasSelectedCharacter || player.victory || player.loss || hero.hp <= 0
     || isInterfacePanelOpen() || hero.sprintCooldownRemaining > 0
     || !getOrderedInventoryAbilities().some((ability) => ability.name === "Sprint")) {
@@ -5265,6 +5388,7 @@ function useSprint() {
 }
 
 function useRobotDash() {
+  if (hero.vehicleId !== null) return false;
   if (
     !player.hasSelectedCharacter ||
     player.victory ||
@@ -5328,6 +5452,7 @@ function swapHeroWeaponPickup(nextWeaponType, x, y, radius) {
 }
 
 function startReload(force = false) {
+  if (hero.vehicleId !== null) return false;
   if (!hero.hasRifle || hero.isReloading || isUsingBattleMedicine()) {
     return false;
   }
@@ -5344,6 +5469,7 @@ function startReload(force = false) {
 }
 
 function spawnHeroBullet(targetX, targetY) {
+  if (hero.vehicleId !== null) return false;
   if (!hero.hasRifle || hero.isReloading || hero.rifleCooldown > 0 || hero.ammo <= 0 || hero.shootLockTimer > 0 || isUsingBattleMedicine()) {
     return false;
   }
@@ -5374,6 +5500,7 @@ function spawnHeroBullet(targetX, targetY) {
 }
 
 function spawnHeroBowShot(targetX, targetY) {
+  if (hero.vehicleId !== null) return false;
   if (!hero.hasBow || hero.bowCooldown > 0 || hero.shootLockTimer > 0) {
     return false;
   }
@@ -5500,6 +5627,11 @@ function updateHero(dt) {
     updateAbilityUI();
     return;
   }
+  if (hero.vehicleId !== null) {
+    updateHumveeDriving(dt);
+    if (hero.vehicleId !== null) return;
+  }
+
   if (mouse.leftDown && !player.isPlacingBuilding && !isInterfacePanelOpen() && !isUsingBattleMedicine()) {
     if (hero.hasRifle) {
       if (hero.rifleFireMode === "automatic") {
@@ -5893,6 +6025,7 @@ function cleanupDestroyedBuildings() {
     if (building.hp > 0) {
       continue;
     }
+    if (hero.vehicleId === building.id) exitHumvee();
     buildings.splice(i, 1);
     if (player.selectedBuildingId === building.id) {
       player.selectedBuildingId = null;
@@ -7104,7 +7237,11 @@ function drawBuilding(building) {
     ctx.fill();
     if (humveeImage.complete && humveeImage.naturalWidth > 0) {
       // Crop transparent margins so the visible vehicle fills its collision bounds.
-      ctx.drawImage(humveeImage, 40, 128, 432, 256, building.x, building.y, building.w, building.h);
+      ctx.save();
+      ctx.translate(building.x + (building.facingLeft ? building.w : 0), building.y);
+      if (building.facingLeft) ctx.scale(-1, 1);
+      ctx.drawImage(humveeImage, 40, 128, 432, 256, 0, 0, building.w, building.h);
+      ctx.restore();
     }
     drawHealthBar(building.x + building.w / 2, building.y - 18, 150, building.hp / building.maxHp);
     drawNameplate(building.x + building.w / 2, building.y - 34,
@@ -7589,6 +7726,12 @@ function drawBuildPreview() {
 }
 
 function drawModeHint() {
+  const vehicle = getOccupiedHumvee() || getNearbyHumvee();
+  if (vehicle && player.hasSelectedCharacter && !hero.isDead && !isInterfacePanelOpen()) {
+    drawNameplate(vehicle.x + vehicle.w / 2, vehicle.y + vehicle.h + 24,
+      hero.vehicleId !== null ? "E · Exit" : "E", "rgba(15, 33, 24, 0.9)");
+    return;
+  }
   const nearbyTutorialNpc = getNearbyTutorialNpc();
   if (nearbyTutorialNpc && !isDialogueOpen()) {
     ctx.fillStyle = "rgba(15, 33, 24, 0.82)";
@@ -7691,17 +7834,19 @@ function render() {
   }
   drawTrader();
 
-  if (hero.selectedClass === "stickman") {
-    drawHeroStickFigure();
-  } else if (hero.selectedClass === "soldier") {
-    drawSoldierHero();
-  } else if (hero.selectedClass === "archer") {
-    drawArcherHero();
-  } else {
-    drawEntityCircle(hero, COLORS.hero, COLORS.heroAccent);
+  if (hero.vehicleId === null) {
+    if (hero.selectedClass === "stickman") {
+      drawHeroStickFigure();
+    } else if (hero.selectedClass === "soldier") {
+      drawSoldierHero();
+    } else if (hero.selectedClass === "archer") {
+      drawArcherHero();
+    } else {
+      drawEntityCircle(hero, COLORS.hero, COLORS.heroAccent);
+    }
+    drawHealthBar(hero.x, hero.y - 34, 60, hero.hp / hero.maxHp);
   }
   drawDodgeArenaBullets();
-  drawHealthBar(hero.x, hero.y - 34, 60, hero.hp / hero.maxHp);
   drawHarvestProgress();
   drawSlashArc();
   drawGrenadeAimArc();
@@ -7809,6 +7954,8 @@ window.addEventListener("keydown", (event) => {
   if (!player.hasSelectedCharacter) {
     return;
   }
+
+  if (hero.vehicleId !== null && [" ", "h", "b", "x"].includes(key)) return;
 
   const inventoryTabName = { "1": "equipment", "2": "abilities", "3": "items" }[key];
   if (inventoryTabName && !event.ctrlKey && !event.metaKey && !event.altKey &&
@@ -7949,6 +8096,10 @@ window.addEventListener("keydown", (event) => {
   }
 
   if (key === "e") {
+    if (event.repeat) return;
+    if (hero.vehicleId !== null) { exitHumvee(); return; }
+    const vehicle = getNearbyHumvee();
+    if (vehicle) { enterHumvee(vehicle); return; }
     if (player.inTutorialWorld && handleTutorialInteraction()) {
       return;
     }
@@ -8015,6 +8166,14 @@ canvas.addEventListener("mousedown", (event) => {
   const point = screenToWorld(event.offsetX, event.offsetY);
   mouse.worldX = point.x;
   mouse.worldY = point.y;
+
+  if (hero.vehicleId !== null) {
+    if (event.button === 0) {
+      mouse.leftDown = true;
+      fireHumveeGun(point.x, point.y);
+    }
+    return;
+  }
 
   if (event.button === 0) {
     mouse.leftDown = true;
