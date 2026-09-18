@@ -239,12 +239,13 @@
             <div><dt>Speed</dt><dd data-inventory-stat="speed">0</dd></div>
             <div><dt>Regen</dt><dd data-inventory-stat="regen">0</dd></div>
             <div><dt>Headshot Chance</dt><dd data-inventory-stat="headshotChance">0%</dd></div>
+            <div title="Damage per headshot before the target's helmet protection."><dt>Headshot Damage</dt><dd data-inventory-stat="headshotDamage">—</dd></div>
             <div class="inventory-gold"><dt class="hidden">Coins</dt><dd aria-label="Coins"><img class="inventory-coin" src="./images/coin.png" alt="" width="32" height="32"><span data-inventory-stat="gold">0</span></dd></div>
           </dl>
         </section>
         <div id="inventoryEquipmentPanel" class="equipment-panel" role="tabpanel" data-inventory-panel="equipment" aria-labelledby="inventoryEquipmentTab" tabindex="0">
           <div class="equipment-grid">
-            <img class="inventory-equipment-character" src="./images/soldier-stationary.png" alt="Soldier standing between equipment slots" draggable="false">
+            <img class="inventory-equipment-character" alt="Player character" draggable="false">
             <div id="equipmentHelmetSlot" class="equipment-slot" data-position="top" role="button" tabindex="0" aria-label="View equipped helmet armor" aria-controls="inventoryEquipmentDetails" title="Click to view helmet armor, or drop a backpack helmet here to equip it">
               <span class="equipment-label">Helmet <button class="upgrade-action hidden" data-upgrade="helmet" type="button" aria-label="Upgrade helmet">+</button></span>
               <div class="equipment-content">

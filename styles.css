@@ -1549,7 +1549,7 @@ button.hidden {
 .inventory-side-abilities > .inventory-empty { grid-column: 1 / -1; }
 .inventory-layout [data-ability-name][draggable="true"] { cursor: grab; }
 .inventory-layout [data-ability-name][draggable="true"]:active { cursor: grabbing; }
-.inventory-layout [data-ability-name].ability-drop-ready {
+.inventory-layout .ability-drop-ready {
   border-color: var(--accent);
   background: rgba(209, 165, 75, 0.25);
   outline: 2px solid var(--accent);
@@ -1624,6 +1624,17 @@ button.hidden {
 
 .inventory-ability { text-align: left; cursor: pointer; }
 .inventory-abilities-list > .inventory-ability { position: relative; }
+.inventory-abilities-list > .inventory-ability-locked { position: relative; }
+.inventory-ability-unlock-level {
+  position: absolute;
+  bottom: 5px;
+  color: var(--muted);
+  font-size: 11px;
+}
+.inventory-layout .inventory-ability-empty {
+  border-style: dashed;
+  background: rgba(0, 0, 0, 0.2);
+}
 .inventory-ability .inventory-ability-key {
   position: absolute;
   right: -9px;

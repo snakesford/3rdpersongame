@@ -184,6 +184,9 @@ let enemyHero = null;
 let lastSoldierAnimationName = null;
 let selectedInventoryAbilityName = null;
 const inventoryAbilityOrders = new Map();
+const INVENTORY_ABILITY_SLOT_LEVELS = [1, 1, 1, 2, 4, 6];
+const INVENTORY_ABILITY_SLOT_KEYS = ["F", "Q", "G", "1", "2", "3"];
+const INVENTORY_ABILITY_SLOT_POSITIONS = ["left-upper", "left-lower", "top-left", "top-right", "right-upper", "right-lower"];
 let draggedInventoryAbility = null;
 const BATTLE_MEDICINE_USE_DURATION = 0.9;
 const ROAD_SPEED_MULTIPLIER = 1.3;
@@ -2332,7 +2335,9 @@ function selectLockedInventorySlot(slot, type) {
   }
   const details = isSkill ? inventoryAbilityDetailsEl : document.getElementById("inventoryEquipmentDetails");
   const description = document.createElement("p");
-  description.textContent = `This ${type} is not yet available. Increase your character level to unlock more skill slots!`;
+  description.textContent = isSkill
+    ? `Reach level ${slot.dataset.unlockLevel} to unlock this ability slot.`
+    : `This ${type} is not yet available. Increase your character level to unlock more skill slots!`;
   details.replaceChildren(description);
 }
 
@@ -2342,7 +2347,7 @@ document.querySelectorAll(".inventory-equipment-locked").forEach((slot) => {
 
 function selectInventoryAbility(ability) {
   selectedInventoryAbilityName = ability?.name || null;
-  inventoryAbilitiesListEl.querySelectorAll(".inventory-ability-locked").forEach((slot) => {
+  inventoryAbilitiesListEl.querySelectorAll(".inventory-ability-locked, .inventory-ability-empty").forEach((slot) => {
     slot.setAttribute("aria-pressed", "false");
   });
   inventoryScreenEl.querySelectorAll("[data-ability-name]").forEach((card) => {
@@ -2369,22 +2374,33 @@ function getInventoryAbilityIcon(ability) {
   }[ability.name] || null;
 }
 
-function getOrderedInventoryAbilities() {
+function getInventoryAbilitySlots() {
   const abilities = getInventoryAbilities();
   const savedOrder = inventoryAbilityOrders.get(hero.selectedClass) || [];
-  const names = [...savedOrder.filter((name) => abilities.some((ability) => ability.name === name))];
+  const slots = INVENTORY_ABILITY_SLOT_LEVELS.map((level, index) =>
+    player.level >= level && abilities.some((ability) => ability.name === savedOrder[index])
+      ? savedOrder[index] : null);
   for (const ability of abilities) {
-    if (!names.includes(ability.name)) names.push(ability.name);
+    if (slots.includes(ability.name)) continue;
+    const empty = slots.findIndex((name, index) => !name && player.level >= INVENTORY_ABILITY_SLOT_LEVELS[index]);
+    if (empty >= 0) slots[empty] = ability.name;
   }
-  return names.map((name, index) => {
+  return slots;
+}
+
+function getOrderedInventoryAbilities() {
+  const abilities = getInventoryAbilities();
+  return getInventoryAbilitySlots().flatMap((name, slotIndex) => {
+    if (!name) return [];
     const ability = abilities.find((entry) => entry.name === name);
-    const key = ["F", "Q", "G"][index];
-    return {
+    const key = INVENTORY_ABILITY_SLOT_KEYS[slotIndex];
+    return [{
       ...ability,
+      slotIndex,
       actionKey: ability.key,
       key,
       description: ability.key === "G" ? ability.description.replace("Hold G", `Hold ${key}`) : ability.description,
-    };
+    }];
   });
 }
 
@@ -2395,9 +2411,10 @@ function clearInventoryAbilityDrag() {
   });
 }
 
-function enableInventoryAbilityDrag(slot, ability) {
-  slot.draggable = true;
+function enableInventoryAbilityDrag(slot, ability, slotIndex = ability?.slotIndex) {
+  slot.draggable = Boolean(ability);
   slot.addEventListener("dragstart", (event) => {
+    if (!ability) return;
     draggedInventoryAbility = { name: ability.name, classId: hero.selectedClass };
     event.dataTransfer.effectAllowed = "move";
     event.dataTransfer.setData("text/plain", ability.name);
@@ -2431,7 +2448,8 @@ function enableInventoryAbilityDrag(slot, ability) {
   });
   const canDrop = () => player.inventoryOpen && draggedInventoryAbility
     && draggedInventoryAbility.classId === hero.selectedClass
-    && draggedInventoryAbility.name !== ability.name;
+    && player.level >= INVENTORY_ABILITY_SLOT_LEVELS[slotIndex]
+    && draggedInventoryAbility.name !== ability?.name;
   slot.addEventListener("dragover", (event) => {
     if (!canDrop()) return;
     event.preventDefault();
@@ -2445,9 +2463,9 @@ function enableInventoryAbilityDrag(slot, ability) {
   slot.addEventListener("drop", (event) => {
     if (!canDrop()) return;
     event.preventDefault();
-    const order = getOrderedInventoryAbilities().map((entry) => entry.name);
+    const order = getInventoryAbilitySlots();
     const source = order.indexOf(draggedInventoryAbility.name);
-    const target = order.indexOf(ability.name);
+    const target = slotIndex;
     clearInventoryAbilityDrag();
     if (source < 0 || target < 0) return;
     [order[source], order[target]] = [order[target], order[source]];
@@ -2456,29 +2474,65 @@ function enableInventoryAbilityDrag(slot, ability) {
   });
 }
 
+function updateInventoryCharacterImage(image, selected = getSelectedClassConfig()) {
+  let source = hero.selectedClass === "soldier" ? "./images/soldier-stationary.png" : selected?.portrait;
+  if (!source) {
+    const shape = hero.selectedClass === "stickman"
+      ? `<g fill="none" stroke="${COLORS.hero}" stroke-width="5" stroke-linecap="round"><circle cx="50" cy="24" r="12"/><path d="M50 36v40M28 57l22-12 22 12M50 76l-18 30m18-30 18 30"/></g>`
+      : `<circle cx="50" cy="60" r="28" fill="${COLORS.hero}" stroke="${COLORS.heroAccent}" stroke-width="5"/>`;
+    source = `data:image/svg+xml,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 120">${shape}</svg>`)}`;
+  }
+  if (image.getAttribute("src") !== source) image.src = source;
+  image.alt = selected?.name || "Player character";
+  image.draggable = false;
+}
+
 function updateInventoryAbilities() {
   inventoryAbilitiesListEl.textContent = "";
   const characterImage = document.createElement("img");
   characterImage.className = "inventory-ability-character";
-  characterImage.src = "./images/soldier-stationary.png";
-  characterImage.alt = "Soldier standing between abilities";
-  characterImage.draggable = false;
+  updateInventoryCharacterImage(characterImage);
   inventoryAbilitiesListEl.appendChild(characterImage);
-  for (let index = 0; index < 3; index += 1) {
+  const slots = getInventoryAbilitySlots();
+  slots.forEach((name, index) => {
+    if (name) return;
+    const unlockLevel = INVENTORY_ABILITY_SLOT_LEVELS[index];
+    const locked = player.level < unlockLevel;
     const slot = document.createElement("button");
     slot.type = "button";
-    slot.className = "inventory-ability-locked";
+    slot.className = locked ? "inventory-ability-locked" : "inventory-ability inventory-ability-empty";
+    slot.dataset.position = INVENTORY_ABILITY_SLOT_POSITIONS[index];
+    slot.dataset.unlockLevel = unlockLevel;
     slot.setAttribute("aria-pressed", "false");
     slot.setAttribute("aria-controls", "inventoryAbilityDetails");
-    slot.addEventListener("click", () => selectLockedInventorySlot(slot, "skill"));
-    slot.setAttribute("aria-label", `Locked ability slot ${index + 1}`);
-    slot.dataset.position = ["top-right", "right-upper", "right-lower"][index];
-    const lock = document.createElement("span");
-    lock.className = "ability-lock-icon";
-    lock.setAttribute("aria-hidden", "true");
-    slot.appendChild(lock);
+    slot.setAttribute("aria-label", locked ? `Ability slot unlocks at level ${unlockLevel}` : `Empty ability slot, key ${INVENTORY_ABILITY_SLOT_KEYS[index]}`);
+    slot.title = locked ? `Unlocks at level ${unlockLevel}` : "Drag an ability here to equip it";
+    if (locked) {
+      const lock = document.createElement("span");
+      lock.className = "ability-lock-icon";
+      lock.setAttribute("aria-hidden", "true");
+      const label = document.createElement("span");
+      label.className = "inventory-ability-unlock-level";
+      label.textContent = `Lv. ${unlockLevel}`;
+      slot.append(lock, label);
+      slot.addEventListener("click", () => selectLockedInventorySlot(slot, "skill"));
+    } else {
+      const label = document.createElement("span");
+      label.className = "inventory-ability-name";
+      label.textContent = "Empty";
+      const badge = document.createElement("kbd");
+      badge.className = "inventory-ability-key";
+      badge.textContent = INVENTORY_ABILITY_SLOT_KEYS[index];
+      slot.append(label, badge);
+      enableInventoryAbilityDrag(slot, null, index);
+      slot.addEventListener("click", () => {
+        selectInventoryAbility(null);
+        inventoryAbilityDetailsEl.querySelector("p").textContent = "Drag an ability onto this unlocked slot to equip it.";
+        slot.setAttribute("aria-pressed", "true");
+      });
+    }
     inventoryAbilitiesListEl.appendChild(slot);
-  }
+  });
   const abilities = getOrderedInventoryAbilities();
   const sideAbilities = document.getElementById("inventorySideAbilities");
   sideAbilities.replaceChildren();
@@ -2521,7 +2575,7 @@ function updateInventoryAbilities() {
     selectInventoryAbility(null);
     return;
   }
-  for (const [index, ability] of abilities.entries()) {
+  for (const ability of abilities) {
     const card = document.createElement("button");
     card.type = "button";
     card.className = "inventory-ability";
@@ -2529,8 +2583,7 @@ function updateInventoryAbilities() {
     enableInventoryAbilityDrag(card, ability);
     card.setAttribute("aria-controls", "inventoryAbilityDetails");
     card.addEventListener("click", () => selectInventoryAbility(ability));
-    const positions = ["left-upper", "left-lower", "top-left"];
-    card.dataset.position = positions[index];
+    card.dataset.position = INVENTORY_ABILITY_SLOT_POSITIONS[ability.slotIndex];
     card.setAttribute("aria-label", `${ability.name} — press ${ability.key} in game`);
     card.title = `Press ${ability.key} in game to use ${ability.name}`;
     const iconPath = getInventoryAbilityIcon(ability);
@@ -2698,7 +2751,7 @@ function getCurrentWeaponDetails() {
       type: "axe",
       name: "Axe",
       meta: "Close-range melee weapon",
-      damage: `${18 + player.bonusDamage + player.weaponDetailDamageLevel * getWeaponUpgradeRules().damage.step} / swing`,
+      damage: `${getAxeDamage()} / swing`,
       ammo: "N/A",
       reload: "None",
       range: `${axeRange}`,
@@ -2881,11 +2934,15 @@ function getTotalArmor(selected = getSelectedClassConfig()) {
   return Math.max(getBaseArmor(selected) + player.bonusArmor, getHelmetArmorValue());
 }
 
-function getDisplayedWeaponStat(selected = getSelectedClassConfig()) {
-  return (selected?.stats?.weapon || 0) +
-    player.weaponBonusStat +
-    player.bonusDamage +
-    player.weaponDetailDamageLevel * getWeaponUpgradeRules().damage.step;
+function getAxeDamage() {
+  return 18 + player.bonusDamage + player.weaponDetailDamageLevel * getWeaponUpgradeRules().damage.step;
+}
+
+function getHeroAttackDamage(selected = getSelectedClassConfig()) {
+  if (hero.hasRifle) return getRifleDamage();
+  if (hero.hasBow) return getBasicBowDamage();
+  if (hero.hasAxe) return getAxeDamage();
+  return selected?.effect ? getAbilityDamage(selected) : 0;
 }
 
 function getBasicBowDamage() {
@@ -2931,6 +2988,20 @@ function getHeroHeadshotChance(selected = getSelectedClassConfig()) {
   return 0;
 }
 
+function getHeroHeadshotDamage(selected = getSelectedClassConfig()) {
+  let projectileType;
+  if (hero.hasRifle) {
+    projectileType = "bullet";
+  } else if (hero.hasBow) {
+    projectileType = "arrow";
+  } else if (!hero.hasAxe && ["burst", "projectile"].includes(selected?.effect)) {
+    projectileType = selected.effect === "burst" ? "bullet" : "arrow";
+  } else {
+    return "—";
+  }
+  return calculateHeadshotDamage(getHeroAttackDamage(selected), buildProjectileHeadshotConfig(projectileType).headshotMultiplier);
+}
+
 function updateStatsUI() {
   const selected = getSelectedClassConfig();
   const stats = selected?.stats || { armor: 0, health: 0, weapon: 0, regen: 0 };
@@ -2940,10 +3011,11 @@ function updateStatsUI() {
     level: player.level,
     health: `${Math.round(maxHealth)}`,
     armor: Math.round(getTotalArmor(selected)),
-    damage: Math.round(getDisplayedWeaponStat(selected)),
+    damage: Math.round(getHeroAttackDamage(selected)),
     speed: Math.round(getHeroSpeed(selected) * getRoadSpeedMultiplier()),
     regen: getHeroRegen(selected).toFixed(1),
     headshotChance: `${Number((getHeroHeadshotChance(selected) * 100).toFixed(1))}%`,
+    headshotDamage: getHeroHeadshotDamage(selected),
     gold: player.money,
   };
   inventoryStatEls.forEach((element) => {
@@ -3006,6 +3078,7 @@ function buildWeaponOutlineIcon(stroke) {
 }
 
 function updateEquipmentUI(selected, stats) {
+  updateInventoryCharacterImage(document.querySelector(".inventory-equipment-character"), selected);
   const equippedWeaponType = hero.hasBow
     ? "bow"
     : hero.hasRifle
@@ -3112,6 +3185,7 @@ function awardPlayerXp(amount, sourceX = hero.x, sourceY = hero.y) {
 
   if (leveledUp) {
     statusTextEl.textContent = `Level up! You are now level ${player.level}.`;
+    if (player.inventoryOpen) updateInventoryAbilities();
   }
 
   updateXpUI();
@@ -4011,6 +4085,11 @@ function buildProjectileHeadshotConfig(projectileType) {
   };
 }
 
+function calculateHeadshotDamage(baseDamage, multiplier, helmetProtection = 0) {
+  const extraDamage = baseDamage * Math.max(0, multiplier - 1);
+  return Math.max(1, Math.round(baseDamage + extraDamage * (1 - helmetProtection)));
+}
+
 function applyRangedProjectileHit(target, projectile) {
   const baseDamage = projectile.baseDamage ?? projectile.damage;
   const projectileType = projectile.projectileType || "bullet";
@@ -4021,8 +4100,7 @@ function applyRangedProjectileHit(target, projectile) {
   let finalDamage = baseDamage;
   if (isHeadshot) {
     const helmetProtection = getHeadshotProtectionForTarget(target);
-    const extraDamage = baseDamage * Math.max(0, headshotMultiplier - 1);
-    finalDamage = baseDamage + (extraDamage * (1 - helmetProtection));
+    finalDamage = calculateHeadshotDamage(baseDamage, headshotMultiplier, helmetProtection);
   }
 
   finalDamage = Math.max(1, Math.round(finalDamage));
@@ -5050,7 +5128,7 @@ function useAxeSwing() {
 
   hero.axeSwingTimer = hero.axeSwingDuration;
   damageEnemiesInCone(
-    18 + player.bonusDamage + player.weaponDetailDamageLevel * getWeaponUpgradeRules().damage.step,
+    getAxeDamage(),
     64 + player.weaponDetailRangeLevel * getWeaponUpgradeRules().range.meleeStep,
     Math.PI / 3
   );
@@ -7703,7 +7781,7 @@ window.addEventListener("keydown", (event) => {
     return;
   }
 
-  if (["f", "q", "g"].includes(key)) {
+  if (["f", "q", "g", "1", "2", "3"].includes(key)) {
     const ability = getOrderedInventoryAbilities().find((entry) => entry.key.toLowerCase() === key);
     if (ability?.actionKey === "F") useSlash(mouse.worldX, mouse.worldY);
     else if (!event.repeat) {
