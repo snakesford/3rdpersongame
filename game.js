@@ -657,6 +657,7 @@ function initializeEnemyForces() {
 }
 
 function clearWorldEntities() {
+  clearEngineerDeployables();
   trainingDriver = null;
   trainingAmmoStockpile.occupantId = null;
   humveeExhaustParticles.length = 0;
@@ -2087,6 +2088,7 @@ function createUnit(kind, x, y, isPlayer) {
     hp: isPlayer ? 100 : enemyConfig.hp,
     maxHp: isPlayer ? 100 : enemyConfig.hp,
     damage: isPlayer ? 10 : enemyConfig.damage,
+    armor: isPlayer ? 0 : (enemyConfig.armor || 0),
     xpReward: isPlayer ? 0 : enemyConfig.xp,
     attackRange: isPlayer ? 34 : enemyConfig.attackRange,
     attackCooldown: isPlayer ? 1 : enemyConfig.attackCooldown,
@@ -2251,6 +2253,7 @@ function canAimSoldierGrenade() {
 }
 
 function startGrenadeAim() {
+  if (isEngineer()) return placeAutoTurret();
   if (isBountyHunter()) {
     if (canUseBountyAbility("G") && hero.grenadeCooldownRemaining <= 0) grenadeAim.active = true;
     return;
@@ -2265,6 +2268,7 @@ function startGrenadeAim() {
 }
 
 function useBattleMedicine() {
+  if (isEngineer()) return placeRepairStation();
   if (isBountyHunter()) return useAdrenalineShot();
   if (hero.vehicleId !== null) return false;
   if (
@@ -2406,10 +2410,10 @@ function updateAbilityUI() {
     ? (ready ? "Ready" : `${hero.slashTimer.toFixed(1)}s`)
     : "Pick Hero";
 
-  const showBattleMedicine = !vehicle && ["soldier", "bountyHunter"].includes(hero.selectedClass) && getOrderedInventoryAbilities().some(a => a.actionKey === "Q");
+  const showBattleMedicine = !vehicle && ["soldier", "bountyHunter", "engineer"].includes(hero.selectedClass) && getOrderedInventoryAbilities().some(a => a.actionKey === "Q");
   const battleMedicineReady = hero.battleMedicineCooldownRemaining <= 0;
   battleMedicineAbilityEl.classList.toggle("hidden", !showBattleMedicine);
-  battleMedicineAbilityNameEl.textContent = isBountyHunter() ? "Adrenaline Shot" : hero.battleMedicineBuffTimer > 0 ? "Battle Medicine +" : "Battle Medicine";
+  battleMedicineAbilityNameEl.textContent = isEngineer() ? "Repair Station" : isBountyHunter() ? "Adrenaline Shot" : hero.battleMedicineBuffTimer > 0 ? "Battle Medicine +" : "Battle Medicine";
   battleMedicineAbilityEl.classList.toggle("ready", showBattleMedicine && battleMedicineReady);
   battleMedicineAbilityEl.classList.toggle("cooldown", !showBattleMedicine || !battleMedicineReady);
   battleMedicineCooldownTextEl.textContent = !showBattleMedicine
@@ -2420,10 +2424,10 @@ function updateAbilityUI() {
         ? "Ready"
         : `${hero.battleMedicineCooldownRemaining.toFixed(1)}s`;
 
-  const showGrenade = !vehicle && ["soldier", "bountyHunter"].includes(hero.selectedClass) && getOrderedInventoryAbilities().some(a => a.actionKey === "G");
+  const showGrenade = !vehicle && ["soldier", "bountyHunter", "engineer"].includes(hero.selectedClass) && getOrderedInventoryAbilities().some(a => a.actionKey === "G");
   const grenadeReady = hero.grenadeCooldownRemaining <= 0;
   grenadeAbilityEl.classList.toggle("hidden", !showGrenade);
-  grenadeAbilityNameEl.textContent = isBountyHunter() ? "Explosive Bolt" : "Grenade";
+  grenadeAbilityNameEl.textContent = isEngineer() ? "Auto Turret" : isBountyHunter() ? "Explosive Bolt" : "Grenade";
   grenadeAbilityEl.classList.toggle("ready", showGrenade && grenadeReady);
   grenadeAbilityEl.classList.toggle("cooldown", !showGrenade || !grenadeReady);
   grenadeCooldownTextEl.textContent = !showGrenade
@@ -2439,9 +2443,15 @@ function updateAbilityUI() {
     img.alt = name;
   }
   const markIcon = slashAbilityEl.querySelector(".ability-icon");
-  markIcon.style.backgroundImage = isBountyHunter() ? "url('./images/hunters-mark.svg')" : "";
+  markIcon.style.backgroundImage = isEngineer() ? "url('./images/bolt-shot.svg')" : isBountyHunter() ? "url('./images/hunters-mark.svg')" : "";
   markIcon.style.backgroundSize = "contain";
   if (isBountyHunter() && hero.adrenalineTimer > 0) battleMedicineCooldownTextEl.textContent = `${hero.adrenalineTimer.toFixed(1)}s boost · ${hero.battleMedicineCooldownRemaining.toFixed(1)}s cooldown`;
+  if (isEngineer()) {
+    const station = engineerDeployables.find(d => d.kind === "repairStation");
+    const turret = getEngineerTurret();
+    if (station) battleMedicineCooldownTextEl.textContent = `${station.ttl.toFixed(1)}s active · ${hero.battleMedicineCooldownRemaining.toFixed(1)}s cooldown`;
+    if (turret) grenadeCooldownTextEl.textContent = `${Math.ceil(turret.hp)} HP · ${hero.grenadeCooldownRemaining > 0 ? hero.grenadeCooldownRemaining.toFixed(1) + "s" : "Ready"}`;
+  }
   const showDash = !vehicle && hero.selectedClass === "robot";
   const dashReady = hero.dashCooldownRemaining <= 0;
   dashAbilityEl.classList.toggle("hidden", !showDash);
@@ -2466,6 +2476,8 @@ function updateTraderUI() {
   traderStatusEl.textContent = `Current bonus: +${player.weaponBonusStat} weapon`;
 }
 
+function isEngineer() { return hero.selectedClass === "engineer"; }
+
 function isBountyHunter() { return hero.selectedClass === "bountyHunter"; }
 
 function getInventoryAbilities() {
@@ -2473,13 +2485,14 @@ function getInventoryAbilities() {
   const abilities = [];
   if (selected?.abilityName) {
     const descriptions = {
+      engineerBolt: "Damage • Fire a 35-damage metal bolt that ignores 50% of enemy armor. 2s cooldown.",
       mark: "Damage • Mark the enemy under your cursor for 8 seconds. It takes 25% increased damage from you. 12s cooldown.",
       cone: "Strike enemies in an arc in front of you.",
       nova: "Release a blast that damages nearby enemies.",
       burst: `Fire a burst of ${selected.rounds || 7} rounds toward your aim.`,
       projectile: "Fire an arrow toward your aim.",
     };
-    abilities.push({ name: selected.abilityName, key: "F", description: descriptions[selected.effect] || "Use your class ability.", cooldown: (selected.effect !== "mark" && !hero.hasRifle && !hero.hasBow && !hero.hasAxe) ? getClassWeaponCooldown(selected) : selected.cooldown, remaining: hero.slashTimer });
+    abilities.push({ name: selected.abilityName, key: "F", description: descriptions[selected.effect] || "Use your class ability.", cooldown: (!["mark", "engineerBolt"].includes(selected.effect) && !hero.hasRifle && !hero.hasBow && !hero.hasAxe) ? getClassWeaponCooldown(selected) : selected.cooldown, remaining: hero.slashTimer });
   }
   if (hero.selectedClass === "soldier") {
     abilities.push(
@@ -2491,6 +2504,12 @@ function getInventoryAbilities() {
     abilities.push(
       { name: "Adrenaline Shot", key: "Q", description: "Support • Restore 30 HP immediately and gain 20% movement speed for 6 seconds.", cooldown: 20, remaining: hero.battleMedicineCooldownRemaining },
       { name: "Explosive Bolt", key: "G", description: "Damage • Hold G to aim, release to fire. Deal 45 damage to the direct target and 25 to other enemies within 80 units. 8s cooldown.", cooldown: 8, remaining: hero.grenadeCooldownRemaining }
+    );
+  }
+  if (isEngineer()) {
+    abilities.push(
+      { name: "Repair Station", key: "Q", description: "Support • Place a station for 12 seconds. Allies within 150 units recover 6 HP/sec; friendly vehicles recover 12 HP/sec. Does not revive destroyed units.", cooldown: 25, remaining: hero.battleMedicineCooldownRemaining },
+      { name: "Auto Turret", key: "G", description: "Damage / Support • Place a 100-HP turret at your location. Fires 10-damage bolts every 0.6 seconds at enemies within 320 units. Enemies can destroy it. Only one active; placing another replaces it.", cooldown: 30, remaining: hero.grenadeCooldownRemaining }
     );
   }
   if (hero.selectedClass === "robot") {
@@ -2559,6 +2578,9 @@ function selectInventoryAbility(ability) {
 
 function getInventoryAbilityIcon(ability) {
   return {
+    "Bolt Shot": "./images/bolt-shot.svg",
+    "Repair Station": "./images/repair-station.svg",
+    "Auto Turret": "./images/auto-turret.svg",
     "Hunter’s Mark": "./images/hunters-mark.svg",
     "Adrenaline Shot": "./images/adrenaline-shot.svg",
     "Explosive Bolt": "./images/explosive-bolt.svg",
@@ -3042,11 +3064,11 @@ function getWeaponUpgradeRules() {
 }
 
 function getRifleDamage() {
-  return (isBountyHunter() ? 20 : 16) + player.bonusDamage + player.weaponDetailDamageLevel * getWeaponUpgradeRules().damage.step;
+  return (isEngineer() ? 12 : isBountyHunter() ? 20 : 16) + player.bonusDamage + player.weaponDetailDamageLevel * getWeaponUpgradeRules().damage.step;
 }
 
 function getRifleMaxAmmo() {
-  return (isBountyHunter() ? 8 : 30) + player.weaponDetailAmmoLevel * getWeaponUpgradeRules().ammo.step;
+  return (isEngineer() ? 16 : isBountyHunter() ? 8 : 30) + player.weaponDetailAmmoLevel * getWeaponUpgradeRules().ammo.step;
 }
 
 function getRifleReloadDuration() {
@@ -3058,7 +3080,7 @@ function getRifleRange() {
 }
 
 function getRifleFireInterval() {
-  return Math.max(0.03, (isBountyHunter() ? 0.3 : 0.08) - player.weaponDetailFireRateLevel * getWeaponUpgradeRules().fireRate.rifleStep);
+  return Math.max(0.03, (isEngineer() ? 0.28 : isBountyHunter() ? 0.3 : 0.08) - player.weaponDetailFireRateLevel * getWeaponUpgradeRules().fireRate.rifleStep);
 }
 
 function getClassWeaponCooldown(selected) {
@@ -3074,8 +3096,8 @@ function getCurrentWeaponDetails() {
   if (hero.hasRifle) {
     return {
       type: "rifle",
-      name: isBountyHunter() ? "Trail Pistol" : "M4 Rifle",
-      meta: isBountyHunter() ? "Compact precision sidearm" : "Automatic rifle",
+      name: isEngineer() ? "Heavy Nail Gun" : isBountyHunter() ? "Trail Pistol" : "M4 Rifle",
+      meta: isEngineer() ? "Industrial bolt driver" : isBountyHunter() ? "Compact precision sidearm" : "Automatic rifle",
       damage: `${getRifleDamage()} / shot`,
       ammo: hero.isReloading ? `${hero.ammo}/${hero.maxAmmo} reloading` : `${hero.ammo}/${hero.maxAmmo}`,
       reload: `${hero.reloadDuration.toFixed(1)}s`,
@@ -3449,9 +3471,9 @@ function updateEquipmentUI(selected, stats) {
     equipmentWeaponNameEl.textContent = "Bow";
     equipmentWeaponMetaEl.textContent = "Ranged weapon";
   } else if (equippedWeaponType === "rifle") {
-    equipmentWeaponIconEl.src = isBountyHunter() ? "./images/trail-pistol.svg" : "./images/rifle.png";
-    equipmentWeaponNameEl.textContent = isBountyHunter() ? "Trail Pistol" : "M4 Rifle";
-    equipmentWeaponMetaEl.textContent = isBountyHunter() ? "Compact precision sidearm" : "Automatic rifle";
+    equipmentWeaponIconEl.src = isEngineer() ? "./images/nail-gun.svg" : isBountyHunter() ? "./images/trail-pistol.svg" : "./images/rifle.png";
+    equipmentWeaponNameEl.textContent = isEngineer() ? "Heavy Nail Gun" : isBountyHunter() ? "Trail Pistol" : "M4 Rifle";
+    equipmentWeaponMetaEl.textContent = isEngineer() ? "Industrial bolt driver" : isBountyHunter() ? "Compact precision sidearm" : "Automatic rifle";
   } else if (equippedWeaponType === "axe") {
     equipmentWeaponIconEl.src = "./images/sword.jpg";
     equipmentWeaponNameEl.textContent = "Axe";
@@ -3731,6 +3753,7 @@ function enterHumvee(vehicle) {
   hero.battleMedicineUseTimer = 0;
   hero.isReloading = false;
   hero.vehicleId = vehicle.id;
+  vehicle.playerOwned = true;
   hero.x = vehicle.x + vehicle.w / 2;
   hero.y = vehicle.y + vehicle.h / 2;
   updateAbilityUI();
@@ -4636,6 +4659,7 @@ function dropLatestPickupFromEnemyHero() {
 }
 
 function respawnHero() {
+  clearEngineerDeployables();
   hero.vehicleId = null;
   dropLatestPickupFromHero();
   const selectedClass = hero.selectedClass ? CHARACTER_OPTIONS[hero.selectedClass] : null;
@@ -4659,7 +4683,7 @@ function respawnHero() {
   hero.slashTimer = 0;
   hero.battleMedicineUseTimer = 0;
   hero.weaponPickupCooldown = 0;
-  hero.hasRifle = ["soldier", "bountyHunter"].includes(hero.selectedClass);
+  hero.hasRifle = ["soldier", "bountyHunter", "engineer"].includes(hero.selectedClass);
   hero.rifleFireMode = "automatic";
   hero.rifleCooldown = 0;
   hero.rifleShotAnimationTimer = 0;
@@ -4907,6 +4931,7 @@ function applyRangedProjectileHit(target, projectile) {
 function dealDamage(target, amount, showPopup = false, sourceClass = null) {
   if (sourceClass === "bountyHunter" && isBountyHunter() && hero.hunterMarkTimer > 0 && target.id === hero.hunterMarkTargetId) amount *= 1.25;
   if (target === hero && getOccupiedHumvee()) target = getOccupiedHumvee();
+  if (target === hero && isEngineer() && amount > 0) amount *= 100 / (100 + getTotalArmor());
   if (target.type === "humvee" && amount > 0) {
     if (target.hp <= 0) return false;
     if (target.techActive && target.tech === "trophy" && Math.random() < 0.4) {
@@ -5534,7 +5559,9 @@ function updateHumveeShell(projectile, dt) {
 
 function updateHeroProjectiles(dt) {
   for (let i = heroProjectiles.length - 1; i >= 0; i -= 1) {
-    if (heroProjectiles[i].style === "explosiveBolt") {
+    if (heroProjectiles[i].style === "engineerBolt") {
+      updateEngineerProjectile(heroProjectiles[i], dt);
+    } else if (heroProjectiles[i].style === "explosiveBolt") {
       updateExplosiveBolt(heroProjectiles[i], dt);
     } else if (heroProjectiles[i].style === "smartMissile") {
       updateSmartMissile(heroProjectiles[i], dt);
@@ -5603,7 +5630,7 @@ function updateEnemyProjectiles(dt) {
     }
 
     let hitUnit = false;
-    for (const unit of units) {
+    for (const unit of [...units, ...engineerDeployables.filter(d => d.kind === "autoTurret" && d.hp > 0)]) {
       if (distance(projectile, unit) <= projectile.radius + unit.radius) {
         dealDamage(unit, projectile.damage, true);
         hitUnit = true;
@@ -5930,6 +5957,7 @@ function useSlash(targetX = null, targetY = null) {
       hero.facingAngle = Math.atan2(dy, dx);
     }
   }
+  if (selectedClass.effect === "engineerBolt") return useEngineerBoltShot();
   if (selectedClass.effect === "mark") return useHuntersMark();
   hero.slashCooldown = (!hero.hasRifle && !hero.hasBow && !hero.hasAxe)
     ? getClassWeaponCooldown(selectedClass)
@@ -6106,10 +6134,11 @@ function spawnHeroBullet(targetX, targetY) {
   hero.rifleShotAngle = angle;
   hero.ammo -= 1;
   heroProjectiles.push({
-    ...spawnBurstProjectile({ angleOffset: 0, range: getRifleRange() }, getRifleDamage(), 18),
+    ...(isEngineer() ? buildEngineerProjectile(hero, angle, getRifleDamage(), getRifleRange()) : spawnBurstProjectile({ angleOffset: 0, range: getRifleRange() }, getRifleDamage(), 18)),
     x: hero.x,
     y: hero.y,
     angle,
+    canHeadshot: true,
   });
   if (hero.ammo === 0) {
     startReload();
@@ -6483,6 +6512,7 @@ function getClosestTarget(unit, unitsList, buildingsList) {
   let closestDistance = Infinity;
 
   for (const otherUnit of unitsList) {
+    if (otherUnit.hp <= 0 || otherUnit.active === false) continue;
     const dist = distance(unit, otherUnit);
     if (dist < closestDistance) {
       closest = otherUnit;
@@ -6491,6 +6521,7 @@ function getClosestTarget(unit, unitsList, buildingsList) {
   }
 
   for (const building of buildingsList) {
+    if (building.hp <= 0) continue;
     const dist = distance(unit, getEntityTargetPoint(building));
     if (dist < closestDistance) {
       closest = building;
@@ -6507,13 +6538,14 @@ function getForestEnemyTarget(unit) {
   }
 
   const aggroRange = unit.aggroRange || 220;
-  if (distance(unit, hero) > aggroRange) {
+  const defender = getClosestTarget(unit, [hero, ...engineerDeployables.filter(d => d.kind === "autoTurret" && d.hp > 0)], []);
+  if (!defender || distance(unit, defender) > aggroRange) {
     unit.targetUnitId = null;
     unit.targetBuildingId = null;
     return null;
   }
 
-  return hero;
+  return defender;
 }
 
 function updateUnits(dt, list, enemiesList, enemyBuildings) {
@@ -6528,6 +6560,7 @@ function updateUnits(dt, list, enemiesList, enemyBuildings) {
       target = enemyBuildings.find((building) => building.id === unit.targetBuildingId) || null;
     }
 
+    if (target?.hp <= 0) { target = null; unit.targetUnitId = null; unit.targetBuildingId = null; }
     if (!target) {
       target = !unit.isPlayer && unit.spawnerId
         ? getForestEnemyTarget(unit)
@@ -6911,10 +6944,11 @@ function update(dt) {
   if (!player.inTutorialWorld && !player.inVillageWorld) {
     updateDodgeArena(dt);
   }
+  updateEngineerDeployables(dt);
   updateHeroProjectiles(dt);
   updateEnemyProjectiles(dt);
   updateUnits(dt, units, enemies, buildings.filter((b) => !b.isPlayer));
-  updateUnits(dt, enemies, [hero, ...units], buildings.filter((b) => b.isPlayer));
+  updateUnits(dt, enemies, [hero, ...units, ...engineerDeployables.filter(d => d.kind === "autoTurret" && d.hp > 0)], buildings.filter((b) => b.isPlayer));
   if (!player.inTutorialWorld && !player.inVillageWorld) {
     updateForestSystems(dt);
     cleanupDeathZoneEntities();
@@ -8575,6 +8609,10 @@ function drawSmartMissile(projectile) {
 
 function drawHeroProjectiles() {
   for (const projectile of heroProjectiles) {
+    if (projectile.style === "engineerBolt") {
+      drawEngineerBolt(projectile);
+      continue;
+    }
     if (projectile.style === "explosiveBolt") {
       drawArrowProjectile(projectile);
       continue;
@@ -8764,6 +8802,8 @@ function render() {
       drawHeroStickFigure();
     } else if (hero.selectedClass === "soldier") {
       drawSoldierHero();
+    } else if (isEngineer()) {
+      drawEngineerHero();
     } else if (isBountyHunter()) {
       drawBountyHunter();
     } else if (hero.selectedClass === "archer") {
@@ -8773,6 +8813,7 @@ function render() {
     }
     drawHealthBar(hero.x, hero.y - 34, 60, hero.hp / hero.maxHp);
   }
+  drawEngineerDeployables();
   drawBountyEffects();
   drawDodgeArenaBullets();
   drawHarvestProgress();
@@ -9053,7 +9094,7 @@ window.addEventListener("keydown", (event) => {
 
   if (key === "r") {
     if (startReload(true)) {
-      statusTextEl.textContent = "Reloading rifle.";
+      statusTextEl.textContent = `Reloading ${getCurrentWeaponDetails()?.name || "weapon"}.`;
     }
   }
 
@@ -9357,6 +9398,7 @@ function selectCharacter(classId) {
   }
 
   saveCharacterProgress();
+  clearEngineerDeployables();
   hero.selectedClass = classId;
   hero.slashCooldown = selectedClass.cooldown;
   hero.slashRadius = selectedClass.radius || hero.slashRadius;
@@ -9385,7 +9427,7 @@ function selectCharacter(classId) {
   hero.slashTimer = 0;
   hero.battleMedicineUseTimer = 0;
   hero.weaponPickupCooldown = 0;
-  hero.hasRifle = ["soldier", "bountyHunter"].includes(classId);
+  hero.hasRifle = ["soldier", "bountyHunter", "engineer"].includes(classId);
   hero.rifleFireMode = "automatic";
   hero.rifleCooldown = 0;
   hero.rifleShotAnimationTimer = 0;
@@ -9451,7 +9493,7 @@ function initializeCharacterCards() {
 
     if (selectedClass.abilityName) {
       const abilityEl = document.createElement("span");
-      abilityEl.textContent = classId === "bountyHunter" ? "F: Hunter’s Mark | Q: Adrenaline Shot | G: Explosive Bolt" : classId === "soldier"
+      abilityEl.textContent = classId === "engineer" ? "F: Bolt Shot | Q: Repair Station | G: Auto Turret" : classId === "bountyHunter" ? "F: Hunter’s Mark | Q: Adrenaline Shot | G: Explosive Bolt" : classId === "soldier"
         ? `F: ${selectedClass.abilityName} | G: Grenade`
         : `F: ${selectedClass.abilityName}`;
       classCardEl.appendChild(abilityEl);
@@ -9641,6 +9683,180 @@ function drawBountyEffects() {
   ctx.restore();
 }
 
+// Deployables are world entities, not persistent inventory items.
+const ENGINEER = Object.freeze({stationDuration: 12, stationCooldown: 25, stationRadius: 150,
+  healing: 6, vehicleRepair: 12, turretCooldown: 30, turretHp: 100, turretRange: 320,
+  turretDamage: 10, turretInterval: 0.6, boltCooldown: 2, armorPenetration: 0.5});
+const engineerDeployables = [];
+const engineerSprite = new Image();
+engineerSprite.src = "./images/engineer-sprite.png";
+function clearEngineerDeployables() { engineerDeployables.length = 0; }
+function getEngineerTurret() { return engineerDeployables.find(d => d.kind === "autoTurret" && d.hp > 0); }
+function canUseEngineerAbility(key) {
+  return isEngineer() && player.hasSelectedCharacter && hero.hp > 0 && !hero.isDead
+    && hero.vehicleId === null && !player.isPlacingBuilding && !player.victory && !player.loss
+    && !isInterfacePanelOpen() && !isDialogueOpen()
+    && getOrderedInventoryAbilities().some(a => a.actionKey === key);
+}
+function buildEngineerProjectile(origin, angle, damage, range, armorPenetration = 0, turretId = null) {
+  return {x: origin.x, y: origin.y, angle, speed: 800, radius: 4, width: 8,
+    damage, baseDamage: damage, traveled: 0, maxDistance: range, active: true,
+    style: "engineerBolt", sourceClass: "engineer", projectileType: "bullet", canHeadshot: false, armorPenetration, turretId};
+}
+function useEngineerBoltShot() {
+  if (!canUseEngineerAbility("F") || hero.slashTimer > 0) return false;
+  heroProjectiles.push(buildEngineerProjectile(hero, hero.facingAngle, getAbilityDamage(),
+    getSelectedClassConfig().range, ENGINEER.armorPenetration));
+  hero.slashTimer = ENGINEER.boltCooldown;
+  hero.rifleShotAnimationTimer = 0.15;
+  updateAbilityUI();
+  return true;
+}
+function placeRepairStation() {
+  if (!canUseEngineerAbility("Q") || hero.battleMedicineCooldownRemaining > 0) return false;
+  engineerDeployables.push({id: nextId(), kind: "repairStation", isPlayer: true,
+    x: hero.x, y: hero.y, radius: 18, ttl: ENGINEER.stationDuration});
+  hero.battleMedicineCooldownRemaining = ENGINEER.stationCooldown;
+  statusTextEl.textContent = "Repair Station deployed: nearby allies and vehicles regenerate health for 12 seconds.";
+  updateAbilityUI();
+  return true;
+}
+function placeAutoTurret() {
+  if (!canUseEngineerAbility("G") || hero.grenadeCooldownRemaining > 0) return false;
+  for (let i = engineerDeployables.length - 1; i >= 0; i--) {
+    if (engineerDeployables[i].kind === "autoTurret") engineerDeployables.splice(i, 1);
+  }
+  engineerDeployables.push({id: nextId(), kind: "autoTurret", isPlayer: true,
+    x: hero.x, y: hero.y, radius: 18, hp: ENGINEER.turretHp, maxHp: ENGINEER.turretHp,
+    attackTimer: 0, angle: hero.facingAngle});
+  hero.grenadeCooldownRemaining = ENGINEER.turretCooldown;
+  statusTextEl.textContent = "Auto Turret deployed. It will defend this position until destroyed or replaced.";
+  updateAbilityUI();
+  return true;
+}
+function isFriendlyEngineerTarget(target) {
+  return target === hero || target.isPlayer === true || target.playerOwned === true || target.id === hero.vehicleId;
+}
+function engineerTargets() {
+  // Unclaimed Humvees are neutral vehicles in the existing world.
+  return bountyTargets().filter(t => !isFriendlyEngineerTarget(t) && (t.type !== "humvee" || t.hostile === true));
+}
+function isRepairableVehicle(target) {
+  return target.isVehicle === true || ["humvee", "tank", "vehicle"].includes(target.type || target.kind);
+}
+function distanceToRepairTarget(station, target) {
+  return target.w !== undefined ? Math.hypot(station.x - clamp(station.x, target.x, target.x + target.w),
+    station.y - clamp(station.y, target.y, target.y + target.h)) : distance(station, target);
+}
+function engineerHasLineOfSight(origin, target) {
+  const point = getEntityTargetPoint(target);
+  const length = distance(origin, point);
+  const steps = Math.max(1, Math.ceil(length / 8));
+  for (let i = 1; i < steps; i++) {
+    const p = {x: origin.x + (point.x - origin.x) * i / steps, y: origin.y + (point.y - origin.y) * i / steps};
+    if (trees.some(t => intersectsTree(p, 2, t)) || stones.some(t => intersectsStone(p, 2, t))
+      || buildings.some(b => b !== target && b.hp > 0 && intersectsBuilding(p, 2, b))) return false;
+  }
+  return true;
+}
+function updateEngineerDeployables(dt) {
+  for (let i = engineerDeployables.length - 1; i >= 0; i--) {
+    const deployable = engineerDeployables[i];
+    if (deployable.kind === "repairStation") {
+      const activeDt = Math.min(dt, deployable.ttl);
+      const recipients = [hero, ...units, ...engineerDeployables.filter(d => d.kind === "autoTurret"),
+        ...buildings.filter(b => isFriendlyEngineerTarget(b) && isRepairableVehicle(b))];
+      for (const target of new Set(recipients)) {
+        if (!isFriendlyEngineerTarget(target) || target.hp <= 0 || !Number.isFinite(target.maxHp)) continue;
+        if (distanceToRepairTarget(deployable, target) <= ENGINEER.stationRadius) {
+          target.hp = Math.min(target.maxHp, target.hp + (isRepairableVehicle(target) ? ENGINEER.vehicleRepair : ENGINEER.healing) * activeDt);
+        }
+      }
+      deployable.ttl = Math.max(0, deployable.ttl - dt);
+      if (deployable.ttl === 0) engineerDeployables.splice(i, 1);
+      continue;
+    }
+    if (deployable.hp <= 0 || (!player.inVillageWorld && !player.inTutorialWorld && isInsideDeathZone(deployable))) {
+      spawnTextPopup(deployable.x, deployable.y - 30, "Turret destroyed", "#efb07a", 0.8);
+      engineerDeployables.splice(i, 1);
+      continue;
+    }
+    deployable.attackTimer = Math.max(0, deployable.attackTimer - dt);
+    const target = engineerTargets().filter(t => distance(deployable, getEntityTargetPoint(t)) <= ENGINEER.turretRange)
+      .sort((a, b) => distance(deployable, getEntityTargetPoint(a)) - distance(deployable, getEntityTargetPoint(b)))
+      .find(t => engineerHasLineOfSight(deployable, t));
+    if (!target) continue;
+    const point = getEntityTargetPoint(target);
+    deployable.angle = Math.atan2(point.y - deployable.y, point.x - deployable.x);
+    if (deployable.attackTimer === 0) {
+      heroProjectiles.push(buildEngineerProjectile(deployable, deployable.angle, ENGINEER.turretDamage,
+        ENGINEER.turretRange, 0, deployable.id));
+      deployable.attackTimer = ENGINEER.turretInterval;
+    }
+  }
+}
+function engineerDamageAfterArmor(target, damage, penetration = 0) {
+  const armor = Math.max(0, target.armor || target.stats?.armor || 0, target.equippedArmorValue || 0);
+  return damage * 100 / (100 + armor * (1 - penetration));
+}
+function updateEngineerProjectile(projectile, dt) {
+  const travel = Math.min(projectile.speed * dt, projectile.maxDistance - projectile.traveled);
+  const steps = Math.max(1, Math.ceil(travel / 4));
+  for (let i = 0; i < steps && projectile.active; i++) {
+    projectile.x += Math.cos(projectile.angle) * travel / steps;
+    projectile.y += Math.sin(projectile.angle) * travel / steps;
+    projectile.traveled += travel / steps;
+    if (trees.some(t => intersectsTree(projectile, projectile.radius, t))
+      || stones.some(t => intersectsStone(projectile, projectile.radius, t))) { projectile.active = false; return; }
+    const target = engineerTargets().find(t => t.w ? intersectsBuilding(projectile, projectile.radius, t)
+      : distance(projectile, t) <= projectile.radius + t.radius);
+    if (target) {
+      const damage = engineerDamageAfterArmor(target, projectile.damage, projectile.armorPenetration);
+      applyRangedProjectileHit(target, {...projectile, baseDamage: damage});
+      projectile.active = false; return;
+    }
+    if (tryHitTutorialRangeTarget(projectile)) return;
+  }
+  if (projectile.traveled >= projectile.maxDistance - 0.001) projectile.active = false;
+}
+function drawEngineerHero() {
+  ctx.save(); ctx.translate(hero.x, hero.y);
+  if (Math.cos(hero.facingAngle) < 0) ctx.scale(-1, 1);
+  const bob = hero.isMoving ? Math.sin(hero.runAnimationTimer * 12) * 2 : 0;
+  if (engineerSprite.complete && engineerSprite.naturalWidth) ctx.drawImage(engineerSprite, -30, -66 + bob, 60, 90);
+  else drawEntityCircle({x: 0, y: 0, radius: hero.radius}, "#a17938", "#e8c885");
+  ctx.restore();
+}
+function drawEngineerBolt(projectile) {
+  ctx.save(); ctx.translate(projectile.x, projectile.y); ctx.rotate(projectile.angle);
+  ctx.strokeStyle = projectile.armorPenetration ? "#fff0b3" : "#c5d4db"; ctx.lineWidth = 3;
+  ctx.beginPath(); ctx.moveTo(-12, 0); ctx.lineTo(8, 0); ctx.stroke();
+  ctx.fillStyle = "#83939c"; ctx.fillRect(-12, -4, 4, 8);
+  ctx.restore();
+}
+function drawEngineerDeployables() {
+  for (const d of engineerDeployables) {
+    ctx.save(); ctx.translate(d.x, d.y);
+    ctx.lineWidth = 3; ctx.strokeStyle = "#35332d";
+    if (d.kind === "repairStation") {
+      ctx.fillStyle = "rgba(109, 208, 158, 0.08)";
+      ctx.beginPath(); ctx.arc(0, 0, ENGINEER.stationRadius, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = "rgba(128, 222, 174, 0.4)"; ctx.lineWidth = 1; ctx.stroke();
+      ctx.fillStyle = "#b7924e"; ctx.fillRect(-19, -14, 38, 28);
+      ctx.strokeStyle = "#383b34"; ctx.lineWidth = 3; ctx.strokeRect(-19, -14, 38, 28);
+      ctx.fillStyle = "#c9ffe2"; ctx.fillRect(-3, -10, 6, 20); ctx.fillRect(-10, -3, 20, 6);
+      ctx.fillStyle = "#d8f7e4"; ctx.font = "bold 12px sans-serif"; ctx.textAlign = "center";
+      ctx.fillText(`REPAIR ${d.ttl.toFixed(1)}s`, 0, -25);
+    } else if (d.hp > 0) {
+      ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(-23, 20); ctx.moveTo(0, 0); ctx.lineTo(23, 20); ctx.moveTo(0, 0); ctx.lineTo(0, -23); ctx.stroke();
+      ctx.rotate(d.angle); ctx.fillStyle = "#ad8848"; ctx.fillRect(-14, -12, 28, 24); ctx.strokeRect(-14, -12, 28, 24);
+      ctx.fillStyle = "#66747c"; ctx.fillRect(8, -5, 28, 10); ctx.strokeRect(8, -5, 28, 10);
+    }
+    ctx.restore();
+    if (d.kind === "autoTurret" && d.hp > 0) drawHealthBar(d.x, d.y - 32, 46, d.hp / d.maxHp);
+  }
+}
+
 // Versioned per-character progress. World encounters restart on load, as before.
 const CHARACTER_SAVE_PREFIX = "timberlineCommandCharacterV1:";
 const SAVED_PLAYER_FIELDS = ["level", "xp", "upgradePoints", "wood", "money", "weaponBonusStat", "weaponBonusDamage",
@@ -9677,7 +9893,9 @@ function restoreCharacterProgress(classId) {
     if (["helmet", "rareHelmet", "enemyHelmet", "goldHelmet"].includes(saved.equipment?.equippedHelmetType)) hero.equippedHelmetType = saved.equipment.equippedHelmetType;
     if (Array.isArray(saved.backpack)) player.backpack = saved.backpack.filter(i => i && typeof i.type === "string").slice(0, player.backpackCapacity);
     if (Array.isArray(saved.abilityOrder)) inventoryAbilityOrders.set(classId, saved.abilityOrder.slice(0, 6));
-    for (const [key, max] of Object.entries({slashTimer: 30, battleMedicineCooldownRemaining: 20, grenadeCooldownRemaining: 8})) {
+    const abilities = getInventoryAbilities();
+    const cooldownLimits = {slashTimer: abilities.find(a => a.key === "F")?.cooldown || 0, battleMedicineCooldownRemaining: abilities.find(a => a.key === "Q")?.cooldown || 0, grenadeCooldownRemaining: abilities.find(a => a.key === "G")?.cooldown || 0};
+    for (const [key, max] of Object.entries(cooldownLimits)) {
       if (Number.isFinite(saved.cooldowns?.[key])) hero[key] = Math.max(0, Math.min(max, saved.cooldowns[key]));
     }
     for (const [key, state] of Object.entries(tutorialProfessionState)) {

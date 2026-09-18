@@ -135,5 +135,22 @@
     "effect": "mark",
     "damage": 20,
     "headshotMultiplier": 2.5
+  },
+  "engineer": {
+    "name": "Engineer",
+    "abilityName": "Bolt Shot",
+    "cooldown": 2,
+    "agility": 225,
+    "portrait": "./images/engineer-portrait.png",
+    "sprite": "./images/engineer-sprite.png",
+    "stats": {
+      "armor": 75,
+      "health": 120,
+      "weapon": 60,
+      "regen": 1.2
+    },
+    "effect": "engineerBolt",
+    "damage": 35,
+    "range": 600
   }
 }
