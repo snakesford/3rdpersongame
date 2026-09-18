@@ -319,9 +319,8 @@ const tutorialProfessionState = Object.fromEntries(
   Object.keys(TUTORIAL_PROFESSIONS).map((professionId) => [
     professionId,
     {
-      level: 1,
       xp: 0,
-      reputation: 0,
+      reputation: 1,
       completed: 0,
       introSeen: false,
       activeTask: null,
@@ -358,7 +357,6 @@ const MERCENARY_CONTRACTS = {
       gold: 90,
       xp: 60,
       mercenaryXp: 18,
-      mercenaryReputation: 1,
       lootChance: 0.55,
       lootTable: ["enemyHelmet", "healthBuff", "weaponBuff"],
     },
@@ -388,7 +386,6 @@ const MERCENARY_CONTRACTS = {
       gold: 160,
       xp: 110,
       mercenaryXp: 30,
-      mercenaryReputation: 2,
       lootChance: 0.85,
       lootTable: ["rareHelmet", "weaponBuff", "enemyHelmet"],
     },
@@ -554,7 +551,7 @@ function markCampDiscovered(campId) {
   quest.discoveredCampIds.push(campId);
   const camp = getCampConfig(campId);
   if (camp?.discoveryXp) {
-    awardTutorialProfessionProgress("explorer", camp.discoveryXp, 1, "Hidden Goblin Camp discovered. Explorer progress increased.");
+    awardTutorialProfessionProgress("explorer", camp.discoveryXp, "Hidden Goblin Camp discovered. Explorer progress increased.");
     spawnTextPopup(hero.x, hero.y - 26, `+${camp.discoveryXp} Exploration XP`, "rgba(126, 220, 205, 1)", 1.5);
   }
   ensureContractAvailability();
@@ -702,8 +699,8 @@ function getTutorialProfessionState(professionId) {
   return tutorialProfessionState[professionId];
 }
 
-function getProfessionXpRequired(level) {
-  return 20 + (level - 1) * 10;
+function getProfessionXpRequired(reputation) {
+  return 20 + (reputation - 1) * 10;
 }
 
 function getNextProfessionUnlock(professionId, reputation) {
@@ -714,7 +711,7 @@ function getNextProfessionUnlock(professionId, reputation) {
 function buildProfessionProgressView(professionId) {
   const profession = TUTORIAL_PROFESSIONS[professionId];
   const state = getTutorialProfessionState(professionId);
-  const xpRequired = getProfessionXpRequired(state.level);
+  const xpRequired = getProfessionXpRequired(state.reputation);
   const nextUnlock = getNextProfessionUnlock(professionId, state.reputation);
   return {
     label: professionId === "mercenary" ? "XP Progress" : `${profession.label} XP Progress`,
@@ -740,7 +737,7 @@ function renderProfessionRewards(progressView) {
   }
 
   const heading = document.createElement("div");
-  heading.textContent = "Rank Rewards";
+  heading.textContent = "Reputation Rewards";
   const rewards = document.createElement("div");
   rewards.className = "profession-rewards";
   for (const reward of progressView.rankRewards) {
@@ -748,7 +745,7 @@ function renderProfessionRewards(progressView) {
     tile.className = "profession-reward";
     const badge = document.createElement("span");
     badge.className = "profession-reward-rank";
-    badge.textContent = `Rank ${reward.rank}`;
+    badge.textContent = `Rep ${reward.rank}`;
     tile.appendChild(badge);
 
     if (reward.gold !== undefined) {
@@ -774,28 +771,21 @@ function renderProfessionRewards(progressView) {
   dialogueProgressUnlockEl.append(heading, rewards);
 }
 
-function awardTutorialProfessionProgress(professionId, xp, reputation, rewardMessage) {
+function awardTutorialProfessionProgress(professionId, xp, rewardMessage) {
   const state = getTutorialProfessionState(professionId);
-  const previousLevel = state.level;
+  const previousReputation = state.reputation;
   state.xp += xp;
-  if (professionId !== "mercenary") {
-    state.reputation += reputation;
-  }
   state.completed += 1;
 
-  while (state.xp >= getProfessionXpRequired(state.level)) {
-    state.xp -= getProfessionXpRequired(state.level);
-    state.level += 1;
-  }
-
-  if (professionId === "mercenary") {
-    state.reputation = state.level - 1;
+  while (state.xp >= getProfessionXpRequired(state.reputation)) {
+    state.xp -= getProfessionXpRequired(state.reputation);
+    state.reputation += 1;
   }
 
   if (rewardMessage) {
     statusTextEl.textContent = rewardMessage;
   }
-  if (professionId === "mercenary" && previousLevel < 3 && state.level >= 3) {
+  if (professionId === "mercenary" && previousReputation < 3 && state.reputation >= 3) {
     updateInventoryAbilities();
     updateAbilityUI();
     const popup = document.createElement("div");
@@ -804,7 +794,7 @@ function awardTutorialProfessionProgress(professionId, xp, reputation, rewardMes
     const title = document.createElement("strong");
     title.textContent = "New ability unlocked: Sprint";
     const detail = document.createElement("span");
-    detail.textContent = "Mercenary Rank 3 reached! Equip Sprint in your inventory for +150% movement speed.";
+    detail.textContent = "Mercenary Reputation 3 reached! Equip Sprint in your inventory for +150% movement speed.";
     popup.append(title, detail);
     document.body.appendChild(popup);
     setTimeout(() => popup.remove(), 6500);
@@ -1325,7 +1315,6 @@ function completeMercenaryContractTurnIn(contractId) {
   awardTutorialProfessionProgress(
     "mercenary",
     contract.rewards.mercenaryXp,
-    contract.rewards.mercenaryReputation,
     "Mercenary contract completed. Reputation increased."
   );
   rollContractLootPickup(contractId);
@@ -1728,7 +1717,7 @@ function turnInTutorialProfessionTask(professionId) {
   }
 
   awardPlayerXp(profession.taskXp || 0);
-  awardTutorialProfessionProgress(professionId, 12, 1, `${profession.label}: ${profession.rewardText}`);
+  awardTutorialProfessionProgress(professionId, 12, `${profession.label}: ${profession.rewardText}`);
   state.activeTask.status = "completed";
   state.activeTask = null;
   updateInventoryUI();
@@ -2391,7 +2380,7 @@ function getInventoryAbilities() {
   if (hero.selectedClass === "robot") {
     abilities.push({ name: "Dash", key: "Shift", description: "Quickly dash in your movement direction.", cooldown: hero.dashCooldown, remaining: hero.dashCooldownRemaining });
   }
-  if (selected && getTutorialProfessionState("mercenary").level >= 3) {
+  if (selected && getTutorialProfessionState("mercenary").reputation >= 3) {
     abilities.push({ name: "Sprint", key: "Sprint", description: `Increase movement speed by 150% (2.5× normal speed) for ${SPRINT_DURATION} seconds.`, cooldown: SPRINT_COOLDOWN, remaining: hero.sprintCooldownRemaining });
   }
   return abilities;
@@ -6522,7 +6511,7 @@ function drawTutorialNpcs() {
     }
 
     const professionState = getTutorialProfessionState(npc.professionId);
-    const xpRequired = getProfessionXpRequired(professionState.level);
+    const xpRequired = getProfessionXpRequired(professionState.reputation);
     const reputationProgress = clamp(professionState.xp / xpRequired, 0, 1);
     if (distance(hero, npc) <= 90) {
       drawNameplate(
