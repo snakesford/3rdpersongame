@@ -208,7 +208,6 @@ const HUMVEE_TECH = {
   repair: { name: "Repair Kit", description: "Restores 10 HP per second after 5 seconds without taking damage." },
 };
 const humveeExhaustParticles = [];
-let humveeExhaustTimer = 0;
 const SMART_MISSILE = { count: 6, damage: 150, blastRadius: 95, targetRange: 700, speed: 600, cooldown: 12, range: 1500 };
 const ROAD_SPEED_MULTIPLIER = 1.3;
 const MAIN_WORLD_TRADER_POSITION = { x: trader.x, y: trader.y };
@@ -222,6 +221,8 @@ const trainingAmmoStockpile = {
   size: 96,
   occupantId: null,
 };
+const driverTriggerTile = { x: TUTORIAL_WORLD.spawnX - 300, y: TUTORIAL_WORLD.spawnY + 130, size: 96, triggered: false };
+let trainingDriver = null;
 const tutorialDialogue = {
   npcId: null,
   text: "",
@@ -656,9 +657,9 @@ function initializeEnemyForces() {
 }
 
 function clearWorldEntities() {
+  trainingDriver = null;
   trainingAmmoStockpile.occupantId = null;
   humveeExhaustParticles.length = 0;
-  humveeExhaustTimer = 0;
   trees.length = 0;
   stones.length = 0;
   buildings.length = 0;
@@ -1172,6 +1173,8 @@ function createBuilding(type, x, y, isPlayer, options = {}) {
     building.maxAmmo = 300;
     building.gunCooldown = 0;
     building.smartMissileCooldown = 0;
+    building.driverId = null;
+    building.reservedDriverId = null;
     building.tech = null;
     building.techActive = false;
     building.repairDelay = 5;
@@ -3661,7 +3664,7 @@ function getOccupiedHumvee() {
 }
 
 function getNearbyHumvee() {
-  return buildings.find((building) => building.type === "humvee" && building.hp > 0
+  return buildings.find((building) => building.type === "humvee" && building.hp > 0 && !building.driverId
     && Math.hypot(hero.x - clamp(hero.x, building.x, building.x + building.w),
       hero.y - clamp(hero.y, building.y, building.y + building.h)) <= hero.radius + 36) || null;
 }
@@ -3680,7 +3683,7 @@ function exitHumvee() {
 }
 
 function enterHumvee(vehicle) {
-  if (!vehicle || vehicle.hp <= 0 || hero.isDead || hero.hp <= 0) return;
+  if (!vehicle || vehicle.driverId || vehicle.hp <= 0 || hero.isDead || hero.hp <= 0) return;
   cancelHarvest();
   cancelGrenadeAim();
   mouse.leftDown = false;
@@ -3731,16 +3734,16 @@ function crushHumveeTrees(vehicle) {
   }
 }
 
-function getSmartMissileTarget(origin, ownerId) {
+function getSmartMissileTarget(origin, ownerId, range = SMART_MISSILE.targetRange, includeTrainingTargets = true) {
   const targets = [
-    ...enemies.filter((enemy) => enemy.hp > 0),
+    ...enemies.filter((enemy) => enemy.hp > 0 && enemy.active !== false),
     ...(enemyHero?.active && enemyHero.hp > 0 ? [enemyHero] : []),
     ...buildings.filter((building) => building.id !== ownerId && !building.isPlayer && building.hp > 0
       && ["enemyBase", "barracks"].includes(building.type)),
-    ...tutorialRangeTargets.filter((target) => !target.destroyed),
+    ...(includeTrainingTargets ? tutorialRangeTargets.filter((target) => !target.destroyed) : []),
   ];
   let nearest = null;
-  let nearestDistance = SMART_MISSILE.targetRange;
+  let nearestDistance = range;
   for (const target of targets) {
     const dist = distance(origin, getEntityTargetPoint(target));
     if (dist <= nearestDistance) { nearest = target; nearestDistance = dist; }
@@ -3800,8 +3803,13 @@ function getHumveeGrenadeTarget(vehicle, targetX, targetY) {
 
 function fireHumveeGun(targetX, targetY) {
   const vehicle = getOccupiedHumvee();
-  if (!vehicle || vehicle.hp <= 0 || hero.hp <= 0 || vehicle.ammo <= 0
-    || vehicle.gunCooldown > 0 || isInterfacePanelOpen() || player.victory || player.loss) return false;
+  if (!vehicle || hero.hp <= 0 || isInterfacePanelOpen()) return false;
+  return fireHumveeWeapon(vehicle, targetX, targetY);
+}
+
+function fireHumveeWeapon(vehicle, targetX, targetY) {
+  if (!vehicle || vehicle.hp <= 0 || vehicle.ammo <= 0 || vehicle.gunCooldown > 0
+    || player.victory || player.loss) return false;
   const x = vehicle.x + vehicle.w / 2;
   const y = vehicle.y + vehicle.h * 0.2;
   if (Math.hypot(targetX - x, targetY - y) < 1) return false;
@@ -3848,25 +3856,27 @@ function updateHumveeExhaust(dt) {
     particle.y += particle.vy * dt;
     if (particle.ttl <= 0) humveeExhaustParticles.splice(index, 1);
   }
-  const vehicle = getOccupiedHumvee();
-  if (!vehicle || vehicle.hp <= 0 || hero.hp <= 0) {
-    humveeExhaustTimer = 0;
-    return;
-  }
-  humveeExhaustTimer -= dt;
-  while (humveeExhaustTimer <= 0) {
-    const direction = vehicle.facingLeft ? 1 : -1;
-    humveeExhaustParticles.push({
-      x: vehicle.x + (vehicle.facingLeft ? vehicle.w + 2 : -2),
-      y: vehicle.y + vehicle.h * 0.78,
-      vx: direction * (26 + Math.random() * 18),
-      vy: -10 - Math.random() * 12,
-      size: 24 + Math.random() * 10,
-      angle: Math.random() * Math.PI * 2,
-      ttl: 1.2,
-      maxTtl: 1.2,
-    });
-    humveeExhaustTimer += 0.12;
+  for (const vehicle of buildings) {
+    if (vehicle.type !== "humvee") continue;
+    if (vehicle.hp <= 0 || (vehicle.id !== hero.vehicleId && !vehicle.driverId)) {
+      vehicle.exhaustTimer = 0;
+      continue;
+    }
+    vehicle.exhaustTimer = (vehicle.exhaustTimer || 0) - dt;
+    while (vehicle.exhaustTimer <= 0) {
+      const direction = vehicle.facingLeft ? 1 : -1;
+      humveeExhaustParticles.push({
+        x: vehicle.x + (vehicle.facingLeft ? vehicle.w + 2 : -2),
+        y: vehicle.y + vehicle.h * 0.78,
+        vx: direction * (26 + Math.random() * 18),
+        vy: -10 - Math.random() * 12,
+        size: 24 + Math.random() * 10,
+        angle: Math.random() * Math.PI * 2,
+        ttl: 1.2,
+        maxTtl: 1.2,
+      });
+      vehicle.exhaustTimer += 0.12;
+    }
   }
 }
 
@@ -6510,6 +6520,7 @@ function cleanupDestroyedBuildings() {
       continue;
     }
     if (hero.vehicleId === building.id) exitHumvee();
+    if (building.driverId && trainingDriver?.vehicleId === building.id) releaseDriverVehicle();
     buildings.splice(i, 1);
     if (building.type === "humvee") {
       explodeGrenade({
@@ -6586,6 +6597,119 @@ function triggerLoss() {
   overlayMessageEl.classList.remove("hidden");
 }
 
+function releaseDriverVehicle() {
+  if (!trainingDriver) return;
+  for (const vehicle of buildings) {
+    if (vehicle.reservedDriverId === trainingDriver.id) vehicle.reservedDriverId = null;
+    if (vehicle.driverId === trainingDriver.id) {
+      vehicle.driverId = null;
+      vehicle.isPlayer = trainingDriver.previousVehicleTeam ?? false;
+      trainingDriver.x = vehicle.x + vehicle.w / 2;
+      trainingDriver.y = vehicle.y + vehicle.h + trainingDriver.radius + 8;
+    }
+  }
+  trainingDriver.vehicleId = null;
+  trainingDriver.destinationId = null;
+  trainingDriver.target = null;
+}
+
+function resetDriverTrigger() {
+  releaseDriverVehicle();
+  trainingDriver = null;
+  driverTriggerTile.triggered = false;
+}
+
+function updateTrainingDriver(dt) {
+  if (!player.inTutorialWorld) return;
+  const tile = driverTriggerTile;
+  if (!tile.triggered && hero.vehicleId === null && hero.hp > 0 && !hero.isDead
+    && hero.x >= tile.x && hero.x <= tile.x + tile.size
+    && hero.y >= tile.y && hero.y <= tile.y + tile.size) {
+    tile.triggered = true;
+    trainingDriver = { id: nextId(), name: "Driver", x: tile.x + tile.size / 2,
+      y: tile.y + tile.size + 24, radius: 16, speed: 110,
+      vehicleId: null, destinationId: null, target: null, searchTimer: 0 };
+    spawnTextPopup(trainingDriver.x, trainingDriver.y - 30, "Driver", "rgba(170, 225, 255, 1)", 1.2);
+  }
+  const driver = trainingDriver;
+  if (!driver) return;
+  let vehicle = buildings.find((entry) => entry.id === driver.vehicleId);
+  if (driver.vehicleId !== null && (!vehicle || vehicle.hp <= 0 || vehicle.driverId !== driver.id)) {
+    releaseDriverVehicle();
+    vehicle = null;
+  }
+  if (!vehicle) {
+    const available = buildings.filter((entry) => entry.type === "humvee" && entry.hp > 0
+      && entry.id !== hero.vehicleId && !entry.driverId
+      && (!entry.reservedDriverId || entry.reservedDriverId === driver.id));
+    const nearest = available.reduce((best, entry) => !best
+      || distance(driver, getEntityTargetPoint(entry)) < distance(driver, getEntityTargetPoint(best)) ? entry : best, null);
+    if (driver.destinationId !== nearest?.id) {
+      for (const entry of buildings) if (entry.reservedDriverId === driver.id) entry.reservedDriverId = null;
+      driver.destinationId = nearest?.id ?? null;
+    }
+    if (!nearest) return;
+    nearest.reservedDriverId = driver.id;
+    const point = getEntityTargetPoint(nearest);
+    moveTutorialNpcToward(driver, point.x, point.y, dt);
+    const edgeDistance = Math.hypot(driver.x - clamp(driver.x, nearest.x, nearest.x + nearest.w),
+      driver.y - clamp(driver.y, nearest.y, nearest.y + nearest.h));
+    if (edgeDistance > driver.radius + 6) return;
+    nearest.driverId = driver.id;
+    nearest.reservedDriverId = null;
+    driver.previousVehicleTeam = nearest.isPlayer;
+    nearest.isPlayer = true;
+    driver.vehicleId = nearest.id;
+    driver.destinationId = null;
+    driver.searchTimer = 0;
+    vehicle = nearest;
+    spawnTextPopup(point.x, nearest.y - 30, "Driver aboard", "rgba(170, 225, 255, 1)", 1.2);
+  }
+  driver.x = vehicle.x + vehicle.w / 2;
+  driver.y = vehicle.y + vehicle.h / 2;
+  vehicle.gunCooldown = Math.max(0, vehicle.gunCooldown - dt);
+  const origin = { x: driver.x, y: vehicle.y + vehicle.h * 0.2 };
+  const range = HUMVEE_WEAPONS[vehicle.mountedWeapon].range;
+  const target = driver.target;
+  const valid = target && target.hp > 0 && target.active !== false
+    && (enemies.includes(target) || (target === enemyHero && enemyHero.active)
+      || (buildings.includes(target) && !target.isPlayer && target.hp > 0))
+    && distance(origin, getEntityTargetPoint(target)) <= range;
+  driver.searchTimer -= dt;
+  if ((target && !valid) || driver.searchTimer <= 0) {
+    driver.target = getSmartMissileTarget(origin, vehicle.id, range, false);
+    driver.searchTimer = 0.25;
+  }
+  if (driver.target) {
+    const point = getEntityTargetPoint(driver.target);
+    vehicle.facingLeft = point.x < origin.x;
+    fireHumveeWeapon(vehicle, point.x, point.y);
+  }
+}
+
+function drawTrainingDriver() {
+  if (!player.inTutorialWorld) return;
+  const tile = driverTriggerTile;
+  ctx.save();
+  ctx.fillStyle = tile.triggered ? "#555f56" : "#3e7290";
+  ctx.fillRect(tile.x, tile.y, tile.size, tile.size);
+  ctx.strokeStyle = "#bfe5ff";
+  ctx.lineWidth = 2;
+  ctx.strokeRect(tile.x, tile.y, tile.size, tile.size);
+  ctx.fillStyle = "#ffffff";
+  ctx.font = "700 14px Chakra Petch";
+  ctx.textAlign = "center";
+  ctx.fillText("DRIVER", tile.x + tile.size / 2, tile.y + 40);
+  ctx.font = "12px Chakra Petch";
+  ctx.fillText(tile.triggered ? "ACTIVATED" : "WALK HERE", tile.x + tile.size / 2, tile.y + 62);
+  if (trainingDriver && trainingDriver.vehicleId === null) {
+    const driver = trainingDriver;
+    drawEntityCircle(driver, "#6b91b0", "#e9d5ad");
+    drawNameplate(driver.x, driver.y - 32, "Driver", "rgba(15, 33, 24, 0.9)");
+  }
+  ctx.restore();
+}
+
 function updateTrainingAmmoStockpile() {
   if (!player.inTutorialWorld || hero.hp <= 0 || hero.isDead) {
     trainingAmmoStockpile.occupantId = null;
@@ -6653,6 +6777,7 @@ function update(dt) {
   updateCamera(dt);
   updateHero(dt);
   updateTrainingAmmoStockpile();
+  updateTrainingDriver(dt);
   updateHumveeExhaust(dt);
   updateHumveeTech(dt);
   updateGrenades(dt);
@@ -7819,7 +7944,7 @@ function drawBuilding(building) {
     if (humveeImage.complete && humveeImage.naturalWidth > 0) {
       // Fit the full source image inside the vehicle bounds without cropping or stretching.
       ctx.save();
-      if (hero.vehicleId === building.id && building.hp > 0) {
+      if ((hero.vehicleId === building.id || building.driverId) && building.hp > 0) {
         const vibrationTime = lastTimestamp / 1000;
         ctx.translate(Math.sin(vibrationTime * 71) * 0.24, Math.sin(vibrationTime * 89) * 0.36);
       }
@@ -7839,7 +7964,7 @@ function drawBuilding(building) {
     }
     drawHealthBar(building.x + building.w / 2, building.y - 18, 150, building.hp / building.maxHp);
     drawNameplate(building.x + building.w / 2, building.y - 34,
-      `Humvee • ${Math.max(0, Math.ceil(building.hp))} / ${building.maxHp} HP`, "rgba(15, 33, 24, 0.9)");
+      `Humvee${building.driverId ? " · Driver" : ""} • ${Math.max(0, Math.ceil(building.hp))} / ${building.maxHp} HP`, "rgba(15, 33, 24, 0.9)");
     ctx.restore();
     return;
   }
@@ -8479,6 +8604,7 @@ function render() {
 
   drawTutorialObjects();
   drawTutorialNpcs();
+  drawTrainingDriver();
 
   drawVillager();
 
