@@ -1143,6 +1143,7 @@ function createBuilding(type, x, y, isPlayer, options = {}) {
     building.ammo = 300;
     building.maxAmmo = 300;
     building.gunCooldown = 0;
+    building.treeSlowTimer = 0;
   }
   buildings.push(building);
   return building;
@@ -3496,13 +3497,26 @@ function canMoveHumvee(vehicle, x, y) {
     && y < rect.y + rect.h && y + vehicle.h > rect.y;
   if (buildings.some((other) => other !== vehicle && other.hp > 0 && overlapsRect(other))) return false;
   if (villageProps.some((prop) => prop.collidable && prop.shape === "rect" && overlapsRect(prop))) return false;
-  const circles = [...trees, ...stones, ...villageProps.filter((prop) => prop.collidable && prop.shape !== "rect")];
+  const circles = [...stones, ...villageProps.filter((prop) => prop.collidable && prop.shape !== "rect")];
   if (circles.some((circle) => Math.hypot(circle.x - clamp(circle.x, x, x + vehicle.w),
     circle.y - clamp(circle.y, y, y + vehicle.h)) < circle.radius)) return false;
   return !villageFences.some((fence) => overlapsRect({
     x: Math.min(fence.x1, fence.x2) - 3, y: Math.min(fence.y1, fence.y2) - 3,
     w: Math.abs(fence.x2 - fence.x1) + 6, h: Math.abs(fence.y2 - fence.y1) + 6,
   }));
+}
+
+function crushHumveeTrees(vehicle) {
+  for (let index = trees.length - 1; index >= 0; index -= 1) {
+    const tree = trees[index];
+    const closestX = clamp(tree.x, vehicle.x, vehicle.x + vehicle.w);
+    const closestY = clamp(tree.y, vehicle.y, vehicle.y + vehicle.h);
+    if (Math.hypot(tree.x - closestX, tree.y - closestY) >= tree.radius) continue;
+    if (harvestTreeId === tree.id) cancelHarvest();
+    trees.splice(index, 1);
+    vehicle.treeSlowTimer = 0.8;
+    spawnTextPopup(tree.x, tree.y - tree.radius - 10, "Tree down", "rgba(201, 255, 184, 1)", 0.8);
+  }
 }
 
 function fireHumveeGun(targetX, targetY) {
@@ -3538,10 +3552,18 @@ function updateHumveeDriving(dt) {
     // Small steps prevent driving through thin obstacles during long frames.
     const steps = Math.max(1, Math.ceil(travel / 8));
     for (let step = 0; step < steps; step += 1) {
-      const nextX = vehicle.x + dx / length * travel / steps;
-      if (canMoveHumvee(vehicle, nextX, vehicle.y)) vehicle.x = nextX;
-      const nextY = vehicle.y + dy / length * travel / steps;
-      if (canMoveHumvee(vehicle, vehicle.x, nextY)) vehicle.y = nextY;
+      const speedMultiplier = vehicle.treeSlowTimer > 0 ? 0.45 : 1;
+      vehicle.treeSlowTimer = Math.max(0, vehicle.treeSlowTimer - dt / steps);
+      const nextX = vehicle.x + dx / length * travel / steps * speedMultiplier;
+      if (nextX !== vehicle.x && canMoveHumvee(vehicle, nextX, vehicle.y)) {
+        vehicle.x = nextX;
+        crushHumveeTrees(vehicle);
+      }
+      const nextY = vehicle.y + dy / length * travel / steps * (vehicle.treeSlowTimer > 0 ? 0.45 : 1);
+      if (nextY !== vehicle.y && canMoveHumvee(vehicle, vehicle.x, nextY)) {
+        vehicle.y = nextY;
+        crushHumveeTrees(vehicle);
+      }
     }
     if (dx) vehicle.facingLeft = dx < 0;
   }
