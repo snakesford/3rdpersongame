@@ -4,6 +4,25 @@ export function createPlayerRegistry() {
   let localPlayerId = null;
   const players = new Map();
   const motion = new Map();
+  const actionTimes = new Map();
+  const freeze = value => {
+    if (value && typeof value === 'object') { Object.values(value).forEach(freeze); Object.freeze(value); }
+    return value;
+  };
+  function applyActions(update, now = Date.now()) {
+    const record = players.get(update.id);
+    if (!record || record.isLocal || !record.spawnPosition || update.spawnId !== record.movement?.spawnId ||
+        update.sequence <= (record.actions?.sequence ?? 0)) return false;
+    players.set(update.id, Object.freeze({...record, actions: freeze(structuredClone(update))}));
+    actionTimes.set(update.id, now);
+    return true;
+  }
+  function getActionState(id, now = Date.now()) {
+    const record = players.get(id);
+    if (!record?.actions || record.actions.worldId !== record.movement?.worldId ||
+        now - (actionTimes.get(id) ?? 0) > 1000) return null;
+    return record.actions;
+  }
 
   function getRenderState(id, now = Date.now()) {
     const sample = motion.get(id);
@@ -38,13 +57,18 @@ export function createPlayerRegistry() {
     const ids = new Set(roster.map(player => player.id));
     if (localPlayerId) ids.add(localPlayerId);
     for (const id of players.keys()) {
-      if (!ids.has(id)) { players.delete(id); motion.delete(id); }
+      if (!ids.has(id)) { players.delete(id); motion.delete(id); actionTimes.delete(id); }
     }
     for (const id of ids) {
       const record = roster.find(player => player.id === id);
-      const old = players.get(id)?.movement;
+      const previous = players.get(id);
+      const old = previous?.movement;
       const incoming = record?.movement;
       const movement = old && incoming?.spawnId === old.spawnId && old.sequence > incoming.sequence ? old : incoming;
+      const actions = previous?.actions && previous.actions.spawnId === movement?.spawnId &&
+        previous.actions.sequence >= (record?.actions?.sequence ?? 0) ? previous.actions : record?.actions;
+      if (!actions) actionTimes.delete(id);
+      else if (actions !== previous?.actions) actionTimes.set(id, Date.now());
       if (!movement) motion.delete(id);
       else if (!old || old.spawnId !== movement.spawnId) {
         motion.set(id, {from: movement, at: Date.now(), startedAt: Date.now()});
@@ -52,6 +76,7 @@ export function createPlayerRegistry() {
       players.set(id, Object.freeze({ id, isLocal: id === localPlayerId,
         name: record?.name || '', selectedCharacter: record?.selectedCharacter || null,
         spawnPosition: record?.spawnPosition ? Object.freeze({ ...record.spawnPosition }) : null,
+        actions: actions ? freeze(structuredClone(actions)) : null,
         movement: movement ? Object.freeze({...movement}) : null,
       }));
     }
@@ -66,16 +91,20 @@ export function createPlayerRegistry() {
     setIdentity(id) {
       players.clear();
       motion.clear();
+      actionTimes.clear();
       localPlayerId = id;
       setRoomPlayers();
     },
     setRoomPlayers,
     applyMovement,
+    applyActions,
+    getActionState,
     getRenderState,
     reset() {
       localPlayerId = null;
       players.clear();
       motion.clear();
+      actionTimes.clear();
     },
   };
 }

@@ -2,6 +2,7 @@ const { randomInt, randomUUID } = require('node:crypto');
 
 const ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 const channel = code => `game:${code}`;
+const { sanitizeActions } = require('./action-protocol.cjs');
 const characters = require('./character-options.json');
 // Open ground beside the village shooting range, matching VILLAGE_WORLD.
 const spawnPositions = [{ x: 1810, y: 1250 }, { x: 1970, y: 1250 }];
@@ -41,6 +42,7 @@ function attachRooms(io) {
       player.selectedCharacter = null;
       player.spawnPosition = null;
       player.movement = null;
+      player.actions = null;
       if (room.players.size === 0) rooms.delete(code);
       else publish(room);
     }
@@ -87,6 +89,7 @@ function attachRooms(io) {
         room.spawnId = randomUUID();
         [...room.players.values()].forEach((p, index) => {
           p.spawnPosition = { ...spawnPositions[index] };
+          p.actions = null;
           p.movement = { ...p.spawnPosition, worldId: 'village', facingAngle: 0,
             lastMoveAngle: null, isMoving: false, onFoot: true, sequence: 0, spawnId: room.spawnId };
         });
@@ -112,6 +115,20 @@ function attachRooms(io) {
       player.movement = { x, y, worldId, facingAngle, lastMoveAngle, isMoving, onFoot, sequence, spawnId: room.spawnId };
       socket.to(channel(room.code)).volatile.emit('player:movement', { id: player.id, ...player.movement });
       reply(ack, { ok: true });
+    });
+    socket.on('player:actions', (payload, ack) => {
+      const room = rooms.get(socket.data.roomCode);
+      if (!room || !player.spawnPosition || payload?.spawnId !== room.spawnId ||
+          !Number.isSafeInteger(payload.sequence) || payload.sequence <= (player.actions?.sequence ?? 0)) {
+        return fail(ack, 'Actions require a current spawn and fresh sequence.');
+      }
+      let visual;
+      try { visual = sanitizeActions(payload); }
+      catch { return fail(ack, 'Invalid character actions.'); }
+      player.actions = {...visual, spawnId: room.spawnId, sequence: payload.sequence};
+      // Reliable delivery preserves short shots/abilities and their stop transitions.
+      socket.to(channel(room.code)).emit('player:actions', {id: player.id, ...player.actions});
+      reply(ack, {ok: true});
     });
     socket.on('room:message', (payload, ack) => {
       const room = rooms.get(socket.data.roomCode);

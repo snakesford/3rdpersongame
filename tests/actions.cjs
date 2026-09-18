@@ -1,0 +1,47 @@
+const {ready, run} = require('./harness.cjs');
+const {sanitizeActions} = require('../action-protocol.cjs');
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+(async () => {
+  await ready;
+  for (const character of ['soldier', 'archer', 'swordsman', 'mage', 'robot', 'stickman', 'engineer', 'bountyHunter']) {
+    run(`selectCharacter('${character}'); hero.slashTimer = 0; useSlash(hero.x + 200, hero.y);`);
+    const snapshot = JSON.parse(run('JSON.stringify(getCharacterActions())'));
+    const safe = sanitizeActions({...snapshot, hp: 0, damage: 999});
+    assert.equal(safe.hp, undefined);
+    assert.equal(safe.damage, undefined);
+    assert.equal(safe.aimAngle, snapshot.aimAngle);
+    assert.throws(() => sanitizeActions({...snapshot, aimAngle: Infinity}));
+    assert.throws(() => sanitizeActions({...snapshot, projectiles: Array(65).fill({})}));
+    run(`const visual = ${JSON.stringify(safe)}; const before = JSON.stringify({hero, enemies, heroProjectiles, engineerDeployables});
+      drawSoldierHero({...visual, x:100, y:100, radius:18});
+      drawArcherHero({...visual, x:100, y:100, radius:18});
+      drawSlashArc({...visual, x:100, y:100});
+      drawHeroProjectiles(visual.projectiles);
+      drawHeroGrenades(visual.grenades);
+      drawGrenadeShockwaves(visual.shockwaves);
+      drawEngineerDeployables(visual.deployables);
+      assert.equal(JSON.stringify({hero, enemies, heroProjectiles, engineerDeployables}), before);`);
+  }
+  const {createPlayerRegistry} = await import('data:text/javascript;base64,' + Buffer.from(fs.readFileSync('modules/multiplayer.js')).toString('base64'));
+  const registry = createPlayerRegistry();
+  registry.setIdentity('local');
+  const movement = {spawnId:'spawn', sequence:0, worldId:'village'};
+  const roster = [{id:'local'}, {id:'remote', spawnPosition:{x:100,y:100}, movement}];
+  registry.setRoomPlayers(roster);
+  const action = {id:'remote', spawnId:'spawn', sequence:1, worldId:'village', animation:'shoot', projectiles:[{x:10}]};
+  assert.equal(registry.applyActions(action, 100), true);
+  action.projectiles[0].x = 99;
+  assert.equal(registry.getActionState('remote', 101).projectiles[0].x, 10);
+  assert.equal(registry.applyActions(action), false);
+  assert.equal(registry.applyActions({...action, sequence:2, spawnId:'old'}), false);
+  assert.equal(registry.applyActions({...action, id:'local'}), false);
+  registry.setRoomPlayers(roster);
+  assert.equal(registry.getActionState('remote', 101).sequence, 1);
+  assert.equal(registry.getActionState('remote', 1101), null);
+  registry.setRoomPlayers([{...roster[1], movement:{...movement, spawnId:'new'}}]);
+  assert.equal(registry.getActionState('remote'), null);
+  registry.reset();
+  assert.equal(registry.players.size, 0);
+  console.log('Action snapshots, validation, isolated rendering, sequencing, timeout and respawn checks passed');
+})().catch(error => {console.error(error); process.exitCode = 1;});

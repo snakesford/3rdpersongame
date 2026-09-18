@@ -4,6 +4,13 @@ import { multiplayer } from "./modules/multiplayer.js";
 // One same-origin connection, independent of game state and the frame loop.
 const socket = io({ autoConnect: false });
 let room = null;
+let actionSpawn = null;
+let actionSequence = 0;
+let lastActionSentAt = -Infinity;
+let lastActions = '';
+socket.on('player:actions', actions => {
+  if (room?.spawnId === actions.spawnId) multiplayer.applyActions(actions);
+});
 let movementSequence = 0;
 let movementSpawn = null;
 let lastMovementSentAt = -Infinity;
@@ -33,6 +40,7 @@ export function getRoom() {
   return room ? { ...room, players: room.players.map(player => ({ ...player,
     spawnPosition: player.spawnPosition ? { ...player.spawnPosition } : null,
     movement: player.movement ? { ...player.movement } : null,
+    actions: player.actions ? structuredClone(player.actions) : null,
   })) } : null;
 }
 
@@ -71,6 +79,23 @@ export function sendMovement(state, now = performance.now()) {
   socket.volatile.emit('player:movement', {...movement, spawnId: room.spawnId, sequence: ++movementSequence});
   lastMovement = serialized;
   lastMovementSentAt = now;
+  return true;
+}
+
+export function sendActions(state, now = performance.now()) {
+  if (!socket.connected || !room?.spawnId || !getLocalPlayer()?.spawnPosition) return false;
+  if (actionSpawn !== room.spawnId) {
+    actionSpawn = room.spawnId;
+    actionSequence = 0;
+    lastActionSentAt = -Infinity;
+    lastActions = '';
+  }
+  const serialized = JSON.stringify(state);
+  if (serialized === lastActions && now - lastActionSentAt < 250) return false;
+  // Send changes immediately, including effects shorter than a movement tick.
+  socket.emit('player:actions', {...state, spawnId: room.spawnId, sequence: ++actionSequence});
+  lastActions = serialized;
+  lastActionSentAt = now;
   return true;
 }
 

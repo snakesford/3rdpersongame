@@ -5,6 +5,7 @@ import {
   camera,
   damagePopups,
   enemies,
+  engineerDeployables,
   enemyProjectiles,
   grenadeAim,
   grenadeShockwaves,
@@ -64,6 +65,8 @@ import {
   soldierShootingImage,
   weaponBuffImage,
 } from "./modules/assets.js";
+
+const localHero = hero;
 
 // Cross-system actions are supplied by the coordinator; shared state is imported directly.
 function createRenderingSystem(services) {
@@ -985,12 +988,12 @@ function createRenderingSystem(services) {
     ctx.drawImage(image, x - width / 2, y - height / 2, width, height);
   }
 
-  function drawSoldierHero() {
+  function drawSoldierHero(hero = localHero) {
     const isBurstShooting = hero.abilityEffect?.effect === "burst" &&
       Boolean(hero.abilityEffect?.pendingShots && hero.abilityEffect.pendingShots.length > 0);
-    const isRifleShooting = services.isSoldierRifleShooting();
+    const isRifleShooting = hero === localHero ? services.isSoldierRifleShooting() : hero.rifleShooting;
     const isSemiAutoShooting = hero.hasRifle && hero.rifleFireMode === "semi" && hero.rifleShotAnimationTimer > 0;
-    const isUsingMedicine = services.isUsingBattleMedicine();
+    const isUsingMedicine = hero.battleMedicineUseTimer > 0;
     const isReloading = hero.hasRifle && hero.isReloading;
     const runningFrames = [
       soldierRunningTransitionImage,
@@ -1025,7 +1028,7 @@ function createRenderingSystem(services) {
             ? runningFrameName
             : "soldierIdle";
     const shootingAngle = isRifleShooting
-      ? Math.atan2(mouse.worldY - hero.y, mouse.worldX - hero.x)
+      ? (hero === localHero ? Math.atan2(mouse.worldY - hero.y, mouse.worldX - hero.x) : hero.aimAngle)
       : isSemiAutoShooting
         ? hero.rifleShotAngle
         : hero.facingAngle;
@@ -1034,7 +1037,7 @@ function createRenderingSystem(services) {
       ? (shootingAngle ?? hero.facingAngle ?? 0)
       : facingAngle;
     const isFacingLeft = Math.cos(spriteFacingAngle) < 0;
-    if (animationName !== runtime.lastSoldierAnimationName) {
+    if (hero === localHero && animationName !== runtime.lastSoldierAnimationName) {
       console.log("Soldier animation changed:", animationName);
       runtime.lastSoldierAnimationName = animationName;
     }
@@ -1072,7 +1075,7 @@ function createRenderingSystem(services) {
     const width = stationaryWidth * stationaryScale * runningWidthScale;
     const height = stationaryHeight * stationaryScale;
     ctx.drawImage(image, -width / 2, -height / 2, width, height);
-    const helmetStyle = getHeroHelmetStyle();
+    const helmetStyle = hero === localHero ? getHeroHelmetStyle() : null;
     if (helmetStyle) {
       ctx.fillStyle = helmetStyle.fill;
       ctx.beginPath();
@@ -1089,7 +1092,7 @@ function createRenderingSystem(services) {
     ctx.restore();
   }
 
-  function drawArcherHero() {
+  function drawArcherHero(hero = localHero) {
     if (hero.isDead) {
       if (!archerDeadImage.complete || archerDeadImage.naturalWidth <= 0) {
         drawEntityCircle(hero, COLORS.hero, COLORS.heroAccent);
@@ -1101,7 +1104,7 @@ function createRenderingSystem(services) {
       return;
     }
 
-    const isShooting = (hero.hasBow && mouse.leftDown) || hero.abilityEffect?.effect === "projectile";
+    const isShooting = (hero.hasBow && (hero === localHero ? mouse.leftDown : hero.bowShooting)) || hero.abilityEffect?.effect === "projectile";
     const image = isShooting
       ? archerShootingImage
       : hero.isMoving
@@ -1316,7 +1319,7 @@ function createRenderingSystem(services) {
     ctx.fillRect(hero.x - width / 2 + 1, hero.y - 41, (width - 2) * clamp(hero.harvestProgress, 0, 1), 8);
   }
 
-  function drawSlashArc() {
+  function drawSlashArc(hero = localHero) {
     if (!hero.abilityEffect) {
       return;
     }
@@ -1427,8 +1430,8 @@ function createRenderingSystem(services) {
     ctx.restore();
   }
 
-  function drawHeroGrenades() {
-    for (const grenade of heroGrenades) {
+  function drawHeroGrenades(visuals = heroGrenades) {
+    for (const grenade of visuals) {
       const progress = 1 - grenade.ttl / grenade.maxTtl;
       const arcOffset = (grenade.arcCurve === "quadratic" ? 4 * progress * (1 - progress) : Math.sin(progress * Math.PI)) * grenade.arcHeight;
       if (grenadeImage.complete && grenadeImage.naturalWidth > 0) {
@@ -1450,8 +1453,8 @@ function createRenderingSystem(services) {
     }
   }
 
-  function drawGrenadeShockwaves() {
-    for (const shockwave of grenadeShockwaves) {
+  function drawGrenadeShockwaves(visuals = grenadeShockwaves) {
+    for (const shockwave of visuals) {
       const progress = 1 - shockwave.ttl / shockwave.maxTtl;
       const alpha = 1 - progress;
       const coreRadius = (8 + progress * 18) * (shockwave.coreScale || 1);
@@ -1567,8 +1570,8 @@ function createRenderingSystem(services) {
     ctx.restore();
   }
 
-  function drawHeroProjectiles() {
-    for (const projectile of heroProjectiles) {
+  function drawHeroProjectiles(visuals = heroProjectiles) {
+    for (const projectile of visuals) {
       if (projectile.style === "engineerBolt") {
         services.drawEngineerBolt(projectile);
         continue;
@@ -1673,31 +1676,65 @@ function createRenderingSystem(services) {
     }
   }
 
+  function getCharacterActions() {
+    const fields = ['facingAngle', 'lastMoveAngle', 'runAnimationTimer', 'isMoving', 'isDead',
+      'hasRifle', 'hasBow', 'hasAxe', 'rifleFireMode', 'rifleShotAnimationTimer', 'rifleShotAngle',
+      'isReloading', 'reloadTimer', 'battleMedicineUseTimer', 'adrenalineTimer', 'hunterMarkTimer',
+      'slashArcTimer', 'axeSwingTimer', 'axeSwingDuration'];
+    const state = Object.fromEntries(fields.map(key => [key, hero[key]]));
+    const pick = (value, keys) => Object.fromEntries(keys.filter(key => value[key] !== undefined).map(key => [key, value[key]]));
+    const projectile = value => pick(value, ['x', 'y', 'angle', 'radius', 'style', 'armorPenetration']);
+    state.worldId = getPlayerWorldId(player);
+    state.aimAngle = Math.atan2(mouse.worldY - hero.y, mouse.worldX - hero.x);
+    state.rifleShooting = services.isSoldierRifleShooting();
+    state.bowShooting = hero.hasBow && mouse.leftDown;
+    state.abilityEffect = hero.abilityEffect ? {
+      ...pick(hero.abilityEffect, ['effect', 'aimAngle']),
+      radius: hero.abilityEffect.radius ?? 0, halfAngle: hero.abilityEffect.halfAngle ?? 0, range: hero.abilityEffect.range ?? 0,
+      pendingShots: (hero.abilityEffect.pendingShots || []).map(() => ({})),
+      projectiles: (hero.abilityEffect.projectiles || []).map(projectile),
+    } : null;
+    state.animation = hero.isDead ? 'dead' : hero.battleMedicineUseTimer > 0 ? 'medicine'
+      : hero.isReloading ? 'reload' : state.rifleShooting || hero.rifleShotAnimationTimer > 0 || state.bowShooting
+        || state.abilityEffect?.pendingShots.length > 0 || state.abilityEffect?.effect === 'projectile' ? 'shoot' : hero.isMoving ? 'run' : 'idle';
+    state.projectiles = heroProjectiles.slice(0, 64).map(projectile);
+    state.grenades = heroGrenades.slice(0, 16).map(value => pick(value, ['x', 'y', 'ttl', 'maxTtl', 'radius', 'arcCurve', 'arcHeight']));
+    state.shockwaves = grenadeShockwaves.slice(0, 16).map(value => ({
+      ...pick(value, ['x', 'y', 'ttl', 'maxTtl', 'coreScale']),
+      particles: (value.particles || []).slice(0, 64).map(p => pick(p, ['targetRadius', 'speedScale', 'angle', 'drift', 'size', 'color'])),
+    }));
+    state.deployables = engineerDeployables.slice(0, 16).map(value => ({
+      ...pick(value, ['x', 'y', 'kind']), ttl: value.ttl ?? 0, angle: value.angle ?? 0,
+    }));
+    const target = hero.hunterMarkTimer > 0 && services.bountyTargets().find(t => t.id === hero.hunterMarkTargetId);
+    state.markTarget = target ? {...services.getEntityTargetPoint(target), markerY: target.y - (target.radius || 20) - 34} : null;
+    return state;
+  }
+
   function drawRemotePlayers() {
     const worldId = getPlayerWorldId(player);
     for (const remote of multiplayer.getRemotePlayers()) {
       if (!remote.spawnPosition || !remote.selectedCharacter) continue;
       const movement = multiplayer.getRenderState(remote.id);
       if ((movement?.worldId || 'village') !== worldId || movement?.onFoot === false) continue;
+      const actions = multiplayer.getActionState(remote.id);
       const subject = { ...remote.spawnPosition, radius: 18, facingAngle: 0,
-        hasAxe: false, hasRifle: false, isMoving: false, runAnimationTimer: 0, ...movement };
+        hasAxe: false, hasRifle: false, isMoving: false, runAnimationTimer: 0, ...movement, ...actions, selectedClass: remote.selectedCharacter };
       const character = runtime.CHARACTER_OPTIONS[remote.selectedCharacter];
       if (remote.selectedCharacter === 'engineer') services.drawEngineerHero(subject);
       else if (remote.selectedCharacter === 'bountyHunter') services.drawBountyHunter(subject);
       else if (remote.selectedCharacter === 'stickman') drawHeroStickFigure(subject);
-      else if (remote.selectedCharacter === 'soldier' || remote.selectedCharacter === 'archer') {
-        const runningFrames = [soldierRunningTransitionImage, soldierRunningImage, soldierRunningTransitionImage, soldierRunningRightFootImage];
-        const image = remote.selectedCharacter === 'soldier'
-          ? (subject.isMoving ? runningFrames[Math.floor(subject.runAnimationTimer / 0.3) % runningFrames.length] : soldierIdleImage)
-          : (subject.isMoving ? archerRunningImage : archerImage);
-        if (image.complete && image.naturalWidth > 0) {
-          ctx.save();
-          ctx.translate(subject.x, subject.y);
-          if (Math.cos(subject.lastMoveAngle ?? subject.facingAngle) < 0) ctx.scale(-1, 1);
-          drawHeroSprite(image, 0, 0, remote.selectedCharacter === 'soldier' ? 54 : 46);
-          ctx.restore();
-        } else drawEntityCircle(subject, COLORS.hero, COLORS.heroAccent);
-      } else drawEntityCircle(subject, COLORS.hero, COLORS.heroAccent);
+      else if (remote.selectedCharacter === 'soldier') drawSoldierHero(subject);
+      else if (remote.selectedCharacter === 'archer') drawArcherHero(subject);
+      else drawEntityCircle(subject, COLORS.hero, COLORS.heroAccent);
+      if (actions) {
+        drawSlashArc(subject);
+        drawHeroProjectiles(actions.projectiles);
+        drawHeroGrenades(actions.grenades);
+        drawGrenadeShockwaves(actions.shockwaves);
+        services.drawEngineerDeployables(actions.deployables);
+        services.drawBountyEffects(subject, actions.markTarget);
+      }
       drawNameplate(subject.x, subject.y - 82, `${remote.name} · ${character?.name || remote.selectedCharacter}`, 'rgba(25, 47, 70, 0.9)');
     }
   }
@@ -1895,6 +1932,7 @@ function createRenderingSystem(services) {
     drawModeHint,
     render,
     drawRemotePlayers,
+    getCharacterActions,
   };
 }
 

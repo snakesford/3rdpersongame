@@ -27,6 +27,7 @@ import {
 let lastTimestamp = 0;
 const characterSelectionListeners = new Set();
 const frameListeners = new Set();
+export function getCharacterActions() { return systems.getCharacterActions(); }
 export function onGameFrame(listener) {
   frameListeners.add(listener);
   return () => frameListeners.delete(listener);

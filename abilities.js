@@ -518,28 +518,30 @@ function createAbilitiesSystem(services) {
     ctx.restore();
   }
 
-  function drawBountyEffects() {
-    if (!isBountyHunter() || hero.hp <= 0) return;
+  function drawBountyEffects(subject = hero, markTarget = null) {
+    if (subject.selectedClass !== "bountyHunter" || subject.isDead || (subject === hero && hero.hp <= 0)) return;
+    const local = subject === hero;
+    const visualHero = subject;
     ctx.save();
-    if (hero.adrenalineTimer > 0) {
+    if (visualHero.adrenalineTimer > 0) {
       ctx.strokeStyle = "#8ff5cd"; ctx.lineWidth = 2;
-      ctx.globalAlpha = 0.45 + Math.sin(hero.adrenalineTimer * 12) * 0.2;
-      ctx.beginPath(); ctx.ellipse(hero.x, hero.y + 12, 28, 12, 0, 0, Math.PI * 2); ctx.stroke();
+      ctx.globalAlpha = 0.45 + Math.sin(visualHero.adrenalineTimer * 12) * 0.2;
+      ctx.beginPath(); ctx.ellipse(visualHero.x, visualHero.y + 12, 28, 12, 0, 0, Math.PI * 2); ctx.stroke();
       for (let i = 0; i < 5; i++) {
-        const a = hero.adrenalineTimer * 4 + i * Math.PI * 2 / 5;
-        ctx.fillStyle = "#b5ffe3"; ctx.fillRect(hero.x + Math.cos(a) * 24, hero.y - 10 + Math.sin(a) * 20, 3, 6);
+        const a = visualHero.adrenalineTimer * 4 + i * Math.PI * 2 / 5;
+        ctx.fillStyle = "#b5ffe3"; ctx.fillRect(visualHero.x + Math.cos(a) * 24, visualHero.y - 10 + Math.sin(a) * 20, 3, 6);
       }
     }
-    const target = hero.hunterMarkTimer > 0 && bountyTargets().find(t => t.id === hero.hunterMarkTargetId);
+    const target = local ? hero.hunterMarkTimer > 0 && bountyTargets().find(t => t.id === hero.hunterMarkTargetId) : markTarget;
     if (target) {
-      const point = services.getEntityTargetPoint(target);
-      const y = target.y - (target.radius || 20) - 34;
+      const point = local ? services.getEntityTargetPoint(target) : target;
+      const y = local ? target.y - (target.radius || 20) - 34 : target.markerY;
       ctx.globalAlpha = 1; ctx.strokeStyle = "#ffc36e"; ctx.lineWidth = 3;
       ctx.beginPath(); ctx.arc(point.x, y, 10, 0, Math.PI * 2);
       ctx.moveTo(point.x - 16, y); ctx.lineTo(point.x + 16, y);
       ctx.moveTo(point.x, y - 16); ctx.lineTo(point.x, y + 16); ctx.stroke();
       ctx.fillStyle = "#fff0c4"; ctx.font = "bold 12px sans-serif"; ctx.textAlign = "center";
-      ctx.fillText(`${hero.hunterMarkTimer.toFixed(1)}s`, point.x, y - 20);
+      ctx.fillText(`${visualHero.hunterMarkTimer.toFixed(1)}s`, point.x, y - 20);
     }
     ctx.restore();
   }
@@ -704,8 +706,8 @@ function createAbilitiesSystem(services) {
     ctx.restore();
   }
 
-  function drawEngineerDeployables() {
-    for (const d of engineerDeployables) {
+  function drawEngineerDeployables(visuals = engineerDeployables) {
+    for (const d of visuals) {
       ctx.save(); ctx.translate(d.x, d.y);
       ctx.lineWidth = 3; ctx.strokeStyle = "#35332d";
       if (d.kind === "repairStation") {
@@ -717,13 +719,13 @@ function createAbilitiesSystem(services) {
         ctx.fillStyle = "#c9ffe2"; ctx.fillRect(-3, -10, 6, 20); ctx.fillRect(-10, -3, 20, 6);
         ctx.fillStyle = "#d8f7e4"; ctx.font = "bold 12px sans-serif"; ctx.textAlign = "center";
         ctx.fillText(`REPAIR ${d.ttl.toFixed(1)}s`, 0, -25);
-      } else if (d.hp > 0) {
+      } else if (visuals !== engineerDeployables || d.hp > 0) {
         ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(-23, 20); ctx.moveTo(0, 0); ctx.lineTo(23, 20); ctx.moveTo(0, 0); ctx.lineTo(0, -23); ctx.stroke();
         ctx.rotate(d.angle); ctx.fillStyle = "#ad8848"; ctx.fillRect(-14, -12, 28, 24); ctx.strokeRect(-14, -12, 28, 24);
         ctx.fillStyle = "#66747c"; ctx.fillRect(8, -5, 28, 10); ctx.strokeRect(8, -5, 28, 10);
       }
       ctx.restore();
-      if (d.kind === "autoTurret" && d.hp > 0) services.drawHealthBar(d.x, d.y - 32, 46, d.hp / d.maxHp);
+      if (visuals === engineerDeployables && d.kind === "autoTurret" && d.hp > 0) services.drawHealthBar(d.x, d.y - 32, 46, d.hp / d.maxHp);
     }
   }
 
