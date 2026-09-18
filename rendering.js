@@ -396,7 +396,7 @@ function createRenderingSystem(services) {
       minimapCtx.strokeRect(toMapX(camp.center.x) - 3, toMapY(camp.center.y) - 3, 6, 6);
     }
 
-    for (const pickup of pickups) {
+    for (const pickup of services.getWorldPickups()) {
       if (pickup.collected || distance(hero, pickup) > MINIMAP_NEARBY_RADIUS * 1.25) {
         continue;
       }
@@ -1796,7 +1796,7 @@ function createRenderingSystem(services) {
       drawStone(stone);
     }
 
-    for (const pickup of pickups) {
+    for (const pickup of services.getWorldPickups()) {
       drawPickup(pickup);
     }
 

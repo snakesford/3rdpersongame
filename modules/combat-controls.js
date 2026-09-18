@@ -15,6 +15,7 @@ export function installCombatControls(systems) {
     if (hero.isReloading || hero.rifleCooldown>0 || hero.battleMedicineUseTimer>0) return false;
     return request('fire',null,x,y);
   });
+  wrap('useAxeSwing', () => request('fire'));
   wrap('startReload', () => request('reload'));
   wrap('useSlash', (x,y) => request('ability','F',x,y));
   for (const name of ['useBattleMedicine','useAdrenalineShot','placeRepairStation']) wrap(name, () => request('ability','Q'));
@@ -34,8 +35,8 @@ export function installCombatControls(systems) {
   wrap('useSprint', () => request('ability','Shift'));
   wrap('useRobotDash', () => request('ability','dash',hero.x+Math.cos(hero.lastMoveAngle || 0)*100,hero.y+Math.sin(hero.lastMoveAngle || 0)*100));
   // No client-side combat simulations, healing, pickups or vehicle weapons in a room.
-  for (const name of ['useAxeSwing','updateReload','updateActiveAbility','updateHeroProjectiles','updateGrenades',
-    'updateEngineerDeployables','dealDamage','respawnHero','updateAutomaticPickups',
+  for (const name of ['updateReload','updateActiveAbility','updateHeroProjectiles','updateGrenades',
+    'updateEngineerDeployables','dealDamage','respawnHero',
     'initializeEnemyForces','initializeForestEncounterSpawners','spawnSkeletonWave','spawnSingleSkeleton',
     'enterHumvee','fireHumveeGun','useSmartMissile']) wrap(name, () => false);
   wrap('updatePlayerCombatTimers', dt => {

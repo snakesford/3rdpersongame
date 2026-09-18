@@ -40,6 +40,7 @@ module.exports = async function checkPortals(evaluate, wait, first, second) {
       const common=samples[0].find(a=>samples[1].some(b=>b.revision===a.revision));
       assert.ok(common?.enemies.length > 0,'Server spawns main-world enemies');
       assert.deepEqual(common,samples[1].find(b=>b.revision===common.revision),'Both clients receive identical enemy state');
+      await require('./pickups-browser.cjs')(evaluate,wait,first,second);
     }
   }
   console.log('Keyboard teleporter round trips passed with normal collisions: village/main and village/training, synchronized in both browsers');

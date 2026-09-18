@@ -1,3 +1,5 @@
+import {combatSession} from './modules/combat-session.js';
+import {getPlayerWorldId} from './modules/multiplayer.js';
 import { distance } from "./modules/math.js";
 import {
   hero,
@@ -84,6 +86,7 @@ function createInventorySystem(services) {
   const equipmentHelmetSlot = document.getElementById("equipmentHelmetSlot");
 
   function equipBackpackHelmet(index) {
+    if (combatSession.active) return combatSession.send?.({kind:'equipHelmet',index,angle:0});
     const helmet = player.backpack[index];
     if (!Number.isInteger(index) || !helmet || !["helmet", "rareHelmet", "goldHelmet", "enemyHelmet"].includes(helmet.type)) return;
     const previousHelmet = hero.equippedHelmetType ? {
@@ -1101,16 +1104,22 @@ function createInventorySystem(services) {
       type === "tutorialScroll";
   }
 
+  function getWorldPickups() {
+    return combatSession.active ? (combatSession.snapshot?.pickups || []).filter(p=>p.worldId===getPlayerWorldId(player)) : pickups;
+  }
   function getNearbyPickup() {
-    return pickups.find(
+    const pickup = getWorldPickups().find(
       (pickup) => !pickup.collected &&
         !pickup.pickupDelay &&
         isManualPickupType(pickup.type) &&
         distance(hero, pickup) <= hero.radius + pickup.radius + 16
     ) || null;
+    // E marks the supplied record collected; never mutate the authoritative snapshot.
+    return combatSession.active && pickup ? {...pickup} : pickup;
   }
 
   function equipPickup(pickup) {
+    if (combatSession.active) return combatSession.send?.({kind:'collect',pickupId:pickup.id,angle:0});
     if (pickup.type === "tutorialScroll") {
       player.tutorialPathsUnlocked = true;
       statusTextEl.textContent = "Quest started: Tutorial Paths.";
@@ -1261,6 +1270,11 @@ function createInventorySystem(services) {
   }
 
   function updateAutomaticPickups(dt) {
+    if (combatSession.active) {
+      const pickup=getWorldPickups().find(p=>!p.pickupDelay && ['healthBuff','weaponBuff'].includes(p.type) && distance(hero,p)<=hero.radius+p.radius);
+      if(pickup && !hero.isDead) combatSession.send?.({kind:'collect',pickupId:pickup.id,angle:0});
+      return;
+    }
     for (const pickup of pickups) {
       if (pickup.pickupDelay) {
         pickup.pickupDelay = Math.max(0, pickup.pickupDelay - dt);
@@ -1336,6 +1350,7 @@ function createInventorySystem(services) {
     dropLatestPickupFromHero,
     isManualPickupType,
     getNearbyPickup,
+    getWorldPickups,
     equipPickup,
     swapHeroWeaponPickup,
     updateAutomaticPickups,

@@ -8,6 +8,7 @@ import { getPlayerWorldId } from './modules/multiplayer.js';
 let submittedProfile = null;
 let appliedSpawn = null;
 let savedHero = null;
+let savedInventory = null;
 let lastEventId = 0;
 function applyCombat() {
   const state = combatSession.player(getLocalPlayer()?.id);
@@ -17,6 +18,11 @@ function applyCombat() {
   for (const key of Object.keys(visual)) {
     if (/Timer$|Cooldown$|CooldownRemaining$/.test(key)) visual[key] = Math.max(0, visual[key] - elapsed);
   }
+  player.backpack = (state.backpack || []).map(item=>({...item}));
+  player.tutorialPathsUnlocked = !!state.tutorialPathsUnlocked;
+  player.bonusDamage = state.bonusDamage || 0;
+  visual.latestPickup = state.equippedHelmetType ? {type:state.equippedHelmetType,armorValue:state.equippedArmorValue,radius:18} : null;
+  delete visual.backpack; delete visual.tutorialPathsUnlocked; delete visual.bonusDamage;
   delete visual.id; delete visual.sequence; delete visual.markId;
   applyCombatPlayer(visual);
   for (const event of combatSession.snapshot.events) {
@@ -31,6 +37,7 @@ function endCombat() {
     Object.assign(hero, savedHero, {x, y});
     savedHero = null;
   }
+  if(savedInventory) { Object.assign(player,savedInventory); savedInventory=null; }
   combatSession.clear(); lastEventId = 0;
 }
 
@@ -52,7 +59,10 @@ function sync() {
   const local = getLocalPlayer();
   if (room.spawnId && local?.spawnPosition) {
     if (appliedSpawn !== room.spawnId) {
-      if (!savedHero) savedHero = structuredClone(hero);
+      if (!savedHero) {
+        savedHero = structuredClone(hero);
+        savedInventory = {backpack:structuredClone(player.backpack),tutorialPathsUnlocked:player.tutorialPathsUnlocked,bonusDamage:player.bonusDamage};
+      }
       appliedSpawn = room.spawnId;
       lastEventId = 0;
       combatSession.active = true;

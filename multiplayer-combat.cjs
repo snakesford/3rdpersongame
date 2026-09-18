@@ -25,16 +25,29 @@ function segmentHit(start, end, target, radius) {
 function createCombat(room, {now = performance.now(), random = () => randomInt(0, 1000000)/1000000} = {}) {
   const states = new Map();
   const enemies = createEnemies(room.spawnId);
+  const pickups = new Map(), lootWorlds = new Set();
+  function spawnPickupDrop(item, position, delay=300) {
+    const id = `${room.spawnId}:pickup:${++nextId}`;
+    pickups.set(id, {id, ...item, x:position.x,y:position.y,worldId:position.worldId, radius:item.radius || 18, readyAt:clock+delay});
+  }
   let clock = now, revision = 0, nextId = 0;
   let projectiles = [], effects = [], deployables = [], events = [];
   for (const player of room.players.values()) {
     const config=characters[player.selectedCharacter], weapon=weapons[player.selectedCharacter];
     states.set(player.id, {id:player.id, hp:config.stats.health, maxHp:config.stats.health,
+      equippedHelmetType:null, equippedArmorValue:0, backpack:[], tutorialPathsUnlocked:false, bonusDamage:0,
+      weaponType:weapon?.ammo ? 'rifle' : player.selectedCharacter==='archer' ? 'bow' : null,
       ammo:weapon?.ammo || 0, maxAmmo:weapon?.ammo || 0, dead:false, sequence:0,
       fireUntil:0, reloadUntil:0, F:0, Q:0, G:0, Shift:0, dash:0,
       shotUntil:0, shotAngle:0, medicineUntil:0, regenUntil:0, adrenalineUntil:0, markUntil:0, markId:null,
       sprintUntil:0, dashUntil:0});
   }
+  const weaponFor = owner => {
+    const state = states.get(owner.id);
+    const weapon = state.weaponType==='rifle' ? weapons[owner.selectedCharacter]?.ammo ? weapons[owner.selectedCharacter] : weapons.soldier
+      : state.weaponType==='bow' ? weapons.archer : null;
+    return weapon ? {...weapon, damage:weapon.damage+state.bonusDamage} : null;
+  };
   const livingPlayers = () => [...room.players.values()].filter(p => states.get(p.id)?.hp > 0 && p.movement?.onFoot);
   const targets = owner => (enemies.entities.has(owner.id) ? livingPlayers() :
     [...livingPlayers(), ...enemies.entities.values()].filter(p => !p.dead))
@@ -46,13 +59,23 @@ function createCombat(room, {now = performance.now(), random = () => randomInt(0
     if (!state || state.dead) return;
     if (source?.markUntil > clock && source.markId === target.id) amount *= 1.25;
     if (penetration !== null || target.selectedCharacter === 'engineer') {
-      amount *= 100/(100+(characters[target.selectedCharacter]?.stats.armor || 0)*(1-(penetration || 0)));
+      amount *= 100/(100+Math.max(characters[target.selectedCharacter]?.stats.armor || 0,state.equippedArmorValue || 0)*(1-(penetration || 0)));
     }
     const dealt=Math.min(state.hp, Math.max(1, Math.round(amount)));
     state.hp=Math.max(0,state.hp-dealt);
     events.push({id:++nextId, type:'hit', sourceId:owner.id, targetId:target.id, damage:dealt,
       headshot, hp:state.hp, x:target.movement.x, y:target.movement.y});
     if (!state.hp) {
+      if (target.kind==='boss') spawnPickupDrop({type:'rareHelmet',armorValue:85},target.movement,0);
+      else if (target.kind==='enemyHero') spawnPickupDrop({type:'enemyHelmet',armorValue:80},target.movement);
+      else if (target.campId==='hiddenCamp' && random()<0.28) {
+        const loot=[{type:'enemyHelmet',armorValue:80},{type:'weaponBuff',damageValue:2},{type:'healthBuff',healthValue:20}];
+        spawnPickupDrop(loot[Math.floor(random()*loot.length)],target.movement);
+      }
+      if (states.has(target.id) && state.equippedHelmetType) {
+        spawnPickupDrop({type:state.equippedHelmetType,armorValue:state.equippedArmorValue},target.movement);
+        state.equippedHelmetType=null; state.equippedArmorValue=0;
+      }
       state.dead=true; state.diedAt=clock; state.reloadUntil=0;
       state.medicineUntil=0; state.shotUntil=0; state.sprintUntil=0; state.dashUntil=0;
       events.push({id:++nextId,type:'death',sourceId:owner.id,targetId:target.id});
@@ -87,6 +110,15 @@ function createCombat(room, {now = performance.now(), random = () => randomInt(0
       if (state.reloadUntil && state.reloadUntil <= clock) {state.ammo=state.maxAmmo; state.reloadUntil=0;}
       const regen=characters[owner.selectedCharacter].stats.regen || 0;
       state.hp=Math.min(state.maxHp,state.hp+regen*dt+Math.max(0,Math.min(clock,state.regenUntil)-previous)/1000*2);
+    }
+    for (const owner of room.players.values()) {
+      const world=owner.movement?.worldId;
+      if (lootWorlds.has(world)) continue;
+      lootWorlds.add(world);
+      if (world==='main') for (const [type,armorValue,x] of [['enemyHelmet',80,250],['helmet',60,330],['goldHelmet',100,410]]) {
+        spawnPickupDrop({type,armorValue},{x,y:1150,worldId:world});
+      }
+      if (world==='tutorial') spawnPickupDrop({type:'tutorialScroll',radius:20},{x:1080,y:1210,worldId:world},0);
     }
     effects=effects.filter(e => e.until > clock);
     deployables=deployables.filter(d => room.players.has(d.ownerId) && !states.get(d.ownerId)?.dead && d.until > clock);
@@ -130,7 +162,9 @@ function createCombat(room, {now = performance.now(), random = () => randomInt(0
         if (p.explosion) explosion(owner,p,p.explosion,hit);
         else {
           const headshot=random() < p.chance;
-          damage(owner,hit,p.damage*(headshot?p.multiplier:1),headshot,p.penetration);
+          const helmet=states.get(hit.id)?.equippedHelmetType;
+          const protection={helmet:0.2,rareHelmet:0.45,goldHelmet:0.75,enemyHelmet:0.6}[helmet] || 0;
+          damage(owner,hit,p.damage*(headshot?1+(p.multiplier-1)*(1-protection):1),headshot,p.penetration);
         }
       } else {
         p.x=end.x; p.y=end.y;
@@ -146,17 +180,52 @@ function createCombat(room, {now = performance.now(), random = () => randomInt(0
     const reject=error=>({ok:false,error});
     if (!owner || !state || input?.spawnId !== room.spawnId) return reject('Combat requires the current room spawn.');
     if (!Number.isSafeInteger(input.sequence) || input.sequence <= state.sequence) return reject('Invalid or replayed action.');
-    if (!['fire','reload','ability'].includes(input.kind) || !Number.isFinite(input.angle) || Math.abs(input.angle)>Math.PI*2) return reject('Invalid combat action.');
+    if (!['fire','reload','ability','collect','equipHelmet'].includes(input.kind) || !Number.isFinite(input.angle) || Math.abs(input.angle)>Math.PI*2) return reject('Invalid combat action.');
     if (input.kind === 'ability' && !['F','Q','G','Shift','dash'].includes(input.slot)) return reject('Invalid ability.');
     // Consume valid sequence numbers even when cooldown/death rejects an action.
     state.sequence=input.sequence;
     if (state.dead || !owner.movement?.onFoot) return reject('Cannot act while dead or in a vehicle.');
-    const config=characters[owner.selectedCharacter], weapon=weapons[owner.selectedCharacter];
+    const config=characters[owner.selectedCharacter], weapon=weaponFor(owner);
     const angle=normalize(input.angle), position=owner.movement;
-    if (input.kind === 'reload') {
+    if (input.kind === 'equipHelmet') {
+      if (!Number.isInteger(input.index) || !state.backpack[input.index]) return reject('Invalid backpack item.');
+      const item=state.backpack[input.index];
+      if(state.equippedHelmetType) state.backpack[input.index]={type:state.equippedHelmetType,armorValue:state.equippedArmorValue,radius:18};
+      else state.backpack.splice(input.index,1);
+      state.equippedHelmetType=item.type; state.equippedArmorValue=item.armorValue;
+    } else if (input.kind === 'collect') {
+      const item=pickups.get(input.pickupId);
+      if (!item || item.worldId!==position.worldId || item.readyAt>clock ||
+          Math.hypot(item.x-position.x,item.y-position.y)>18+item.radius+(['healthBuff','weaponBuff'].includes(item.type)?0:16)) return reject('Pickup is unavailable or too far away.');
+      if (['helmet','rareHelmet','goldHelmet','enemyHelmet'].includes(item.type)) {
+        if (state.equippedHelmetType && state.backpack.length>=8) return reject('Backpack full.');
+        if (state.equippedHelmetType) state.backpack.push({type:state.equippedHelmetType,armorValue:state.equippedArmorValue,radius:18});
+        state.equippedHelmetType=item.type; state.equippedArmorValue=item.armorValue;
+      } else if (item.type==='tutorialScroll') state.tutorialPathsUnlocked=true;
+      else if (item.type==='healthBuff') { state.maxHp+=item.healthValue; state.hp=state.maxHp; }
+      else if (item.type==='weaponBuff') state.bonusDamage+=item.damageValue;
+      else if (['axe','rifle','bow'].includes(item.type)) {
+        if (state.weaponUntil>clock) return reject('Weapon pickup is on cooldown.');
+        if(state.weaponType && state.weaponType!==item.type) spawnPickupDrop({type:state.weaponType},{...position,x:position.x+18});
+        state.weaponType=item.type; state.weaponUntil=clock+800;
+        state.maxAmmo=weaponFor(owner)?.ammo || 0; state.ammo=state.maxAmmo; state.reloadUntil=0;
+      } else return reject('Invalid pickup type.');
+      pickups.delete(item.id); // Synchronous claim: later collectors cannot receive this item.
+      events.push({id:++nextId,type:'pickup:collected',sourceId:id,pickupId:item.id});
+    } else if (input.kind === 'reload') {
       if (!state.maxAmmo || state.ammo >= state.maxAmmo || state.reloadUntil || state.medicineUntil>clock) return reject('Cannot reload now.');
       state.reloadUntil=clock+1200;
     } else if (input.kind === 'fire') {
+      if (state.weaponType==='axe') {
+        if(clock<state.fireUntil) return reject('Weapon is not ready.');
+        state.fireUntil=clock+220;
+        effect(owner,{effect:'cone',radius:64,halfAngle:Math.PI/3,aimAngle:angle});
+        for(const target of targets(owner)) {
+          const dx=target.movement.x-position.x,dy=target.movement.y-position.y;
+          if(Math.hypot(dx,dy)<=64 && Math.abs(normalize(Math.atan2(dy,dx)-angle))<=Math.PI/3) damage(owner,target,18+state.bonusDamage);
+        }
+        return {ok:true};
+      }
       if (!weapon) return reject('This character has no ranged weapon.');
       if (clock < state.fireUntil || state.reloadUntil || state.medicineUntil>clock || (state.maxAmmo && !state.ammo)) return reject('Weapon is not ready.');
       if (state.maxAmmo) state.ammo--;
@@ -219,7 +288,10 @@ function createCombat(room, {now = performance.now(), random = () => randomInt(0
     events = events.slice(-128);
     return {spawnId:room.spawnId,revision:++revision,serverTime:clock,
       enemies:enemies.snapshot(clock),
+      pickups:[...pickups.values()].map(({readyAt,...item})=>({...item,pickupDelay:remaining(readyAt,clock)})),
       players:[...states.values()].filter(s=>room.players.has(s.id)).map(s=>({id:s.id,hp:s.hp,maxHp:s.maxHp,
+        equippedHelmetType:s.equippedHelmetType,equippedArmorValue:s.equippedArmorValue,
+        backpack:s.backpack.map(item=>({...item})),tutorialPathsUnlocked:s.tutorialPathsUnlocked,bonusDamage:s.bonusDamage,
         ammo:s.ammo,maxAmmo:s.maxAmmo,isDead:s.dead,isReloading:!!s.reloadUntil,reloadTimer:remaining(s.reloadUntil,clock),
         rifleCooldown:remaining(s.fireUntil,clock),bowCooldown:remaining(s.fireUntil,clock),
         slashTimer:remaining(s.F,clock),battleMedicineCooldownRemaining:remaining(s.Q,clock),grenadeCooldownRemaining:remaining(s.G,clock),
@@ -228,8 +300,8 @@ function createCombat(room, {now = performance.now(), random = () => randomInt(0
         rifleShotAnimationTimer:remaining(s.shotUntil,clock),rifleShotAngle:s.shotAngle,
         sprintTimer:remaining(s.sprintUntil,clock),sprintCooldownRemaining:remaining(s.Shift,clock),
         dashTimer:remaining(s.dashUntil,clock),dashCooldownRemaining:remaining(s.dash,clock),
-        hasRifle:!!weapons[room.players.get(s.id).selectedCharacter]?.ammo,
-        hasBow:room.players.get(s.id).selectedCharacter==='archer',hasAxe:false,sequence:s.sequence})),
+        hasRifle:s.weaponType==='rifle',
+        hasBow:s.weaponType==='bow',hasAxe:s.weaponType==='axe',sequence:s.sequence})),
       projectiles:projectiles.filter(p=>p.startsAt<=clock).map(p=>({id:p.id,ownerId:p.ownerId,worldId:p.worldId,x:p.x,y:p.y,
         angle:p.angle,radius:p.radius,style:p.style,armorPenetration:p.penetration || 0})),
       effects:effects.map(e=>({...e,ttl:remaining(e.until,clock)})),

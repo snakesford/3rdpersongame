@@ -147,7 +147,7 @@ export function applyCombatPlayer(state) {
   // Multiplayer identity must never replace the single-player entity ID.
   hero.id = localHeroEntityId;
   if (hero.isDead) { hero.isMoving = false; hero.targetPos = null; }
-  updateStatsUI(); updateAbilityUI();
+  updateStatsUI(); updateAbilityUI(); updateInventoryUI();
 }
 export function clearLocalCombatEffects() { systems.clearLocalCombatEffects(); }
 export function showCombatHit(event) {
