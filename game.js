@@ -7748,12 +7748,8 @@ function drawHumveeFire(vehicle) {
 function drawBuilding(building) {
   if (building.type === "humvee") {
     ctx.save();
-    ctx.fillStyle = "rgba(0, 0, 0, 0.22)";
-    ctx.beginPath();
-    ctx.ellipse(building.x + building.w / 2, building.y + building.h - 8, building.w * 0.48, 15, 0, 0, Math.PI * 2);
-    ctx.fill();
     if (humveeImage.complete && humveeImage.naturalWidth > 0) {
-      // Crop transparent margins so the visible vehicle fills its collision bounds.
+      // Fit the full source image inside the vehicle bounds without cropping or stretching.
       ctx.save();
       if (hero.vehicleId === building.id && building.hp > 0) {
         const vibrationTime = lastTimestamp / 1000;
@@ -7766,7 +7762,10 @@ function drawBuilding(building) {
       }
       ctx.translate(building.x + (building.facingLeft ? building.w : 0), building.y);
       if (building.facingLeft) ctx.scale(-1, 1);
-      ctx.drawImage(humveeImage, 40, 128, 432, 256, 0, 0, building.w, building.h);
+      const spriteScale = Math.min(building.w / humveeImage.naturalWidth, building.h / humveeImage.naturalHeight);
+      const spriteWidth = humveeImage.naturalWidth * spriteScale;
+      const spriteHeight = humveeImage.naturalHeight * spriteScale;
+      ctx.drawImage(humveeImage, (building.w - spriteWidth) / 2, building.h - spriteHeight, spriteWidth, spriteHeight);
       drawHumveeFire(building);
       ctx.restore();
     }
