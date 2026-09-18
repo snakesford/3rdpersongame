@@ -129,6 +129,7 @@ function cleanup(code) {
   }, sessionId);
   if (roomResult.exceptionDetails) throw new Error(JSON.stringify(roomResult.exceptionDetails));
   console.log(roomResult.result.value);
+  await require('./spawn-browser.cjs')(send, sessionId, `http://127.0.0.1:${server.address().port}/`);
   const checks = `
     player.displayName = 'BrowserTest';
     for (const classId of Object.keys(runtime.CHARACTER_OPTIONS)) {

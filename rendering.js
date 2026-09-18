@@ -11,6 +11,7 @@ import {
   heroGrenades,
   heroProjectiles,
   mouse,
+  multiplayer,
   pickups,
   player,
   runtime,
@@ -854,13 +855,13 @@ function createRenderingSystem(services) {
     return { fill: "#8795a8", stroke: "#dce5ef" };
   }
 
-  function drawHeroStickFigure() {
-    const angle = hero.facingAngle || 0;
-    const headX = hero.x;
-    const headY = hero.y - 12;
+  function drawHeroStickFigure(subject = hero) {
+    const angle = subject.facingAngle || 0;
+    const headX = subject.x;
+    const headY = subject.y - 12;
     const headRadius = 8;
     const neckY = headY + headRadius;
-    const hipY = hero.y + 8;
+    const hipY = subject.y + 8;
     const shoulderY = neckY + 6;
     const shoulderSpread = 10;
     const armReach = 12;
@@ -869,8 +870,8 @@ function createRenderingSystem(services) {
     const leadY = Math.sin(angle);
     const sideX = Math.cos(angle + Math.PI / 2);
     const sideY = Math.sin(angle + Math.PI / 2);
-    const swingProgress = hero.axeSwingDuration > 0 ? 1 - hero.axeSwingTimer / hero.axeSwingDuration : 1;
-    const swingAngle = hero.hasAxe
+    const swingProgress = subject.axeSwingDuration > 0 ? 1 - subject.axeSwingTimer / subject.axeSwingDuration : 1;
+    const swingAngle = subject.hasAxe
       ? angle + (-0.75 + clamp(swingProgress, 0, 1) * 1.5)
       : angle;
     const handX = headX + sideX * shoulderSpread + leadX * armReach;
@@ -886,7 +887,7 @@ function createRenderingSystem(services) {
     ctx.arc(headX, headY, headRadius, 0, Math.PI * 2);
     ctx.stroke();
 
-    const helmetStyle = getHeroHelmetStyle();
+    const helmetStyle = subject === hero ? getHeroHelmetStyle() : null;
     if (helmetStyle) {
       ctx.fillStyle = helmetStyle.fill;
       ctx.beginPath();
@@ -916,7 +917,7 @@ function createRenderingSystem(services) {
     ctx.lineTo(headX - sideX * 6 + leadX * legReach, hipY + 18 - leadY * 4);
     ctx.stroke();
 
-    if (hero.hasAxe) {
+    if (subject.hasAxe) {
       const axeHandleLength = 18;
       const handleEndX = axeGripX + Math.cos(swingAngle) * axeHandleLength;
       const handleEndY = axeGripY + Math.sin(swingAngle) * axeHandleLength;
@@ -942,7 +943,7 @@ function createRenderingSystem(services) {
       ctx.closePath();
       ctx.fill();
 
-      if (hero.axeSwingTimer > 0) {
+      if (subject.axeSwingTimer > 0) {
         ctx.strokeStyle = "rgba(255, 229, 168, 0.85)";
         ctx.lineWidth = 5;
         ctx.beginPath();
@@ -951,7 +952,7 @@ function createRenderingSystem(services) {
       }
     }
 
-    if (hero.hasRifle) {
+    if (subject.hasRifle) {
       const rifleLength = 24;
       const muzzleX = handX + Math.cos(angle) * rifleLength;
       const muzzleY = handY + Math.sin(angle) * rifleLength;
@@ -1671,6 +1672,26 @@ function createRenderingSystem(services) {
     }
   }
 
+  function drawRemotePlayers() {
+    if (!player.inVillageWorld) return;
+    for (const remote of multiplayer.getRemotePlayers()) {
+      if (!remote.spawnPosition || !remote.selectedCharacter) continue;
+      const subject = { ...remote.spawnPosition, radius: 18, facingAngle: 0,
+        hasAxe: false, hasRifle: false, isMoving: false, runAnimationTimer: 0 };
+      const character = runtime.CHARACTER_OPTIONS[remote.selectedCharacter];
+      if (remote.selectedCharacter === 'engineer') services.drawEngineerHero(subject);
+      else if (remote.selectedCharacter === 'bountyHunter') services.drawBountyHunter(subject);
+      else if (remote.selectedCharacter === 'stickman') drawHeroStickFigure(subject);
+      else if (remote.selectedCharacter === 'soldier' || remote.selectedCharacter === 'archer') {
+        const image = remote.selectedCharacter === 'soldier' ? soldierIdleImage : archerImage;
+        if (image.complete && image.naturalWidth > 0) {
+          drawHeroSprite(image, subject.x, subject.y, remote.selectedCharacter === 'soldier' ? 54 : 46);
+        } else drawEntityCircle(subject, COLORS.hero, COLORS.heroAccent);
+      } else drawEntityCircle(subject, COLORS.hero, COLORS.heroAccent);
+      drawNameplate(subject.x, subject.y - 82, `${remote.name} · ${character?.name || remote.selectedCharacter}`, 'rgba(25, 47, 70, 0.9)');
+    }
+  }
+
   function render() {
     if (viewport.pixelRatio !== (window.devicePixelRatio || 1)) {
       resizeCanvas();
@@ -1711,6 +1732,8 @@ function createRenderingSystem(services) {
     }
     services.drawTrader();
 
+    drawRemotePlayers();
+
     if (hero.vehicleId === null) {
       if (hero.selectedClass === "stickman") {
         drawHeroStickFigure();
@@ -1726,6 +1749,9 @@ function createRenderingSystem(services) {
         drawEntityCircle(hero, COLORS.hero, COLORS.heroAccent);
       }
       drawHealthBar(hero.x, hero.y - 34, 60, hero.hp / hero.maxHp);
+      if (multiplayer.getLocalPlayer()?.spawnPosition) {
+        drawNameplate(hero.x, hero.y - 82, `${player.displayName} · You`, 'rgba(15, 33, 24, 0.9)');
+      }
     }
     services.drawEngineerDeployables();
     services.drawBountyEffects();
@@ -1858,6 +1884,7 @@ function createRenderingSystem(services) {
     drawSparkEffects,
     drawModeHint,
     render,
+    drawRemotePlayers,
   };
 }
 

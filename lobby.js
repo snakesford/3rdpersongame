@@ -17,13 +17,13 @@ function render(message) {
   leaveButton.hidden = !room;
   roster.replaceChildren(...[...getPlayers().values()].map(player => {
     const item = document.createElement('li');
-    item.textContent = player.isLocal ? 'You (local player)' : 'Remote player';
+    item.textContent = `${player.isLocal ? 'You (local player)' : 'Remote player'}${player.name ? ` · ${player.name} · ${player.selectedCharacter}` : ' · Choosing character'}`;
     item.dataset.playerId = player.id;
     item.dataset.local = String(player.isLocal);
     return item;
   }));
   status.textContent = message || (!connected ? 'Connecting to server…' : room
-    ? `Room ${room.code} · ${room.players.length}/${room.capacity} players${room.players.length === 1 ? ' · Share your code with a friend.' : ' · Both players connected.'}`
+    ? `Room ${room.code} · ${room.players.length}/${room.capacity} players${room.players.length === 1 ? ' · Share your code with a friend.' : room.players.every(player => player.spawnPosition) ? ' · Ready in the village.' : ' · Waiting for both character selections.'}`
     : 'Create a game or enter a friend’s room code.');
 }
 

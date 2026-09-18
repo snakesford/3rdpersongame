@@ -23,7 +23,9 @@ export const getRemotePlayers = () => multiplayer.getRemotePlayers();
 export const getPlayers = () => multiplayer.players;
 
 export function getRoom() {
-  return room ? { ...room, players: room.players.map(player => ({ ...player })) } : null;
+  return room ? { ...room, players: room.players.map(player => ({ ...player,
+    spawnPosition: player.spawnPosition ? { ...player.spawnPosition } : null,
+  })) } : null;
 }
 
 function request(event, payload = null) {
@@ -41,6 +43,7 @@ export const createRoom = () => request("room:create");
 export const joinRoom = code => request("room:join", { code });
 export const leaveRoom = () => request("room:leave");
 export const sendRoomMessage = data => request("room:message", data);
+export const readyPlayer = profile => request("player:ready", profile);
 
 export function connect() {
   socket.connect();

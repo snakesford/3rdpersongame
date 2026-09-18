@@ -508,13 +508,13 @@ function createAbilitiesSystem(services) {
     if (projectile.traveled >= projectile.maxDistance - 0.001) detonateExplosiveBolt(projectile);
   }
 
-  function drawBountyHunter() {
+  function drawBountyHunter(subject = hero) {
     ctx.save();
-    ctx.translate(hero.x, hero.y);
-    if (Math.cos(hero.facingAngle) < 0) ctx.scale(-1, 1);
-    const bob = hero.isMoving ? Math.sin(hero.runAnimationTimer * 12) * 2 : 0;
+    ctx.translate(subject.x, subject.y);
+    if (Math.cos(subject.facingAngle) < 0) ctx.scale(-1, 1);
+    const bob = subject.isMoving ? Math.sin(subject.runAnimationTimer * 12) * 2 : 0;
     if (bountyHunterSprite.complete && bountyHunterSprite.naturalWidth) ctx.drawImage(bountyHunterSprite, -30, -66 + bob, 60, 90);
-    else services.drawEntityCircle({x: 0, y: 0, radius: hero.radius}, "#79583b", "#dbad68");
+    else services.drawEntityCircle({x: 0, y: 0, radius: subject.radius}, "#79583b", "#dbad68");
     ctx.restore();
   }
 
@@ -687,12 +687,12 @@ function createAbilitiesSystem(services) {
     if (projectile.traveled >= projectile.maxDistance - 0.001) projectile.active = false;
   }
 
-  function drawEngineerHero() {
-    ctx.save(); ctx.translate(hero.x, hero.y);
-    if (Math.cos(hero.facingAngle) < 0) ctx.scale(-1, 1);
-    const bob = hero.isMoving ? Math.sin(hero.runAnimationTimer * 12) * 2 : 0;
+  function drawEngineerHero(subject = hero) {
+    ctx.save(); ctx.translate(subject.x, subject.y);
+    if (Math.cos(subject.facingAngle) < 0) ctx.scale(-1, 1);
+    const bob = subject.isMoving ? Math.sin(subject.runAnimationTimer * 12) * 2 : 0;
     if (engineerSprite.complete && engineerSprite.naturalWidth) ctx.drawImage(engineerSprite, -30, -66 + bob, 60, 90);
-    else services.drawEntityCircle({x: 0, y: 0, radius: hero.radius}, "#a17938", "#e8c885");
+    else services.drawEntityCircle({x: 0, y: 0, radius: subject.radius}, "#a17938", "#e8c885");
     ctx.restore();
   }
 

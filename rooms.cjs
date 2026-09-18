@@ -2,19 +2,23 @@ const { randomInt, randomUUID } = require('node:crypto');
 
 const ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 const channel = code => `game:${code}`;
+const characters = require('./character-options.json');
+// Open ground beside the village shooting range, matching VILLAGE_WORLD.
+const spawnPositions = [{ x: 1810, y: 1250 }, { x: 1970, y: 1250 }];
 
 function attachRooms(io) {
   // Membership is owned by the server, never supplied by message senders.
   const rooms = new Map();
   const players = new Map();
-  const snapshot = room => ({ code: room.code, players: [...room.players.values()], capacity: 2 });
+  const snapshot = room => ({ code: room.code, worldId: 'village', spawnId: room.spawnId,
+    players: [...room.players.values()], capacity: 2 });
   const publish = room => io.to(channel(room.code)).emit('room:state', snapshot(room));
 
   io.on('connection', socket => {
-    const player = Object.freeze({ id: randomUUID() });
+    const player = { id: randomUUID(), name: '', selectedCharacter: null, spawnPosition: null };
     players.set(player.id, player);
     socket.data.playerId = player.id;
-    socket.emit('player:identity', player);
+    socket.emit('player:identity', { id: player.id });
     const reply = (ack, value) => { if (typeof ack === 'function') ack(value); };
     const fail = (ack, error) => reply(ack, { ok: false, error });
     function enter(room, ack) {
@@ -33,6 +37,9 @@ function attachRooms(io) {
       if (!room) return;
       socket.leave(channel(code));
       room.players.delete(player.id);
+      player.name = '';
+      player.selectedCharacter = null;
+      player.spawnPosition = null;
       if (room.players.size === 0) rooms.delete(code);
       else publish(room);
     }
@@ -43,7 +50,7 @@ function attachRooms(io) {
       do {
         code = Array.from({ length: 6 }, () => ALPHABET[randomInt(ALPHABET.length)]).join('');
       } while (rooms.has(code));
-      const room = { code, players: new Map() };
+      const room = { code, players: new Map(), spawnId: null };
       rooms.set(code, room);
       enter(room, ack);
     });
@@ -60,6 +67,27 @@ function attachRooms(io) {
       leave();
       socket.emit('room:state', null);
       reply(ack, { ok: true });
+    });
+    socket.on('player:ready', (payload, ack) => {
+      const room = rooms.get(socket.data.roomCode);
+      if (!room) return fail(ack, 'Join a game first.');
+      const name = typeof payload?.name === 'string' ? payload.name.replace(/\s+/g, ' ').trim().slice(0, 18) : '';
+      const selectedCharacter = payload?.selectedCharacter;
+      if (!name || typeof selectedCharacter !== 'string' || !Object.hasOwn(characters, selectedCharacter)) {
+        return fail(ack, 'Choose a name and a valid character.');
+      }
+      if (player.spawnPosition && (name !== player.name || selectedCharacter !== player.selectedCharacter)) {
+        return fail(ack, 'Leave the game before changing your character.');
+      }
+      player.name = name;
+      player.selectedCharacter = selectedCharacter;
+      if (room.players.size === 2 && [...room.players.values()].every(p => p.selectedCharacter) &&
+          [...room.players.values()].some(p => !p.spawnPosition)) {
+        room.spawnId = randomUUID();
+        [...room.players.values()].forEach((p, index) => { p.spawnPosition = { ...spawnPositions[index] }; });
+      }
+      publish(room);
+      reply(ack, { ok: true, room: snapshot(room) });
     });
     socket.on('room:message', (payload, ack) => {
       const room = rooms.get(socket.data.roomCode);

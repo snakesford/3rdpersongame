@@ -1,4 +1,4 @@
-// Identity/roster state only. Movement and gameplay still use the local player
+// Room roster and spawn state. Movement and gameplay still use the local player
 // and hero in state.js. No remote record aliases those gameplay objects.
 export function createPlayerRegistry() {
   let localPlayerId = null;
@@ -11,7 +11,11 @@ export function createPlayerRegistry() {
       if (!ids.has(id)) players.delete(id);
     }
     for (const id of ids) {
-      if (!players.has(id)) players.set(id, Object.freeze({ id, isLocal: id === localPlayerId }));
+      const record = roster.find(player => player.id === id);
+      players.set(id, Object.freeze({ id, isLocal: id === localPlayerId,
+        name: record?.name || '', selectedCharacter: record?.selectedCharacter || null,
+        spawnPosition: record?.spawnPosition ? Object.freeze({ ...record.spawnPosition }) : null,
+      }));
     }
   }
 

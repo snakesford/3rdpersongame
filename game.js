@@ -25,6 +25,21 @@ import {
 } from "./modules/dom.js";
 
 let lastTimestamp = 0;
+const characterSelectionListeners = new Set();
+export function onCharacterSelected(listener) {
+  characterSelectionListeners.add(listener);
+  return () => characterSelectionListeners.delete(listener);
+}
+export function getSelectedPlayerProfile() {
+  return player.hasSelectedCharacter ? { name: player.displayName, selectedCharacter: hero.selectedClass } : null;
+}
+export function spawnMultiplayerPlayer(record) {
+  activateVillageWorld();
+  hero.x = record.spawnPosition.x;
+  hero.y = record.spawnPosition.y;
+  updateCamera(1);
+  characterSelectEl.classList.add('hidden');
+}
 const systems = createGameSystems({ getFrameTimestamp: () => lastTimestamp });
 const {
   activateVillageWorld,
@@ -239,6 +254,7 @@ function selectCharacter(classId) {
   updateAbilityUI();
   updateStatsUI();
   updateXpUI();
+  for (const listener of characterSelectionListeners) listener();
 }
 
 async function loadCharacterOptions() {
