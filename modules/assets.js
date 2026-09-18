@@ -18,12 +18,14 @@ const grenadeImage = loadImage("./images/grenade.png");
 const humveeImage = loadImage("./images/humvee.png");
 const exhaustImage = loadImage("./images/exaust.png");
 const fireImage = loadImage("./images/fire.png");
+const ammoStockpileImage = loadImage("./images/bullets.png");
 const archerImage = loadImage("./images/archer.png");
 const archerRunningImage = loadImage("./images/archer-running.png");
 const archerShootingImage = loadImage("./images/archer-shooting.png");
 const archerDeadImage = loadImage("./images/archer-dead.png");
 
 export {
+  ammoStockpileImage,
   archerDeadImage,
   archerImage,
   archerRunningImage,

@@ -1,4 +1,5 @@
 import {
+  ammoStockpileImage,
   archerDeadImage,
   archerImage,
   archerRunningImage,
@@ -215,6 +216,12 @@ const tutorialNpcs = [];
 const tutorialPlots = [];
 const tutorialSites = [];
 const tutorialRangeTargets = [];
+const trainingAmmoStockpile = {
+  x: TUTORIAL_WORLD.spawnX + 300,
+  y: TUTORIAL_WORLD.spawnY + 10,
+  size: 96,
+  occupantId: null,
+};
 const tutorialDialogue = {
   npcId: null,
   text: "",
@@ -649,6 +656,7 @@ function initializeEnemyForces() {
 }
 
 function clearWorldEntities() {
+  trainingAmmoStockpile.occupantId = null;
   humveeExhaustParticles.length = 0;
   humveeExhaustTimer = 0;
   trees.length = 0;
@@ -6578,6 +6586,65 @@ function triggerLoss() {
   overlayMessageEl.classList.remove("hidden");
 }
 
+function updateTrainingAmmoStockpile() {
+  if (!player.inTutorialWorld || hero.hp <= 0 || hero.isDead) {
+    trainingAmmoStockpile.occupantId = null;
+    return;
+  }
+  const vehicle = getOccupiedHumvee();
+  const stockpile = trainingAmmoStockpile;
+  const overlaps = vehicle ? humveeOverlapsTile(vehicle, stockpile)
+    : Math.hypot(hero.x - clamp(hero.x, stockpile.x, stockpile.x + stockpile.size),
+      hero.y - clamp(hero.y, stockpile.y, stockpile.y + stockpile.size)) <= hero.radius;
+  const occupantId = overlaps ? (vehicle?.id ?? hero.id) : null;
+  if (occupantId === stockpile.occupantId) return;
+  stockpile.occupantId = occupantId;
+  if (!overlaps) return;
+
+  let refilled = false;
+  if (hero.hasRifle) {
+    refilled = hero.ammo < hero.maxAmmo;
+    hero.ammo = hero.maxAmmo;
+    hero.isReloading = false;
+    hero.reloadTimer = 0;
+  }
+  if (vehicle) {
+    if (vehicle.weaponAmmo) {
+      for (const [id, weapon] of Object.entries(HUMVEE_WEAPONS)) {
+        if (vehicle.weaponAmmo[id] < weapon.ammo) refilled = true;
+        vehicle.weaponAmmo[id] = weapon.ammo;
+      }
+    }
+    if (vehicle.ammo < vehicle.maxAmmo) refilled = true;
+    vehicle.ammo = vehicle.maxAmmo;
+  }
+  if (refilled) {
+    spawnTextPopup(stockpile.x + stockpile.size / 2, stockpile.y - 16,
+      "Ammo refilled!", "rgba(255, 228, 154, 1)", 1.2);
+    updateInventoryUI();
+    if (vehicle) updateHumveeInventory();
+  }
+}
+
+function drawTrainingAmmoStockpile() {
+  if (!player.inTutorialWorld) return;
+  const { x, y, size } = trainingAmmoStockpile;
+  ctx.save();
+  ctx.fillStyle = "rgba(197, 164, 83, 0.65)";
+  ctx.fillRect(x, y, size, size);
+  ctx.strokeStyle = "#ffe2a0";
+  ctx.lineWidth = 3;
+  ctx.strokeRect(x, y, size, size);
+  if (ammoStockpileImage.complete && ammoStockpileImage.naturalWidth > 0) {
+    const scale = (size - 16) / Math.max(ammoStockpileImage.naturalWidth, ammoStockpileImage.naturalHeight);
+    const width = ammoStockpileImage.naturalWidth * scale;
+    const height = ammoStockpileImage.naturalHeight * scale;
+    ctx.drawImage(ammoStockpileImage, x + (size - width) / 2, y + (size - height) / 2, width, height);
+  }
+  drawNameplate(x + size / 2, y - 16, "AMMO", "rgba(15, 33, 24, 0.9)");
+  ctx.restore();
+}
+
 function update(dt) {
   if (player.inventoryOpen) return;
   if (!player.hasSelectedCharacter || player.victory || player.loss) {
@@ -6585,6 +6652,7 @@ function update(dt) {
   }
   updateCamera(dt);
   updateHero(dt);
+  updateTrainingAmmoStockpile();
   updateHumveeExhaust(dt);
   updateHumveeTech(dt);
   updateGrenades(dt);
@@ -8391,6 +8459,7 @@ function render() {
 
   drawBackground();
   drawVillagePortals();
+  drawTrainingAmmoStockpile();
 
   for (const tree of trees) {
     drawTree(tree);
