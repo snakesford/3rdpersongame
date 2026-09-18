@@ -2729,7 +2729,39 @@ function updateInventoryAbilities() {
   selectInventoryAbility(abilities.find((ability) => ability.name === selectedInventoryAbilityName) || abilities[0]);
 }
 
+function updateHumveeInventory() {
+  const vehicle = getOccupiedHumvee();
+  const tab = document.getElementById("inventoryHumveeTab");
+  tab.classList.toggle("hidden", !vehicle);
+  if (!vehicle) {
+    if (tab.getAttribute("aria-selected") === "true") selectInventoryTab("equipment");
+    return;
+  }
+  document.getElementById("inventoryHumveeHealth").textContent = `${Math.max(0, Math.ceil(vehicle.hp))} / ${vehicle.maxHp}`;
+  document.getElementById("inventoryHumveeAmmo").textContent = `${vehicle.ammo} / ${vehicle.maxAmmo}`;
+}
+
+function selectHumveeAbilitySlot(slot) {
+  document.querySelectorAll("[data-humvee-slot]").forEach((entry) => {
+    entry.setAttribute("aria-pressed", String(entry === slot));
+  });
+  const details = document.getElementById("inventoryHumveeDetails");
+  const title = document.createElement("h3");
+  const description = document.createElement("p");
+  const gun = slot.dataset.humveeSlot === "0";
+  title.textContent = gun ? "Mounted Gun" : "Empty ability slot";
+  description.textContent = gun
+    ? `Hold left-click to fire. 50 base damage, ${calculateHeadshotDamage(50, buildProjectileHeadshotConfig("bullet").headshotMultiplier)} headshot damage before helmet protection. 300-round capacity. Fires at half the soldier's rate.`
+    : "No vehicle ability equipped in this slot.";
+  details.replaceChildren(title, description);
+}
+
+document.querySelectorAll("[data-humvee-slot]").forEach((slot) => {
+  slot.addEventListener("click", () => selectHumveeAbilitySlot(slot));
+});
+
 function selectInventoryTab(tabName) {
+  if (tabName === "humvee" && !getOccupiedHumvee()) tabName = "equipment";
   inventoryTabEls.forEach((tab) => {
     const active = tab.dataset.inventoryTab === tabName;
     tab.setAttribute("aria-selected", String(active));
@@ -2739,20 +2771,26 @@ function selectInventoryTab(tabName) {
     panel.classList.toggle("hidden", panel.dataset.inventoryPanel !== tabName);
   });
   if (tabName === "abilities") updateInventoryAbilities();
+  if (tabName === "humvee") {
+    updateHumveeInventory();
+    selectHumveeAbilitySlot(document.querySelector('[data-humvee-slot="0"]'));
+  }
 }
 
-inventoryTabEls.forEach((tab, index) => {
+inventoryTabEls.forEach((tab) => {
   tab.addEventListener("click", () => selectInventoryTab(tab.dataset.inventoryTab));
   tab.addEventListener("keydown", (event) => {
+    const visibleTabs = Array.from(inventoryTabEls).filter((entry) => !entry.classList.contains("hidden"));
+    const index = visibleTabs.indexOf(tab);
     let next = index;
-    if (event.key === "ArrowRight") next = (index + 1) % inventoryTabEls.length;
-    else if (event.key === "ArrowLeft") next = (index + inventoryTabEls.length - 1) % inventoryTabEls.length;
+    if (event.key === "ArrowRight") next = (index + 1) % visibleTabs.length;
+    else if (event.key === "ArrowLeft") next = (index + visibleTabs.length - 1) % visibleTabs.length;
     else if (event.key === "Home") next = 0;
-    else if (event.key === "End") next = inventoryTabEls.length - 1;
+    else if (event.key === "End") next = visibleTabs.length - 1;
     else return;
     event.preventDefault();
-    selectInventoryTab(inventoryTabEls[next].dataset.inventoryTab);
-    inventoryTabEls[next].focus();
+    selectInventoryTab(visibleTabs[next].dataset.inventoryTab);
+    visibleTabs[next].focus();
   });
 });
 
@@ -2781,6 +2819,7 @@ function toggleInventoryScreen() {
   inventoryScreenEl.classList.toggle("hidden", !player.inventoryOpen);
   if (player.inventoryOpen) {
     updateStatsUI();
+    updateHumveeInventory();
     updateInventoryUI();
     updateInventoryAbilities();
     syncInventoryPanelHeights();

@@ -234,6 +234,7 @@
         <button id="inventoryEquipmentTab" type="button" role="tab" data-inventory-tab="equipment" aria-selected="true" aria-controls="inventoryEquipmentPanel">Equipment</button>
         <button id="inventoryAbilitiesTab" type="button" role="tab" data-inventory-tab="abilities" aria-selected="false" aria-controls="inventoryAbilitiesPanel" tabindex="-1">Abilities</button>
         <button id="inventoryItemsTab" type="button" role="tab" data-inventory-tab="items" aria-selected="false" aria-controls="inventoryItemsPanel" tabindex="-1">Items</button>
+        <button id="inventoryHumveeTab" class="hidden" type="button" role="tab" data-inventory-tab="humvee" aria-selected="false" aria-controls="inventoryHumveePanel" tabindex="-1">Humvee</button>
       </div>
       </div>
       <div class="inventory-layout">
@@ -316,6 +317,22 @@
             </div>
           </dl>
         </div>
+        <div id="inventoryHumveePanel" class="abilities-panel hidden" role="tabpanel" data-inventory-panel="humvee" aria-labelledby="inventoryHumveeTab" tabindex="0">
+          <div class="inventory-humvee-grid">
+            <img class="inventory-humvee-image" src="./images/humvee.png" alt="Humvee" draggable="false">
+            <button class="inventory-ability inventory-humvee-slot" data-position="top-left" type="button" aria-pressed="false" aria-controls="inventoryHumveeDetails" data-humvee-slot="0" aria-label="Humvee mounted gun"><span class="inventory-ability-name">Mounted Gun</span></button>
+            <button class="inventory-ability inventory-humvee-slot" data-position="top-right" type="button" aria-pressed="false" aria-controls="inventoryHumveeDetails" data-humvee-slot="1" aria-label="Empty Humvee ability slot 2"><span class="inventory-ability-name">Empty</span></button>
+            <button class="inventory-ability inventory-humvee-slot" data-position="left-upper" type="button" aria-pressed="false" aria-controls="inventoryHumveeDetails" data-humvee-slot="2" aria-label="Empty Humvee ability slot 3"><span class="inventory-ability-name">Empty</span></button>
+            <button class="inventory-ability inventory-humvee-slot" data-position="left-lower" type="button" aria-pressed="false" aria-controls="inventoryHumveeDetails" data-humvee-slot="3" aria-label="Empty Humvee ability slot 4"><span class="inventory-ability-name">Empty</span></button>
+            <button class="inventory-ability inventory-humvee-slot" data-position="right-upper" type="button" aria-pressed="false" aria-controls="inventoryHumveeDetails" data-humvee-slot="4" aria-label="Empty Humvee ability slot 5"><span class="inventory-ability-name">Empty</span></button>
+            <button class="inventory-ability inventory-humvee-slot" data-position="right-lower" type="button" aria-pressed="false" aria-controls="inventoryHumveeDetails" data-humvee-slot="5" aria-label="Empty Humvee ability slot 6"><span class="inventory-ability-name">Empty</span></button>
+          </div>
+          <dl class="inventory-equipment-stats">
+            <div><dt>Health</dt><dd id="inventoryHumveeHealth">1000 / 1000</dd></div>
+            <div><dt>Ammo</dt><dd id="inventoryHumveeAmmo">300 / 300</dd></div>
+            <div><dt>Damage</dt><dd>50</dd></div>
+          </dl>
+        </div>
         <div id="inventoryItemsPanel" class="inventory-panel hidden" role="tabpanel" data-inventory-panel="items" aria-labelledby="inventoryItemsTab" tabindex="0">
           <div id="inventoryList" class="inventory-list">
             <span class="inventory-empty">No items yet</span>
@@ -332,6 +349,12 @@
         <aside class="inventory-side-panel hidden" data-inventory-panel="items" aria-label="Available items">
           <h2>Items</h2>
         </aside>
+        <aside class="inventory-side-panel hidden" data-inventory-panel="humvee" aria-label="Humvee controls">
+          <h2>Humvee</h2>
+          <p>WASD to drive · Left-click to fire · E to exit</p>
+          <p>Select a slot to view its details.</p>
+        </aside>
+        <section id="inventoryHumveeDetails" class="inventory-ability-details hidden" data-inventory-panel="humvee" aria-label="Humvee ability description" aria-live="polite"></section>
         <section id="inventoryEquipmentDetails" class="inventory-ability-details" data-inventory-panel="equipment" aria-label="Equipment instructions" aria-live="polite">
           <p>Click a helmet in your backpack or drag it onto the helmet slot to equip it. Your previous helmet returns to your backpack.</p>
         </section>
