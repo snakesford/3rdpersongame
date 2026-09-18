@@ -1,3 +1,4 @@
+import { installCombatControls } from './combat-controls.js';
 import { createCombatSystem } from "../combat.js";
 import { createAbilitiesSystem } from "../abilities.js";
 import { createEnemiesSystem } from "../enemies.js";
@@ -51,6 +52,7 @@ function createGameSystems({ getFrameTimestamp }) {
     shootingRangeTutorial,
     getEnemyHero: () => runtime.enemyHero,
   }));
+  installCombatControls(systems);
   return systems;
 }
 

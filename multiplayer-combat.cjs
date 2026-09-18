@@ -1,0 +1,233 @@
+const {randomInt} = require('node:crypto');
+const characters = require('./character-options.json');
+
+// Multiplayer-only base loadouts. Single-player combat.js and its upgrade rules
+// remain independent. Speeds, radii, damage and headshot chances match base weapons.
+const weapons = {
+  soldier: {damage:16, ammo:30, interval:80, speed:720, radius:8.1, range:600, chance:0.18, multiplier:2},
+  engineer: {damage:12, ammo:16, interval:280, speed:800, radius:4, range:600, chance:0.18, multiplier:2, style:'engineerBolt'},
+  bountyHunter: {damage:20, ammo:8, interval:300, speed:720, radius:8.1, range:600, chance:0.18, multiplier:2.5},
+  archer: {damage:42, ammo:0, interval:450, speed:820, radius:4.5, range:600, chance:0.22, multiplier:2, style:'arrow'},
+};
+const remaining = (end, now) => Math.max(0, (end - now) / 1000);
+const normalize = a => Math.atan2(Math.sin(a), Math.cos(a));
+function segmentHit(start, end, target, radius) {
+  const dx=end.x-start.x, dy=end.y-start.y, ox=start.x-target.x, oy=start.y-target.y;
+  const a=dx*dx+dy*dy, c=ox*ox+oy*oy-radius*radius;
+  if (c <= 0) return 0;
+  if (!a) return null;
+  const b=2*(ox*dx+oy*dy), discriminant=b*b-4*a*c;
+  if (discriminant < 0) return null;
+  const t=(-b-Math.sqrt(discriminant))/(2*a);
+  return t >= 0 && t <= 1 ? t : null;
+}
+function createCombat(room, {now = performance.now(), random = () => randomInt(0, 1000000)/1000000} = {}) {
+  const states = new Map();
+  let clock = now, revision = 0, nextId = 0;
+  let projectiles = [], effects = [], deployables = [], events = [];
+  for (const player of room.players.values()) {
+    const config=characters[player.selectedCharacter], weapon=weapons[player.selectedCharacter];
+    states.set(player.id, {id:player.id, hp:config.stats.health, maxHp:config.stats.health,
+      ammo:weapon?.ammo || 0, maxAmmo:weapon?.ammo || 0, dead:false, sequence:0,
+      fireUntil:0, reloadUntil:0, F:0, Q:0, G:0, Shift:0, dash:0,
+      shotUntil:0, shotAngle:0, medicineUntil:0, regenUntil:0, adrenalineUntil:0, markUntil:0, markId:null,
+      sprintUntil:0, dashUntil:0});
+  }
+  const targets = owner => [...room.players.values()].filter(p => p.id !== owner.id &&
+    states.get(p.id)?.hp > 0 && p.movement?.onFoot && p.movement.worldId === owner.movement.worldId);
+  const effect = (owner, data, duration=220) => effects.push({id:++nextId, ownerId:owner.id,
+    worldId:owner.movement.worldId, x:owner.movement.x, y:owner.movement.y, until:clock+duration, ...data});
+  function damage(owner, target, amount, headshot=false, penetration=null) {
+    const state=states.get(target.id), source=states.get(owner.id);
+    if (!state || state.dead) return;
+    if (source.markUntil > clock && source.markId === target.id) amount *= 1.25;
+    if (penetration !== null || target.selectedCharacter === 'engineer') {
+      amount *= 100/(100+characters[target.selectedCharacter].stats.armor*(1-(penetration || 0)));
+    }
+    const dealt=Math.min(state.hp, Math.max(1, Math.round(amount)));
+    state.hp=Math.max(0,state.hp-dealt);
+    events.push({id:++nextId, type:'hit', sourceId:owner.id, targetId:target.id, damage:dealt,
+      headshot, hp:state.hp, x:target.movement.x, y:target.movement.y});
+    if (!state.hp) {
+      state.dead=true; state.reloadUntil=0;
+      state.medicineUntil=0; state.shotUntil=0; state.sprintUntil=0; state.dashUntil=0;
+      events.push({id:++nextId,type:'death',sourceId:owner.id,targetId:target.id});
+      // Cancel delayed casts and deployables, but already fired projectiles continue.
+      projectiles=projectiles.filter(p => p.ownerId !== target.id || p.startsAt <= clock);
+      deployables=deployables.filter(d => d.ownerId !== target.id);
+    }
+  }
+  function projectile(owner, angle, config, delay=0, origin=owner.movement) {
+    projectiles.push({id:++nextId,ownerId:owner.id,worldId:owner.movement.worldId,
+      x:origin.x,y:origin.y,angle, traveled:0, startsAt:clock+delay,
+      damage:config.damage,speed:config.speed,radius:config.radius,range:config.range,
+      chance:config.chance || 0,multiplier:config.multiplier || 2, style:config.style || 'bullet',
+      penetration:config.penetration ?? null, explosion:config.explosion || null});
+  }
+  function explosion(owner, point, config, direct=null) {
+    effect(owner,{effect:'nova',x:point.x,y:point.y,radius:config.radius},250);
+    for (const target of targets(owner)) {
+      const distance=Math.hypot(target.movement.x-point.x,target.movement.y-point.y);
+      if (target.id === direct?.id) damage(owner,target,45);
+      else if (distance <= config.radius) damage(owner,target,config.falloff
+        ? Math.max(8,Math.round(config.damage*(1-distance/config.radius*0.6))) : config.damage);
+    }
+  }
+  function advance(time) {
+    const previous=clock;
+    clock=Math.max(clock,time);
+    const dt=(clock-previous)/1000;
+    for (const [id,state] of states) {
+      const owner=room.players.get(id);
+      if (!owner || state.dead) continue;
+      if (state.reloadUntil && state.reloadUntil <= clock) {state.ammo=state.maxAmmo; state.reloadUntil=0;}
+      const regen=characters[owner.selectedCharacter].stats.regen || 0;
+      state.hp=Math.min(state.maxHp,state.hp+regen*dt+Math.max(0,Math.min(clock,state.regenUntil)-previous)/1000*2);
+    }
+    effects=effects.filter(e => e.until > clock);
+    deployables=deployables.filter(d => room.players.has(d.ownerId) && !states.get(d.ownerId)?.dead && d.until > clock);
+    for (const d of deployables) {
+      const owner=room.players.get(d.ownerId), state=states.get(d.ownerId);
+      if (owner.movement.worldId !== d.worldId) continue;
+      if (d.kind === 'repairStation') {
+        if (Math.hypot(owner.movement.x-d.x,owner.movement.y-d.y) <= 150) state.hp=Math.min(state.maxHp,state.hp+6*dt);
+      } else {
+        const target=targets(owner).find(p => Math.hypot(p.movement.x-d.x,p.movement.y-d.y) <= 320);
+        if (target) {
+          d.angle=Math.atan2(target.movement.y-d.y,target.movement.x-d.x);
+          if (clock >= d.fireUntil) {
+            projectile(owner,d.angle,{damage:10,speed:800,radius:4,range:320,style:'engineerBolt',penetration:0},0,d);
+            d.fireUntil=clock+600;
+          }
+        }
+      }
+    }
+    const survivors=[];
+    for (const p of projectiles) {
+      const owner=room.players.get(p.ownerId);
+      if (!owner || owner.movement.worldId !== p.worldId || (states.get(owner.id)?.dead && p.startsAt > previous)) continue;
+      if (p.startsAt > clock) {survivors.push(p); continue;}
+      const travel=Math.min(p.range-p.traveled,p.speed*Math.max(0,clock-Math.max(previous,p.startsAt))/1000);
+      const end={x:p.x+Math.cos(p.angle)*travel,y:p.y+Math.sin(p.angle)*travel};
+      let hit=null, fraction=Infinity;
+      if (p.style !== 'grenade') for (const target of targets(owner)) {
+        const t=segmentHit(p,end,target.movement,18+p.radius);
+        if (t !== null && t < fraction) {hit=target; fraction=t;}
+      }
+      p.traveled+=travel;
+      if (hit) {
+        p.x+=(end.x-p.x)*fraction; p.y+=(end.y-p.y)*fraction;
+        if (p.explosion) explosion(owner,p,p.explosion,hit);
+        else {
+          const headshot=random() < p.chance;
+          damage(owner,hit,p.damage*(headshot?p.multiplier:1),headshot,p.penetration);
+        }
+      } else {
+        p.x=end.x; p.y=end.y;
+        if (p.traveled >= p.range) {if (p.explosion) explosion(owner,p,p.explosion);}
+        else survivors.push(p);
+      }
+    }
+    projectiles=survivors;
+  }
+  function act(id, input, time) {
+    advance(time);
+    const owner=room.players.get(id), state=states.get(id);
+    const reject=error=>({ok:false,error});
+    if (!owner || !state || input?.spawnId !== room.spawnId) return reject('Combat requires the current room spawn.');
+    if (!Number.isSafeInteger(input.sequence) || input.sequence <= state.sequence) return reject('Invalid or replayed action.');
+    if (!['fire','reload','ability'].includes(input.kind) || !Number.isFinite(input.angle) || Math.abs(input.angle)>Math.PI*2) return reject('Invalid combat action.');
+    if (input.kind === 'ability' && !['F','Q','G','Shift','dash'].includes(input.slot)) return reject('Invalid ability.');
+    // Consume valid sequence numbers even when cooldown/death rejects an action.
+    state.sequence=input.sequence;
+    if (state.dead || !owner.movement?.onFoot) return reject('Cannot act while dead or in a vehicle.');
+    const config=characters[owner.selectedCharacter], weapon=weapons[owner.selectedCharacter];
+    const angle=normalize(input.angle), position=owner.movement;
+    if (input.kind === 'reload') {
+      if (!state.maxAmmo || state.ammo >= state.maxAmmo || state.reloadUntil || state.medicineUntil>clock) return reject('Cannot reload now.');
+      state.reloadUntil=clock+1200;
+    } else if (input.kind === 'fire') {
+      if (!weapon) return reject('This character has no ranged weapon.');
+      if (clock < state.fireUntil || state.reloadUntil || state.medicineUntil>clock || (state.maxAmmo && !state.ammo)) return reject('Weapon is not ready.');
+      if (state.maxAmmo) state.ammo--;
+      state.fireUntil=clock+weapon.interval; state.shotUntil=clock+150; state.shotAngle=angle;
+      projectile(owner,angle,weapon);
+      if (state.maxAmmo && !state.ammo) state.reloadUntil=clock+1200;
+    } else {
+      const slot=input.slot;
+      if (clock < state[slot] || state.medicineUntil>clock) return reject('Ability is on cooldown.');
+      if (slot === 'Shift') {state.Shift=clock+10000; state.sprintUntil=clock+5000;}
+      else if (slot === 'dash' && owner.selectedCharacter === 'robot') {state.dash=clock+4000; state.dashUntil=clock+180; state.shotAngle=angle;}
+      else if (slot === 'F' && config.effect) {
+        if (config.effect === 'mark') {
+          const target=targets(owner).find(t => {
+            const distance=Math.hypot(t.movement.x-position.x,t.movement.y-position.y);
+            return distance<=600 && Math.abs(normalize(Math.atan2(t.movement.y-position.y,t.movement.x-position.x)-angle))<=Math.atan2(30,distance);
+          });
+          if (!target) return reject('Aim at a player within range.');
+          state.markId=target.id; state.markUntil=clock+8000;
+        } else if (config.effect === 'burst') {
+          config.shotAnglesDegrees.forEach((degrees,index)=>projectile(owner,angle+degrees*Math.PI/180,
+            {...weapons.soldier,damage:config.damage,range:config.range},index*45));
+          state.shotUntil=clock+420; state.shotAngle=angle;
+        } else if (config.effect === 'projectile' || config.effect === 'engineerBolt') {
+          projectile(owner,angle,config.effect === 'projectile' ? {...weapons.archer,damage:config.damage}
+            : {damage:config.damage,speed:800,radius:4,range:600,style:'engineerBolt',penetration:0.5});
+          state.shotUntil=clock+150; state.shotAngle=angle;
+        } else {
+          effect(owner,{effect:config.effect,radius:config.radius,halfAngle:config.halfAngle || 0,aimAngle:angle});
+          for (const target of targets(owner)) {
+            const dx=target.movement.x-position.x,dy=target.movement.y-position.y;
+            if (Math.hypot(dx,dy)<=config.radius && (config.effect === 'nova' || Math.abs(normalize(Math.atan2(dy,dx)-angle))<=config.halfAngle)) damage(owner,target,config.damage);
+          }
+        }
+        state.F=clock+config.cooldown*1000;
+      } else if (slot === 'Q' && owner.selectedCharacter === 'soldier') {
+        state.hp=Math.min(state.maxHp,state.hp+50);state.Q=clock+20000;state.medicineUntil=clock+900;state.regenUntil=clock+10000;
+      } else if (slot === 'Q' && owner.selectedCharacter === 'bountyHunter') {
+        state.hp=Math.min(state.maxHp,state.hp+30);state.Q=clock+20000;state.adrenalineUntil=clock+6000;
+      } else if (owner.selectedCharacter === 'engineer' && ['Q','G'].includes(slot)) {
+        const kind=slot==='Q'?'repairStation':'autoTurret';
+        deployables=deployables.filter(d => d.ownerId!==id || d.kind!==kind);
+        deployables.push({id:++nextId,ownerId:id,worldId:position.worldId,x:position.x,y:position.y,kind,angle,
+          until:slot==='Q'?clock+12000:Infinity,fireUntil:clock});
+        state[slot]=clock+(slot==='Q'?25000:30000);
+      } else if (slot === 'G' && ['soldier','bountyHunter'].includes(owner.selectedCharacter)) {
+        if (!Number.isFinite(input.distance) || input.distance<1) return reject('Invalid target distance.');
+        const soldier=owner.selectedCharacter==='soldier', range=Math.min(input.distance,soldier?480:600);
+        if (soldier && range<24) return reject('Grenade target is too close.');
+        const duration=Math.min(0.65,0.22+range/700);
+        projectile(owner,angle,{damage:0,speed:soldier?range/duration:900,radius:soldier?8:4,range,
+          style:soldier?'grenade':'explosiveBolt',explosion:{radius:soldier?110:80,damage:soldier?42:25,falloff:soldier}});
+        state.G=clock+(soldier?6000:8000);
+      } else return reject('Ability unavailable for this character.');
+    }
+    events.push({id:++nextId,type:'action',sourceId:id,kind:input.kind,slot:input.slot || null,angle});
+    return {ok:true};
+  }
+  function snapshot() {
+    events = events.slice(-128);
+    return {spawnId:room.spawnId,revision:++revision,serverTime:clock,
+      players:[...states.values()].filter(s=>room.players.has(s.id)).map(s=>({id:s.id,hp:s.hp,maxHp:s.maxHp,
+        ammo:s.ammo,maxAmmo:s.maxAmmo,isDead:s.dead,isReloading:!!s.reloadUntil,reloadTimer:remaining(s.reloadUntil,clock),
+        rifleCooldown:remaining(s.fireUntil,clock),bowCooldown:remaining(s.fireUntil,clock),
+        slashTimer:remaining(s.F,clock),battleMedicineCooldownRemaining:remaining(s.Q,clock),grenadeCooldownRemaining:remaining(s.G,clock),
+        battleMedicineUseTimer:remaining(s.medicineUntil,clock),battleMedicineBuffTimer:remaining(s.regenUntil,clock),
+        adrenalineTimer:remaining(s.adrenalineUntil,clock),hunterMarkTimer:remaining(s.markUntil,clock),markId:s.markId,
+        rifleShotAnimationTimer:remaining(s.shotUntil,clock),rifleShotAngle:s.shotAngle,
+        sprintTimer:remaining(s.sprintUntil,clock),sprintCooldownRemaining:remaining(s.Shift,clock),
+        dashTimer:remaining(s.dashUntil,clock),dashCooldownRemaining:remaining(s.dash,clock),
+        hasRifle:!!weapons[room.players.get(s.id).selectedCharacter]?.ammo,
+        hasBow:room.players.get(s.id).selectedCharacter==='archer',hasAxe:false,sequence:s.sequence})),
+      projectiles:projectiles.filter(p=>p.startsAt<=clock).map(p=>({id:p.id,ownerId:p.ownerId,worldId:p.worldId,x:p.x,y:p.y,
+        angle:p.angle,radius:p.radius,style:p.style,armorPenetration:p.penetration || 0})),
+      effects:effects.map(e=>({...e,ttl:remaining(e.until,clock)})),
+      deployables:deployables.map(d=>({id:d.id,ownerId:d.ownerId,worldId:d.worldId,x:d.x,y:d.y,kind:d.kind,angle:d.angle,
+        ttl:Number.isFinite(d.until)?remaining(d.until,clock):0})), events:events.map(event => ({...event}))};
+  }
+  function remove(id) {
+    states.delete(id); projectiles=projectiles.filter(p=>p.ownerId!==id); effects=effects.filter(e=>e.ownerId!==id);deployables=deployables.filter(d=>d.ownerId!==id);
+  }
+  return {act,advance,snapshot,remove,isDead:id=>states.get(id)?.dead || false};
+}
+module.exports={createCombat, weapons, segmentHit};

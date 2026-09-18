@@ -1,3 +1,4 @@
+import { combatSession } from './modules/combat-session.js';
 import { clamp, distance } from "./modules/math.js";
 import { getPlayerWorldId } from "./modules/multiplayer.js";
 import {
@@ -1028,7 +1029,7 @@ function createRenderingSystem(services) {
             ? runningFrameName
             : "soldierIdle";
     const shootingAngle = isRifleShooting
-      ? (hero === localHero ? Math.atan2(mouse.worldY - hero.y, mouse.worldX - hero.x) : hero.aimAngle)
+      ? (combatSession.active ? hero.rifleShotAngle : hero === localHero ? Math.atan2(mouse.worldY - hero.y, mouse.worldX - hero.x) : hero.aimAngle)
       : isSemiAutoShooting
         ? hero.rifleShotAngle
         : hero.facingAngle;
@@ -1104,7 +1105,7 @@ function createRenderingSystem(services) {
       return;
     }
 
-    const isShooting = (hero.hasBow && (hero === localHero ? mouse.leftDown : hero.bowShooting)) || hero.abilityEffect?.effect === "projectile";
+    const isShooting = (hero.hasBow && (combatSession.active ? hero.rifleShotAnimationTimer > 0 : hero === localHero ? mouse.leftDown : hero.bowShooting)) || hero.abilityEffect?.effect === "projectile";
     const image = isShooting
       ? archerShootingImage
       : hero.isMoving
@@ -1720,14 +1721,22 @@ function createRenderingSystem(services) {
       const actions = multiplayer.getActionState(remote.id);
       const subject = { ...remote.spawnPosition, radius: 18, facingAngle: 0,
         hasAxe: false, hasRifle: false, isMoving: false, runAnimationTimer: 0, ...movement, ...actions, selectedClass: remote.selectedCharacter };
+      const combat = combatSession.active && combatSession.player(remote.id);
+      if (combat) Object.assign(subject, combat, {abilityEffect:null, rifleFireMode:'automatic',
+        rifleShooting:combat.rifleShotAnimationTimer>0, bowShooting:combat.rifleShotAnimationTimer>0,
+        aimAngle:combat.rifleShotAngle});
+      if (combat?.isDead) { subject.isMoving = false; subject.rifleShooting = false; }
       const character = runtime.CHARACTER_OPTIONS[remote.selectedCharacter];
+      ctx.save();
+      if (combat?.isDead) ctx.globalAlpha = 0.35;
       if (remote.selectedCharacter === 'engineer') services.drawEngineerHero(subject);
       else if (remote.selectedCharacter === 'bountyHunter') services.drawBountyHunter(subject);
       else if (remote.selectedCharacter === 'stickman') drawHeroStickFigure(subject);
       else if (remote.selectedCharacter === 'soldier') drawSoldierHero(subject);
       else if (remote.selectedCharacter === 'archer') drawArcherHero(subject);
       else drawEntityCircle(subject, COLORS.hero, COLORS.heroAccent);
-      if (actions) {
+      ctx.restore();
+      if (actions && !combatSession.active) {
         drawSlashArc(subject);
         drawHeroProjectiles(actions.projectiles);
         drawHeroGrenades(actions.grenades);
@@ -1735,8 +1744,35 @@ function createRenderingSystem(services) {
         services.drawEngineerDeployables(actions.deployables);
         services.drawBountyEffects(subject, actions.markTarget);
       }
+      if (combat) drawHealthBar(subject.x, subject.y - 34, 60, combat.hp / combat.maxHp);
+      if (combat?.isDead) drawNameplate(subject.x, subject.y - 58, "DEAD", "rgba(70, 20, 20, 0.9)");
       drawNameplate(subject.x, subject.y - 82, `${remote.name} · ${character?.name || remote.selectedCharacter}`, 'rgba(25, 47, 70, 0.9)');
     }
+  }
+
+  function drawServerCombat() {
+    if (!combatSession.active || !combatSession.snapshot) return;
+    const snapshot = combatSession.snapshot, worldId = getPlayerWorldId(player);
+    const visible = item => item.worldId === worldId;
+    for (const p of snapshot.projectiles.filter(visible)) {
+      if (p.style === 'grenade') {
+        ctx.fillStyle = '#61726d'; ctx.beginPath(); ctx.arc(p.x,p.y,p.radius,0,Math.PI*2); ctx.fill();
+      } else drawHeroProjectiles([p]);
+    }
+    services.drawEngineerDeployables(snapshot.deployables.filter(visible));
+    for (const e of snapshot.effects.filter(visible)) {
+      drawSlashArc({x:e.x,y:e.y,slashArcTimer:e.ttl,abilityEffect:e});
+    }
+    for (const state of snapshot.players) {
+      const record = multiplayer.players.get(state.id);
+      const position = record?.isLocal ? hero : multiplayer.getRenderState(state.id);
+      if (!position || (record?.isLocal ? worldId : position.worldId) !== worldId) continue;
+      const marked = multiplayer.players.get(state.markId);
+      const point = marked?.isLocal ? hero : marked && multiplayer.getRenderState(marked.id);
+      services.drawBountyEffects({...position,...state,selectedClass:record.selectedCharacter},
+        state.hunterMarkTimer > 0 && point ? {x:point.x,y:point.y,markerY:point.y-52} : null);
+    }
+    if (hero.isDead) drawNameplate(hero.x,hero.y-58,'DEAD · Leave the room to play again','rgba(70, 20, 20, 0.9)');
   }
 
   function render() {
@@ -1800,8 +1836,8 @@ function createRenderingSystem(services) {
         drawNameplate(hero.x, hero.y - 82, `${player.displayName} · You`, 'rgba(15, 33, 24, 0.9)');
       }
     }
-    services.drawEngineerDeployables();
-    services.drawBountyEffects();
+    drawServerCombat();
+    if (!combatSession.active) { services.drawEngineerDeployables(); services.drawBountyEffects(); }
     services.drawDodgeArenaBullets();
     drawHarvestProgress();
     drawSlashArc();

@@ -97,8 +97,8 @@ module.exports = async function checkSpawn(send, firstSession, url) {
     })()`);
     assert.equal((await inspect(firstSession)).game.x, first.game.x + 20);
     assert.deepEqual((await inspect(secondSession)).remote.spawnPosition, first.local.spawnPosition);
-    await require('./actions-browser.cjs')(evaluate, wait, firstSession, secondSession);
     await require('./movement-browser.cjs')(evaluate, wait, firstSession, secondSession);
+    await require('./actions-browser.cjs')(evaluate, wait, firstSession, secondSession);
     await send('Target.closeTarget', {targetId});
     secondClosed = true;
     await wait(firstSession, 'network.getRemotePlayers().length === 0');
@@ -106,5 +106,11 @@ module.exports = async function checkSpawn(send, firstSession, url) {
   } finally {
     await evaluate(firstSession, `(async () => {const network = await import('./network.js'); if (network.getRoom()) await network.leaveRoom();})()`);
     if (!secondClosed) await send('Target.closeTarget', {targetId});
+    const restored = await evaluate(firstSession, `(async () => {
+      const {combatSession}=await import('./modules/combat-session.js');
+      return {active:combatSession.active,alive:window.runGameChecks('hero.hp>0 && !hero.isDead')};
+    })()`);
+    assert.equal(restored.active,false);
+    assert.equal(restored.alive,true,'Leaving must restore single-player combat state');
   }
 };

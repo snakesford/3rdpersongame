@@ -1,3 +1,4 @@
+import { combatSession } from './modules/combat-session.js';
 import { clamp } from "./modules/math.js";
 import {
   dodgeArenaBullets,
@@ -24,6 +25,7 @@ import { getMovementInput } from "./inputs.js";
 // Cross-system actions are supplied by the coordinator; shared state is imported directly.
 function createPlayerSystem(services) {
   function getCharacterStatus() {
+    if (combatSession.active) return "Multiplayer combat. Leave the room to return to solo play.";
     if (player.inWaveWorld) return services.getWaveModeStatus();
     if (player.inVillageWorld) {
       const npc = services.getNearbyTutorialNpc();
@@ -138,6 +140,7 @@ function createPlayerSystem(services) {
 
   function updateHero(dt) {
     if (hero.isDead) {
+      if (combatSession.active) { hero.isMoving = false; return; }
       hero.deathTimer = Math.max(0, hero.deathTimer - dt);
       hero.isMoving = false;
       if (hero.deathTimer === 0) {
@@ -147,7 +150,7 @@ function createPlayerSystem(services) {
     }
 
     services.updatePlayerCombatTimers(dt);
-    const regenRate = getHeroRegen();
+    const regenRate = combatSession.active ? 0 : getHeroRegen();
     if (regenRate > 0 && hero.hp > 0 && hero.hp < hero.maxHp) {
       hero.regenProgress += regenRate * dt;
       const missingHp = hero.maxHp - hero.hp;

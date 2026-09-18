@@ -1,9 +1,16 @@
+import { combatSession } from './modules/combat-session.js';
 import { io } from "/socket.io/socket.io.esm.min.js";
 import { multiplayer } from "./modules/multiplayer.js";
 
 // One same-origin connection, independent of game state and the frame loop.
 const socket = io({ autoConnect: false });
 let room = null;
+let combatSpawn = null;
+let combatSequence = 0;
+const pendingCombat = new Set();
+socket.on('combat:state', state => {
+  if (room?.spawnId === state.spawnId) combatSession.update(state);
+});
 let actionSpawn = null;
 let actionSequence = 0;
 let lastActionSentAt = -Infinity;
@@ -25,10 +32,12 @@ socket.on("player:identity", ({ id }) => {
 socket.on("room:state", state => {
   room = state;
   multiplayer.setRoomPlayers(state?.players);
+  if (state?.combat) combatSession.update(state.combat);
 });
 socket.on("disconnect", () => {
   room = null;
   multiplayer.reset();
+  pendingCombat.clear();
 });
 
 export const getLocalPlayerId = () => multiplayer.localPlayerId;
@@ -37,7 +46,7 @@ export const getRemotePlayers = () => multiplayer.getRemotePlayers();
 export const getPlayers = () => multiplayer.players;
 
 export function getRoom() {
-  return room ? { ...room, players: room.players.map(player => ({ ...player,
+  return room ? { ...room, combat: room.combat ? structuredClone(room.combat) : null, players: room.players.map(player => ({ ...player,
     spawnPosition: player.spawnPosition ? { ...player.spawnPosition } : null,
     movement: player.movement ? { ...player.movement } : null,
     actions: player.actions ? structuredClone(player.actions) : null,
@@ -96,6 +105,22 @@ export function sendActions(state, now = performance.now()) {
   socket.emit('player:actions', {...state, spawnId: room.spawnId, sequence: ++actionSequence});
   lastActions = serialized;
   lastActionSentAt = now;
+  return true;
+}
+
+export const getCombatState = () => combatSession.snapshot ? structuredClone(combatSession.snapshot) : null;
+export function sendCombatAction(action) {
+  if (!socket.connected || !room?.spawnId || !getLocalPlayer()?.spawnPosition) return false;
+  if (combatSpawn !== room.spawnId) {
+    combatSpawn = room.spawnId; combatSequence = 0; pendingCombat.clear();
+  }
+  const key = action.kind + (action.slot || '');
+  if (pendingCombat.has(key)) return false;
+  const spawnId = room.spawnId;
+  pendingCombat.add(key);
+  socket.timeout(2000).emit('combat:action', {...action,spawnId,sequence:++combatSequence}, () => {
+    if (combatSpawn === spawnId) pendingCombat.delete(key);
+  });
   return true;
 }
 

@@ -1,3 +1,4 @@
+import { combatSession } from './modules/combat-session.js';
 import { hero, inventoryAbilityOrders, player, tutorialProfessionState } from "./modules/state.js";
 import { clamp } from "./modules/math.js";
 import {
@@ -118,6 +119,7 @@ function createProgressionSystem(services) {
   }
 
   function saveCharacterProgress() {
+    if (combatSession.active) return;
     if (!player.hasSelectedCharacter || !hero.selectedClass) return;
     try {
       localStorage.setItem(characterSaveKey(), JSON.stringify({version: 1, classId: hero.selectedClass,

@@ -1,3 +1,4 @@
+import { combatSession } from './modules/combat-session.js';
 import { createGameSystems } from "./modules/systems.js";
 import {
   buildings,
@@ -141,7 +142,25 @@ registerVehicleInventoryControls();
 
 registerUpgradeControls();
 
+export function applyCombatPlayer(state) {
+  Object.assign(hero, state);
+  // Multiplayer identity must never replace the single-player entity ID.
+  hero.id = localHeroEntityId;
+  if (hero.isDead) { hero.isMoving = false; hero.targetPos = null; }
+  updateStatsUI(); updateAbilityUI();
+}
+export function clearLocalCombatEffects() { systems.clearLocalCombatEffects(); }
+export function showCombatHit(event) {
+  systems.spawnTextPopup(event.x, event.y - 45, `${event.headshot ? 'HEADSHOT ' : ''}-${Math.ceil(event.damage)}`, 'rgba(255, 150, 120, 1)', 0.8);
+}
+const localHeroEntityId = hero.id;
 function update(dt) {
+  if (combatSession.active) {
+    if (!player.inventoryOpen) updateHero(dt);
+    updateCamera(dt); updateDamagePopups(dt);
+    updateStatsUI(); updateAbilityUI();
+    return;
+  }
   if (player.inventoryOpen) return;
   if (!player.hasSelectedCharacter || player.victory || player.loss) {
     return;
