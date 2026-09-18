@@ -199,6 +199,7 @@ const HUMVEE_WEAPONS = {
   howitzer50: { name: "50mm Howitzer Cannon", ammo: 15, damage: 600, width: 38, speed: 2400, radius: 200, interval: 3, range: 1600 },
 };
 let draggedHumveeWeapon = null;
+const SMART_MISSILE = { count: 6, damage: 150, blastRadius: 95, targetRange: 700, speed: 600, cooldown: 12, range: 1500 };
 const ROAD_SPEED_MULTIPLIER = 1.3;
 const MAIN_WORLD_TRADER_POSITION = { x: trader.x, y: trader.y };
 const tutorialNpcs = [];
@@ -1151,6 +1152,7 @@ function createBuilding(type, x, y, isPlayer, options = {}) {
     building.ammo = 300;
     building.maxAmmo = 300;
     building.gunCooldown = 0;
+    building.smartMissileCooldown = 0;
   }
   buildings.push(building);
   return building;
@@ -2329,6 +2331,15 @@ function updateAbilityUI() {
     chip.style.opacity = hero.vehicleId !== null ? "0.35" : "";
     chip.setAttribute("aria-disabled", String(hero.vehicleId !== null));
   });
+  const vehicle = getOccupiedHumvee();
+  const missileChip = document.getElementById("smartMissileAbility");
+  missileChip.classList.toggle("hidden", !vehicle);
+  missileChip.style.opacity = "";
+  missileChip.setAttribute("aria-disabled", String(!vehicle || vehicle.smartMissileCooldown > 0));
+  missileChip.classList.toggle("ready", Boolean(vehicle && vehicle.smartMissileCooldown <= 0));
+  missileChip.classList.toggle("cooldown", Boolean(vehicle && vehicle.smartMissileCooldown > 0));
+  document.getElementById("smartMissileCooldownText").textContent = vehicle?.smartMissileCooldown > 0
+    ? `${vehicle.smartMissileCooldown.toFixed(1)}s` : "Ready";
   const sprint = getOrderedInventoryAbilities().find((ability) => ability.name === "Sprint");
   const sprintChip = document.getElementById("sprintAbility");
   sprintChip.classList.toggle("hidden", !sprint);
@@ -2758,9 +2769,9 @@ function selectHumveeAbilitySlot(slot) {
   const details = document.getElementById("inventoryHumveeDetails");
   const title = document.createElement("h2");
   if (slot.dataset.humveeSlot !== "0") {
-    title.textContent = "Empty ability slot";
+    title.textContent = "Smart Missile";
     const description = document.createElement("p");
-    description.textContent = "No Humvee ability equipped.";
+    description.textContent = `Press Q while driving to launch ${SMART_MISSILE.count} homing missiles at the nearest target within ${SMART_MISSILE.targetRange} units. Each detonates for up to ${SMART_MISSILE.damage} area damage with fragmentation. With no target, missiles launch in random directions. ${SMART_MISSILE.cooldown}-second cooldown.`;
     details.replaceChildren(title, description);
     return;
   }
@@ -3625,6 +3636,61 @@ function crushHumveeTrees(vehicle) {
   }
 }
 
+function getSmartMissileTarget(origin, ownerId) {
+  const targets = [
+    ...enemies.filter((enemy) => enemy.hp > 0),
+    ...(enemyHero?.active && enemyHero.hp > 0 ? [enemyHero] : []),
+    ...buildings.filter((building) => building.id !== ownerId && !building.isPlayer && building.hp > 0
+      && ["enemyBase", "barracks"].includes(building.type)),
+    ...tutorialRangeTargets.filter((target) => !target.destroyed),
+  ];
+  let nearest = null;
+  let nearestDistance = SMART_MISSILE.targetRange;
+  for (const target of targets) {
+    const dist = distance(origin, getEntityTargetPoint(target));
+    if (dist <= nearestDistance) { nearest = target; nearestDistance = dist; }
+  }
+  return nearest;
+}
+
+function useSmartMissile() {
+  const vehicle = getOccupiedHumvee();
+  if (!vehicle || vehicle.hp <= 0 || hero.hp <= 0 || !player.hasSelectedCharacter
+    || isInterfacePanelOpen() || player.victory || player.loss || vehicle.smartMissileCooldown > 0) return false;
+  const origin = { x: vehicle.x + vehicle.w / 2, y: vehicle.y + vehicle.h * 0.2 };
+  const target = getSmartMissileTarget(origin, vehicle.id);
+  const point = target ? getEntityTargetPoint(target) : null;
+  const baseAngle = point ? Math.atan2(point.y - origin.y, point.x - origin.x) : Math.random() * Math.PI * 2;
+  for (let index = 0; index < SMART_MISSILE.count; index += 1) {
+    const angle = target ? baseAngle + (index - (SMART_MISSILE.count - 1) / 2) * 0.32
+      : baseAngle + index * Math.PI * 2 / SMART_MISSILE.count + (Math.random() - 0.5) * 0.3;
+    heroProjectiles.push({
+      x: origin.x, y: origin.y, angle, speed: SMART_MISSILE.speed, radius: 6,
+      width: 14, damage: SMART_MISSILE.damage, explosionRadius: SMART_MISSILE.blastRadius,
+      ownerId: vehicle.id, target, style: "smartMissile", traveled: 0,
+      maxDistance: SMART_MISSILE.range, active: true,
+    });
+  }
+  vehicle.smartMissileCooldown = SMART_MISSILE.cooldown;
+  updateAbilityUI();
+  statusTextEl.textContent = "Smart Missile: six missiles launched!";
+  return true;
+}
+
+function updateSmartMissile(projectile, dt) {
+  const target = projectile.target;
+  if (!target || target.hp <= 0 || target.destroyed || target.active === false) {
+    projectile.target = getSmartMissileTarget(projectile, projectile.ownerId);
+  }
+  if (projectile.target) {
+    const point = getEntityTargetPoint(projectile.target);
+    const desired = Math.atan2(point.y - projectile.y, point.x - projectile.x);
+    const difference = Math.atan2(Math.sin(desired - projectile.angle), Math.cos(desired - projectile.angle));
+    projectile.angle += distance(projectile, point) < 120 ? difference : clamp(difference, -5 * dt, 5 * dt);
+  }
+  updateHumveeShell(projectile, dt);
+}
+
 function getHumveeGrenadeTarget(vehicle, targetX, targetY) {
   const startX = vehicle.x + vehicle.w / 2;
   const startY = vehicle.y + vehicle.h * 0.2;
@@ -3680,6 +3746,7 @@ function updateHumveeDriving(dt) {
     return;
   }
   vehicle.gunCooldown = Math.max(0, vehicle.gunCooldown - dt);
+  vehicle.smartMissileCooldown = Math.max(0, vehicle.smartMissileCooldown - dt);
   if (!isInterfacePanelOpen() && !player.victory && !player.loss) {
     const dx = (keys.has("d") ? 1 : 0) - (keys.has("a") ? 1 : 0);
     const dy = (keys.has("s") ? 1 : 0) - (keys.has("w") ? 1 : 0);
@@ -5175,7 +5242,9 @@ function updateHumveeShell(projectile, dt) {
 
 function updateHeroProjectiles(dt) {
   for (let i = heroProjectiles.length - 1; i >= 0; i -= 1) {
-    if (heroProjectiles[i].explosionRadius) {
+    if (heroProjectiles[i].style === "smartMissile") {
+      updateSmartMissile(heroProjectiles[i], dt);
+    } else if (heroProjectiles[i].explosionRadius) {
       updateHumveeShell(heroProjectiles[i], dt);
     } else if (heroProjectiles[i].style === "arrow") {
       updateAbilityProjectile(heroProjectiles[i], dt);
@@ -7940,8 +8009,39 @@ function drawDodgeArenaBullets() {
   }
 }
 
+function drawSmartMissile(projectile) {
+  ctx.save();
+  ctx.translate(projectile.x, projectile.y);
+  ctx.rotate(projectile.angle);
+  ctx.fillStyle = "rgba(255, 165, 62, 0.75)";
+  ctx.beginPath();
+  ctx.moveTo(-11, -4);
+  ctx.lineTo(-30 - Math.random() * 8, 0);
+  ctx.lineTo(-11, 4);
+  ctx.fill();
+  ctx.fillStyle = "#b6c1bd";
+  ctx.fillRect(-11, -4, 20, 8);
+  ctx.fillStyle = "#e6ba6e";
+  ctx.beginPath();
+  ctx.moveTo(9, -4);
+  ctx.lineTo(17, 0);
+  ctx.lineTo(9, 4);
+  ctx.fill();
+  ctx.fillStyle = "#687d72";
+  ctx.beginPath();
+  ctx.moveTo(-5, 0);
+  ctx.lineTo(-13, -9);
+  ctx.lineTo(-13, 9);
+  ctx.fill();
+  ctx.restore();
+}
+
 function drawHeroProjectiles() {
   for (const projectile of heroProjectiles) {
+    if (projectile.style === "smartMissile") {
+      drawSmartMissile(projectile);
+      continue;
+    }
     if (projectile.style === "arrow") {
       drawArrowProjectile(projectile);
       continue;
@@ -8356,6 +8456,11 @@ window.addEventListener("keydown", (event) => {
     if (isPlayerBaseSelected()) {
       startBarracksPlacement();
     }
+    return;
+  }
+
+  if (key === "q" && hero.vehicleId !== null) {
+    if (!event.repeat) useSmartMissile();
     return;
   }
 

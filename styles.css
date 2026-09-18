@@ -1880,6 +1880,7 @@ button.hidden {
 .inventory-humvee-slot[data-position="top-left"] { grid-column: 2; grid-row: 1; }
 .inventory-humvee-slot[data-position="top-right"] { grid-column: 3; grid-row: 1; }
 .inventory-humvee-slot .inventory-ability-name { text-align: center; }
+.inventory-humvee-slot { position: relative; }
 
 .inventory-humvee-weapons {
   display: grid;
