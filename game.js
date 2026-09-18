@@ -6,6 +6,7 @@ import {
   bowImage,
   grenadeImage,
   humveeImage,
+  exhaustImage,
   skeletonImage,
   soldierIdleImage,
   soldierMedkitImage,
@@ -199,6 +200,8 @@ const HUMVEE_WEAPONS = {
   howitzer50: { name: "50mm Howitzer Cannon", ammo: 15, damage: 600, width: 38, speed: 2400, radius: 200, interval: 3, range: 1600 },
 };
 let draggedHumveeWeapon = null;
+const humveeExhaustParticles = [];
+let humveeExhaustTimer = 0;
 const SMART_MISSILE = { count: 6, damage: 150, blastRadius: 95, targetRange: 700, speed: 600, cooldown: 12, range: 1500 };
 const ROAD_SPEED_MULTIPLIER = 1.3;
 const MAIN_WORLD_TRADER_POSITION = { x: trader.x, y: trader.y };
@@ -640,6 +643,8 @@ function initializeEnemyForces() {
 }
 
 function clearWorldEntities() {
+  humveeExhaustParticles.length = 0;
+  humveeExhaustTimer = 0;
   trees.length = 0;
   stones.length = 0;
   buildings.length = 0;
@@ -3739,6 +3744,52 @@ function fireHumveeGun(targetX, targetY) {
   return true;
 }
 
+function updateHumveeExhaust(dt) {
+  for (let index = humveeExhaustParticles.length - 1; index >= 0; index -= 1) {
+    const particle = humveeExhaustParticles[index];
+    particle.ttl -= dt;
+    particle.x += particle.vx * dt;
+    particle.y += particle.vy * dt;
+    if (particle.ttl <= 0) humveeExhaustParticles.splice(index, 1);
+  }
+  const vehicle = getOccupiedHumvee();
+  if (!vehicle || vehicle.hp <= 0 || hero.hp <= 0) {
+    humveeExhaustTimer = 0;
+    return;
+  }
+  humveeExhaustTimer -= dt;
+  while (humveeExhaustTimer <= 0) {
+    const direction = vehicle.facingLeft ? 1 : -1;
+    humveeExhaustParticles.push({
+      x: vehicle.x + (vehicle.facingLeft ? vehicle.w + 2 : -2),
+      y: vehicle.y + vehicle.h * 0.78,
+      vx: direction * (26 + Math.random() * 18),
+      vy: -10 - Math.random() * 12,
+      size: 24 + Math.random() * 10,
+      angle: Math.random() * Math.PI * 2,
+      ttl: 1.2,
+      maxTtl: 1.2,
+    });
+    humveeExhaustTimer += 0.12;
+  }
+}
+
+function drawHumveeExhaust() {
+  if (!exhaustImage.complete || exhaustImage.naturalWidth === 0) return;
+  ctx.save();
+  for (const particle of humveeExhaustParticles) {
+    const progress = 1 - particle.ttl / particle.maxTtl;
+    const size = particle.size + progress * 38;
+    ctx.save();
+    ctx.globalAlpha = (1 - progress) * 0.55;
+    ctx.translate(particle.x, particle.y);
+    ctx.rotate(particle.angle);
+    ctx.drawImage(exhaustImage, -size / 2, -size / 2, size, size);
+    ctx.restore();
+  }
+  ctx.restore();
+}
+
 function updateHumveeDriving(dt) {
   const vehicle = getOccupiedHumvee();
   if (!vehicle || vehicle.hp <= 0 || hero.hp <= 0) {
@@ -6419,6 +6470,7 @@ function update(dt) {
   }
   updateCamera(dt);
   updateHero(dt);
+  updateHumveeExhaust(dt);
   updateGrenades(dt);
   if (!player.inTutorialWorld && !player.inVillageWorld) {
     updateDodgeArena(dt);
@@ -8210,6 +8262,7 @@ function render() {
 
   drawVillager();
 
+  drawHumveeExhaust();
   for (const building of buildings) {
     drawBuilding(building);
   }
@@ -8339,7 +8392,7 @@ window.addEventListener("keydown", (event) => {
 
   if (hero.vehicleId !== null && [" ", "h", "b", "x"].includes(key)) return;
 
-  const inventoryTabName = { "1": "equipment", "2": "abilities", "3": "items" }[key];
+  const inventoryTabName = { "1": "equipment", "2": "abilities", "3": "items", "4": getOccupiedHumvee() ? "humvee" : null }[key];
   if (inventoryTabName && !event.ctrlKey && !event.metaKey && !event.altKey &&
       (player.inventoryOpen || !isDialogueOpen())) {
     event.preventDefault();
