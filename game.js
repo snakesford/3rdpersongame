@@ -3716,7 +3716,7 @@ function canMoveHumvee(vehicle, x, y) {
     && y < rect.y + rect.h && y + vehicle.h > rect.y;
   if (buildings.some((other) => other !== vehicle && other.hp > 0 && overlapsRect(other))) return false;
   if (villageProps.some((prop) => prop.collidable && prop.shape === "rect" && overlapsRect(prop))) return false;
-  const circles = [...stones, ...villageProps.filter((prop) => prop.collidable && prop.shape !== "rect")];
+  const circles = villageProps.filter((prop) => prop.collidable && prop.shape !== "rect");
   if (circles.some((circle) => Math.hypot(circle.x - clamp(circle.x, x, x + vehicle.w),
     circle.y - clamp(circle.y, y, y + vehicle.h)) < circle.radius)) return false;
   return !villageFences.some((fence) => overlapsRect({
@@ -3906,6 +3906,34 @@ function drawHumveeExhaust() {
   ctx.restore();
 }
 
+function updateHumveeRockTilt(dt) {
+  for (const vehicle of buildings) {
+    if (vehicle.type !== "humvee") continue;
+    const angle = vehicle.driveAngle ?? (vehicle.facingLeft ? Math.PI : 0);
+    const dx = Math.cos(angle);
+    const dy = Math.sin(angle);
+    const centerX = vehicle.x + vehicle.w / 2;
+    const centerY = vehicle.y + vehicle.h / 2;
+    let targetTilt = 0;
+    let targetLift = 0;
+    for (const rock of stones) {
+      const closestX = clamp(rock.x, vehicle.x, vehicle.x + vehicle.w);
+      const closestY = clamp(rock.y, vehicle.y, vehicle.y + vehicle.h);
+      if (Math.hypot(rock.x - closestX, rock.y - closestY) >= rock.radius) continue;
+      const extent = rock.radius + Math.abs(dx) * vehicle.w / 2 + Math.abs(dy) * vehicle.h / 2;
+      const progress = clamp(((centerX - rock.x) * dx + (centerY - rock.y) * dy) / extent, -1, 1);
+      const lift = Math.cos(progress * Math.PI / 2) * Math.min(8, rock.radius * 0.3);
+      if (lift > targetLift) {
+        targetLift = lift;
+        targetTilt = Math.sin(progress * Math.PI) * 0.2 * (vehicle.facingLeft ? -1 : 1);
+      }
+    }
+    const smoothing = 1 - Math.exp(-12 * dt);
+    vehicle.rockTilt = (vehicle.rockTilt || 0) + (targetTilt - (vehicle.rockTilt || 0)) * smoothing;
+    vehicle.rockLift = (vehicle.rockLift || 0) + (targetLift - (vehicle.rockLift || 0)) * smoothing;
+  }
+}
+
 function updateHumveeDriving(dt) {
   const vehicle = getOccupiedHumvee();
   if (!vehicle || vehicle.hp <= 0 || hero.hp <= 0) {
@@ -3937,6 +3965,7 @@ function updateHumveeDriving(dt) {
       if (dx || dy) crushHumveeTrees(vehicle);
     }
     if (dx) vehicle.facingLeft = dx < 0;
+    if (dx || dy) vehicle.driveAngle = Math.atan2(dy, dx);
   }
   hero.x = vehicle.x + vehicle.w / 2;
   hero.y = vehicle.y + vehicle.h / 2;
@@ -3995,6 +4024,8 @@ function teleportHumvee(travel) {
   vehicle.x = arrival?.x ?? clamp(arrivalX, 0, WORLD.width - vehicle.w);
   vehicle.y = arrival?.y ?? clamp(arrivalY, 0, getWorldHeight() - vehicle.h);
   vehicle.portalCooldown = 1;
+  vehicle.rockTilt = 0;
+  vehicle.rockLift = 0;
   enterHumvee(vehicle);
   updateCamera(1);
   return true;
@@ -6797,6 +6828,7 @@ function update(dt) {
   updateHero(dt);
   updateTrainingAmmoStockpile();
   updateTrainingDriver(dt);
+  updateHumveeRockTilt(dt);
   updateHumveeExhaust(dt);
   updateHumveeTech(dt);
   updateGrenades(dt);
@@ -7972,6 +8004,11 @@ function drawBuilding(building) {
         const strength = building.recoilAmplitude * Math.max(0, 1 - elapsed / building.recoilDuration);
         ctx.translate(Math.cos(elapsed * 0.075) * strength, Math.sin(elapsed * 0.095) * strength * 0.75);
       }
+      const pivotX = building.x + building.w / 2;
+      const pivotY = building.y + building.h / 2;
+      ctx.translate(pivotX, pivotY - (building.rockLift || 0));
+      ctx.rotate(building.rockTilt || 0);
+      ctx.translate(-pivotX, -pivotY);
       ctx.translate(building.x + (building.facingLeft ? building.w : 0), building.y);
       if (building.facingLeft) ctx.scale(-1, 1);
       const spriteScale = Math.min(building.w / humveeImage.naturalWidth, building.h / humveeImage.naturalHeight);
