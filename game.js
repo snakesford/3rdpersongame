@@ -193,6 +193,12 @@ const SPRINT_SPEED_MULTIPLIER = 2.5;
 const INVENTORY_ABILITY_SLOT_POSITIONS = ["left-upper", "left-lower", "top-left", "top-right", "right-upper", "right-lower"];
 let draggedInventoryAbility = null;
 const BATTLE_MEDICINE_USE_DURATION = 0.9;
+const HUMVEE_WEAPONS = {
+  machineGun: { name: "Mounted Gun", ammo: 300, damage: 50, width: 30, speed: 720, radius: 0 },
+  grenade40: { name: "40mm Grenade Launcher", ammo: 75, damage: 120, width: 42, speed: 420, radius: 110, interval: 2, range: 850 },
+  howitzer50: { name: "50mm Howitzer Cannon", ammo: 15, damage: 600, width: 38, speed: 2400, radius: 200, interval: 3, range: 1600 },
+};
+let draggedHumveeWeapon = null;
 const ROAD_SPEED_MULTIPLIER = 1.3;
 const MAIN_WORLD_TRADER_POSITION = { x: trader.x, y: trader.y };
 const tutorialNpcs = [];
@@ -1140,6 +1146,8 @@ function createBuilding(type, x, y, isPlayer, options = {}) {
     selectable: options.selectable ?? true,
   };
   if (type === "humvee") {
+    building.mountedWeapon = "machineGun";
+    building.weaponAmmo = { machineGun: 300, grenade40: 75, howitzer50: 15 };
     building.ammo = 300;
     building.maxAmmo = 300;
     building.gunCooldown = 0;
@@ -2739,6 +2747,8 @@ function updateHumveeInventory() {
   }
   document.getElementById("inventoryHumveeHealth").textContent = `${Math.max(0, Math.ceil(vehicle.hp))} / ${vehicle.maxHp}`;
   document.getElementById("inventoryHumveeAmmo").textContent = `${vehicle.ammo} / ${vehicle.maxAmmo}`;
+  document.getElementById("inventoryHumveeArmor").textContent = String(vehicle.armor || 0);
+  document.querySelector("[data-humvee-slot] .inventory-ability-name").textContent = HUMVEE_WEAPONS[vehicle.mountedWeapon].name;
 }
 
 function selectHumveeAbilitySlot(slot) {
@@ -2746,18 +2756,63 @@ function selectHumveeAbilitySlot(slot) {
     entry.setAttribute("aria-pressed", String(entry === slot));
   });
   const details = document.getElementById("inventoryHumveeDetails");
-  const title = document.createElement("h3");
-  const description = document.createElement("p");
-  const gun = slot.dataset.humveeSlot === "0";
-  title.textContent = gun ? "Mounted Gun" : "Empty ability slot";
-  description.textContent = gun
-    ? `Hold left-click to fire. 50 base damage, ${calculateHeadshotDamage(50, buildProjectileHeadshotConfig("bullet").headshotMultiplier)} headshot damage before helmet protection. 300-round capacity. Fires at half the soldier's rate.`
-    : "No vehicle ability equipped in this slot.";
-  details.replaceChildren(title, description);
+  const title = document.createElement("h2");
+  title.textContent = "Mounted Weapons";
+  const weapons = document.createElement("ul");
+  weapons.className = "inventory-humvee-weapons";
+  const vehicle = getOccupiedHumvee();
+  for (const [id, config] of Object.entries(HUMVEE_WEAPONS)) {
+    if (id === vehicle.mountedWeapon) continue;
+    const weapon = document.createElement("li");
+    weapon.textContent = `${config.name} · ${vehicle.weaponAmmo[id]} rounds`;
+    weapon.draggable = true;
+    weapon.tabIndex = 0;
+    weapon.setAttribute("role", "button");
+    weapon.title = "Drag onto the mounted weapon slot, or click to equip";
+    weapon.addEventListener("dragstart", (event) => {
+      draggedHumveeWeapon = { id, vehicleId: vehicle.id };
+      event.dataTransfer.setData("text/plain", id);
+      event.dataTransfer.effectAllowed = "move";
+    });
+    weapon.addEventListener("dragend", () => { draggedHumveeWeapon = null; slot.classList.remove("ability-drop-ready"); });
+    weapon.addEventListener("click", () => equipHumveeWeapon(id));
+    weapon.addEventListener("keydown", (event) => {
+      if (event.key === "Enter" || event.key === " ") { event.preventDefault(); equipHumveeWeapon(id); }
+    });
+    weapons.appendChild(weapon);
+  }
+  details.replaceChildren(title, weapons);
+}
+
+function equipHumveeWeapon(id) {
+  const vehicle = getOccupiedHumvee();
+  if (!vehicle || !player.inventoryOpen || !HUMVEE_WEAPONS[id]) return;
+  vehicle.weaponAmmo[vehicle.mountedWeapon] = vehicle.ammo;
+  vehicle.mountedWeapon = id;
+  vehicle.ammo = vehicle.weaponAmmo[id];
+  vehicle.maxAmmo = HUMVEE_WEAPONS[id].ammo;
+  updateHumveeInventory();
+  selectHumveeAbilitySlot(document.querySelector("[data-humvee-slot]"));
 }
 
 document.querySelectorAll("[data-humvee-slot]").forEach((slot) => {
   slot.addEventListener("click", () => selectHumveeAbilitySlot(slot));
+  const canDrop = () => player.inventoryOpen && draggedHumveeWeapon
+    && getOccupiedHumvee()?.id === draggedHumveeWeapon.vehicleId;
+  slot.addEventListener("dragover", (event) => {
+    if (!canDrop()) return;
+    event.preventDefault();
+    event.dataTransfer.dropEffect = "move";
+    slot.classList.add("ability-drop-ready");
+  });
+  slot.addEventListener("dragleave", () => slot.classList.remove("ability-drop-ready"));
+  slot.addEventListener("drop", (event) => {
+    if (!canDrop()) return;
+    event.preventDefault();
+    equipHumveeWeapon(draggedHumveeWeapon.id);
+    draggedHumveeWeapon = null;
+    slot.classList.remove("ability-drop-ready");
+  });
 });
 
 function selectInventoryTab(tabName) {
@@ -2773,7 +2828,8 @@ function selectInventoryTab(tabName) {
   if (tabName === "abilities") updateInventoryAbilities();
   if (tabName === "humvee") {
     updateHumveeInventory();
-    selectHumveeAbilitySlot(document.querySelector('[data-humvee-slot="0"]'));
+    document.getElementById("inventoryHumveeDetails").replaceChildren();
+    document.querySelector('[data-humvee-slot="0"]').setAttribute("aria-pressed", "false");
   }
 }
 
@@ -3570,13 +3626,20 @@ function fireHumveeGun(targetX, targetY) {
   const y = vehicle.y + vehicle.h * 0.2;
   if (Math.hypot(targetX - x, targetY - y) < 1) return false;
   const angle = Math.atan2(targetY - y, targetX - x);
-  const projectile = spawnBurstProjectile({ baseAngle: angle, angleOffset: 0, range: getRifleRange() }, 50, 30);
+  const weapon = HUMVEE_WEAPONS[vehicle.mountedWeapon];
+  const range = weapon.radius ? Math.min(weapon.range, Math.hypot(targetX - x, targetY - y)) : getRifleRange();
+  const projectile = spawnBurstProjectile({ baseAngle: angle, angleOffset: 0, range }, weapon.damage, weapon.width);
+  projectile.speed = weapon.speed;
+  projectile.explosionRadius = weapon.radius;
+  projectile.ownerId = vehicle.id;
+  if (weapon.radius) projectile.canHeadshot = false;
   projectile.x = x;
   projectile.y = y;
   projectile.hitIds.add(vehicle.id);
   heroProjectiles.push(projectile);
   vehicle.ammo -= 1;
-  vehicle.gunCooldown = getRifleFireInterval() * 2;
+  vehicle.weaponAmmo[vehicle.mountedWeapon] = vehicle.ammo;
+  vehicle.gunCooldown = weapon.interval || getRifleFireInterval() * 2;
   return true;
 }
 
@@ -4528,7 +4591,7 @@ function damageEnemiesInRadius(damage, radius) {
   }
 }
 
-function damageEnemiesInRadiusFromPoint(centerX, centerY, damage, radius) {
+function damageEnemiesInRadiusFromPoint(centerX, centerY, damage, radius, ignoredId = null) {
   const center = { x: centerX, y: centerY };
   for (let i = enemies.length - 1; i >= 0; i -= 1) {
     const dist = distance(center, enemies[i]);
@@ -4545,7 +4608,7 @@ function damageEnemiesInRadiusFromPoint(centerX, centerY, damage, radius) {
     }
   }
   for (const building of buildings) {
-    if (!building.isPlayer) {
+    if (!building.isPlayer && building.id !== ignoredId) {
       const dist = distance(center, getEntityTargetPoint(building));
       if (dist <= radius + 24) {
         const scaledDamage = Math.max(10, Math.round(damage * (1 - dist / (radius + 24) * 0.5)));
@@ -4646,6 +4709,8 @@ function getClampedGrenadeTarget(targetX, targetY) {
 }
 
 function explodeGrenade(grenade) {
+  const radius = grenade.explosionRadius ?? SOLDIER_GRENADE_RADIUS;
+  const damage = grenade.damage ?? (SOLDIER_GRENADE_DAMAGE + player.weaponBonusDamage);
   const particles = [];
   const particleCount = 34;
   for (let index = 0; index < particleCount; index += 1) {
@@ -4653,7 +4718,7 @@ function explodeGrenade(grenade) {
     const distanceScale = 0.45 + Math.random() * 0.75;
     particles.push({
       angle,
-      targetRadius: SOLDIER_GRENADE_RADIUS * distanceScale,
+      targetRadius: radius * distanceScale,
       size: 1.4 + Math.random() * 2.8,
       drift: (Math.random() - 0.5) * 20,
       speedScale: 0.8 + Math.random() * 0.4,
@@ -4668,13 +4733,13 @@ function explodeGrenade(grenade) {
   grenadeShockwaves.push({
     x: grenade.targetX,
     y: grenade.targetY,
-    radius: SOLDIER_GRENADE_RADIUS,
+    radius,
     ttl: 0.22,
     maxTtl: 0.22,
     particles,
   });
-  damageEnemiesInRadiusFromPoint(grenade.targetX, grenade.targetY, SOLDIER_GRENADE_DAMAGE + player.weaponBonusDamage, SOLDIER_GRENADE_RADIUS);
-  destroyEnvironmentInRadius(grenade.targetX, grenade.targetY, SOLDIER_GRENADE_RADIUS);
+  damageEnemiesInRadiusFromPoint(grenade.targetX, grenade.targetY, damage, radius, grenade.ownerId);
+  destroyEnvironmentInRadius(grenade.targetX, grenade.targetY, radius);
   spawnTextPopup(grenade.targetX, grenade.targetY - 18, "BOOM", "rgba(255, 210, 138, 1)", 0.5);
 }
 
@@ -5054,9 +5119,35 @@ function updateAbilityProjectile(projectile, dt) {
   }
 }
 
+function updateHumveeShell(projectile, dt) {
+  const travel = Math.min(projectile.speed * dt, projectile.maxDistance - projectile.traveled);
+  const steps = Math.max(1, Math.ceil(travel / 6));
+  for (let step = 0; step < steps; step += 1) {
+    projectile.x += Math.cos(projectile.angle) * travel / steps;
+    projectile.y += Math.sin(projectile.angle) * travel / steps;
+    projectile.traveled += travel / steps;
+    const hitsCircle = (target) => distance(projectile, target) <= projectile.radius + target.radius;
+    const hit = trees.some(hitsCircle) || stones.some(hitsCircle)
+      || enemies.some((enemy) => enemy.hp > 0 && hitsCircle(enemy))
+      || (enemyHero.active && enemyHero.hp > 0 && hitsCircle(enemyHero))
+      || tutorialRangeTargets.some((target) => !target.destroyed && hitsCircle(target))
+      || buildings.some((building) => building.id !== projectile.ownerId && building.hp > 0
+        && intersectsBuilding(projectile, projectile.radius, building));
+    if (hit || projectile.traveled >= projectile.maxDistance - 0.001
+      || projectile.x < 0 || projectile.y < 0 || projectile.x > WORLD.width || projectile.y > getWorldHeight()) {
+      projectile.active = false;
+      explodeGrenade({ targetX: projectile.x, targetY: projectile.y, damage: projectile.damage,
+        explosionRadius: projectile.explosionRadius, ownerId: projectile.ownerId });
+      return;
+    }
+  }
+}
+
 function updateHeroProjectiles(dt) {
   for (let i = heroProjectiles.length - 1; i >= 0; i -= 1) {
-    if (heroProjectiles[i].style === "arrow") {
+    if (heroProjectiles[i].explosionRadius) {
+      updateHumveeShell(heroProjectiles[i], dt);
+    } else if (heroProjectiles[i].style === "arrow") {
       updateAbilityProjectile(heroProjectiles[i], dt);
     } else {
       updateBurstProjectile(heroProjectiles[i], dt);
@@ -5774,7 +5865,6 @@ function updateHero(dt) {
       spawnHeroBowShot(mouse.worldX, mouse.worldY);
     }
   }
-  updateGrenades(dt);
   if (hero.abilityEffect?.effect === "burst") {
     const pendingShots = hero.abilityEffect.pendingShots || [];
     const projectiles = hero.abilityEffect.projectiles || [];
@@ -6230,6 +6320,7 @@ function update(dt) {
   }
   updateCamera(dt);
   updateHero(dt);
+  updateGrenades(dt);
   if (!player.inTutorialWorld && !player.inVillageWorld) {
     updateDodgeArena(dt);
   }
