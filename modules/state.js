@@ -1,7 +1,4 @@
-import {
-  PLAYER_BASE_SPAWN,
-  QUEST_ID,
-} from "./constants.js";
+import { PLAYER_BASE_SPAWN, QUEST_ID, TUTORIAL_WORLD } from "./constants.js";
 
 const player = {
   displayName: "",
@@ -223,32 +220,101 @@ const pickups = [
   // },
 ];
 
+// Mutable references shared across systems; never copy these into individual modules.
+const runtime = {
+  CHARACTER_OPTIONS: {},
+  ENEMY_OPTIONS: {},
+  harvestTreeId: null,
+  playerBase: null,
+  enemyBase: null,
+  enemyHero: null,
+  lastSoldierAnimationName: null,
+  selectedInventoryAbilityName: null,
+  draggedInventoryAbility: null,
+  draggedHumveeWeapon: null,
+  draggedHumveeTech: null,
+  draggedBackpackHelmetIndex: null,
+  helmetSwapFeedbackTimeout: undefined,
+};
+
+const inventoryAbilityOrders = new Map();
+
+const humveeExhaustParticles = [];
+
+const tutorialPlots = [];
+
+const tutorialSites = [];
+
+const tutorialRangeTargets = [];
+
+const trainingAmmoStockpile = {
+  x: TUTORIAL_WORLD.spawnX + 300,
+  y: TUTORIAL_WORLD.spawnY + 10,
+  size: 96,
+  occupantId: null,
+};
+
+const waveMode = { wave: 0, timer: 0, completed: false };
+
+const shootingRangeTutorial = {
+  movingTargets: false,
+  state: "idle",
+  started: false,
+  completed: false,
+  hits: 0,
+  introSeen: false,
+};
+
+const enemyProjectiles = [];
+
+const forestEnemySpawners = [];
+
+const forestRespawnQueue = [];
+
+const engineerDeployables = [];
+
+const tutorialProfessionState = {};
+
 export {
   buildings,
   camera,
   damagePopups,
   dodgeArenaBullets,
   enemies,
+  enemyProjectiles,
+  engineerDeployables,
+  forestEnemySpawners,
+  forestRespawnQueue,
   grenadeAim,
   grenadeShockwaves,
   hero,
   heroGrenades,
   heroProjectiles,
+  humveeExhaustParticles,
   inventory,
+  inventoryAbilityOrders,
   keys,
   mouse,
   nextId,
   pickups,
   player,
   quest,
+  runtime,
+  shootingRangeTutorial,
   sparkEffects,
   stones,
   trader,
+  trainingAmmoStockpile,
   trees,
+  tutorialPlots,
+  tutorialProfessionState,
+  tutorialRangeTargets,
+  tutorialSites,
   units,
   villageFences,
   villageFields,
   villagePaths,
   villageProps,
   villager,
+  waveMode,
 };

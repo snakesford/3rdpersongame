@@ -1,25 +1,4 @@
-// Run with: node --experimental-vm-modules tests/npcs.cjs
-const fs = require('node:fs');
-const vm = require('node:vm');
-const assert = require('node:assert/strict');
-const noop = () => {};
-const canvasContext = new Proxy({measureText: text => ({width: text.length * 8})}, {get: (target, key) => target[key] ?? noop});
-function element() {
-  const classes = new Set(['hidden']);
-  return {style: {setProperty: noop}, dataset: {}, value: '', textContent: '', width: 240, height: 190,
-    classList: {add: x => classes.add(x), remove: x => classes.delete(x), contains: x => classes.has(x), toggle(x, force) {if (force) classes.add(x); else classes.delete(x);}},
-    querySelector: element, querySelectorAll: () => [], replaceChildren: noop, remove: noop, removeAttribute: noop, addEventListener(type, handler) { (this.listeners ??= {})[type] = handler; }, append: noop, appendChild: noop, focus: noop, setAttribute: noop,
-    getAttribute() {return this.src;}, getContext: () => canvasContext, getBoundingClientRect: () => ({left: 0, top: 0}),
-  };
-}
-const elements = new Map();
-const storage = new Map();
-const context = vm.createContext({console, assert, Math, Set, Map, setInterval: noop, ResizeObserver: class {observe() {}}, Image: class {},
-  window: {location: {protocol: "http:"}, innerWidth: 1200, innerHeight: 800, addEventListener: noop},
-  document: {getElementById(id) {if (!elements.has(id)) elements.set(id, element()); return elements.get(id);}, querySelectorAll: () => [], querySelector: element, createElement: element},
-  localStorage: {getItem: k => storage.get(k) || null, setItem: (k, v) => storage.set(k, v)}, requestAnimationFrame: noop,
-  fetch: async path => ({ok: true, json: async () => JSON.parse(fs.readFileSync(path, 'utf8'))}),
-});
+const {ready, run} = require('./harness.cjs');
 const npcChecks = `
 player.displayName = 'NpcTest';
 selectCharacter('soldier');
@@ -105,21 +84,4 @@ assert.equal(tutorialNpcs.length, 0);
 console.log('NPC module loading, dialogue, tasks, contracts, trader, instructor and driver tests passed.');
 `;
 
-const path = require('node:path');
-const modules = new Map();
-function loadModule(filename) {
-  filename = path.resolve(filename);
-  if (modules.has(filename)) return modules.get(filename);
-  let source = fs.readFileSync(filename, 'utf8');
-  if (filename === path.resolve('game.js')) {
-    source = source.replace(/initializeGame\(\);\s*$/, 'await initializeGame();') + '\n' + npcChecks;
-  }
-  const module = new vm.SourceTextModule(source, {context, identifier: filename});
-  modules.set(filename, module);
-  return module;
-}
-(async () => {
-  const game = loadModule('game.js');
-  await game.link((specifier, referencingModule) => loadModule(path.resolve(path.dirname(referencingModule.identifier), specifier)));
-  await game.evaluate();
-})().catch(error => { console.error(error); process.exitCode = 1; });
+ready.then(() => run(npcChecks)).catch(error => {console.error(error); process.exitCode = 1;});

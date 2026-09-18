@@ -24,17 +24,26 @@ const archerRunningImage = loadImage("./images/archer-running.png");
 const archerShootingImage = loadImage("./images/archer-shooting.png");
 const archerDeadImage = loadImage("./images/archer-dead.png");
 
+const bountyHunterSprite = new Image();
+
+const engineerSprite = new Image();
+
+bountyHunterSprite.src = "./images/bounty-hunter-sprite.png";
+engineerSprite.src = "./images/engineer-sprite.png";
+
 export {
   ammoStockpileImage,
   archerDeadImage,
   archerImage,
   archerRunningImage,
   archerShootingImage,
+  bountyHunterSprite,
   bowImage,
-  grenadeImage,
-  humveeImage,
+  engineerSprite,
   exhaustImage,
   fireImage,
+  grenadeImage,
+  humveeImage,
   skeletonImage,
   soldierIdleImage,
   soldierMedkitImage,

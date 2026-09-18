@@ -1,30 +1,9 @@
 const fs = require('node:fs');
-const vm = require('node:vm');
 const assert = require('node:assert/strict');
-const noop = () => {};
-const canvasContext = new Proxy({measureText: text => ({width: text.length * 8})}, {get: (target, key) => target[key] ?? noop});
-function element() {
-  const classes = new Set(['hidden']);
-  return {style: {setProperty: noop}, dataset: {}, value: '', textContent: '', width: 240, height: 190,
-    classList: {add: x => classes.add(x), remove: x => classes.delete(x), contains: x => classes.has(x), toggle(x, force) {if (force) classes.add(x); else classes.delete(x);}},
-    querySelector: element, querySelectorAll: () => [], replaceChildren: noop, remove: noop, removeAttribute: noop, addEventListener: noop, append: noop, appendChild: noop, focus: noop, setAttribute: noop,
-    getAttribute() {return this.src;}, getContext: () => canvasContext, getBoundingClientRect: () => ({left: 0, top: 0}),
-  };
-}
-const elements = new Map();
-const storage = new Map();
-const context = vm.createContext({console, assert, Math, Set, Map, setInterval: noop, ResizeObserver: class {observe() {}}, Image: class {},
-  window: {location: {protocol: "http:"}, innerWidth: 1200, innerHeight: 800, addEventListener: noop},
-  document: {getElementById(id) {if (!elements.has(id)) elements.set(id, element()); return elements.get(id);}, querySelectorAll: () => [], querySelector: element, createElement: element},
-  localStorage: {getItem: k => storage.get(k) || null, setItem: (k, v) => storage.set(k, v)}, requestAnimationFrame: noop,
-  fetch: async path => ({ok: true, json: async () => JSON.parse(fs.readFileSync(path, 'utf8'))}),
-});
-const paths = ['modules/constants.js','modules/assets.js','modules/dom.js','modules/state.js','inputs.js','npcs.js','game.js'];
-const source = paths.map(path => fs.readFileSync(path, 'utf8').replace(/import\s*\{[\s\S]*?\}\s*from\s*"[^"]+";/g, '').replace(/export\s*\{[\s\S]*?\};/g, '')).join('\n').replace(/initializeGame\(\);\s*$/, 'globalThis.ready = initializeGame();');
-vm.runInContext(source, context);
+const {ready, run} = require('./harness.cjs');
 (async () => {
- await context.ready;
- vm.runInContext(`
+ await ready;
+ run(`
  player.displayName = 'EngineerTest'; selectCharacter('engineer');
  assert.equal(hero.maxHp, 120); assert.equal(getBaseArmor(), 75); assert.equal(getHeroSpeed(), 225);
  assert.equal(getCurrentWeaponDetails().name, 'Heavy Nail Gun'); assert.equal(getRifleDamage(), 12);
@@ -35,7 +14,7 @@ vm.runInContext(source, context);
  assert.equal(INVENTORY_ABILITY_SLOT_LEVELS.join(','), '1,1,1,2,4,6');
  render(); update(0.016);
  clearWorldEntities(); hero.x = 500; hero.y = 500; hero.hp = 120;
- enemyHero.active = false; enemyHero.hp = 0;
+ runtime.enemyHero.active = false; runtime.enemyHero.hp = 0;
  const enemy = {id: nextId(), kind: 'test', x: 600, y: 500, radius: 18, hp: 300, maxHp: 300, xpReward: 10};
  enemies.push(enemy);
  assert.equal(useSlash(600, 500), true); assert.equal(hero.slashTimer, 2);
@@ -112,7 +91,7 @@ vm.runInContext(source, context);
  hero.grenadeCooldownRemaining = 0; placeAutoTurret(); selectCharacter('soldier');
  assert.equal(engineerDeployables.length, 0); assert.equal(getInventoryAbilities()[0].name, 'Burst Shot');
  selectCharacter('bountyHunter'); assert.equal(getInventoryAbilities()[0].name, 'Hunter’s Mark');
- `, context);
+ `);
  for (const path of ['engineer-portrait.png','engineer-sprite.png','bolt-shot.svg','repair-station.svg','auto-turret.svg','nail-gun.svg']) assert.ok(fs.existsSync('images/' + path));
  console.log('Engineer combat, deployables, armor, allies/vehicles, enemy AI, progression, save/load and UI smoke tests passed.');
 })().catch(error => {console.error(error); process.exitCode = 1;});

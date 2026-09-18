@@ -1,30 +1,9 @@
 const fs = require('node:fs');
-const vm = require('node:vm');
 const assert = require('node:assert/strict');
-const noop = () => {};
-const canvasContext = new Proxy({measureText: text => ({width: text.length * 8})}, {get: (target, key) => target[key] ?? noop});
-function element() {
-  const classes = new Set(['hidden']);
-  return {style: {setProperty: noop}, dataset: {}, value: '', textContent: '', width: 240, height: 190,
-    classList: {add: x => classes.add(x), remove: x => classes.delete(x), contains: x => classes.has(x), toggle(x, force) {if (force) classes.add(x); else classes.delete(x);}},
-    querySelector: element, querySelectorAll: () => [], replaceChildren: noop, remove: noop, removeAttribute: noop, addEventListener: noop, append: noop, appendChild: noop, focus: noop, setAttribute: noop,
-    getAttribute() {return this.src;}, getContext: () => canvasContext, getBoundingClientRect: () => ({left: 0, top: 0}),
-  };
-}
-const elements = new Map();
-const storage = new Map();
-const context = vm.createContext({console, assert, Math, Set, Map, setInterval: noop, ResizeObserver: class {observe() {}}, Image: class {},
-  window: {location: {protocol: "http:"}, innerWidth: 1200, innerHeight: 800, addEventListener: noop},
-  document: {getElementById(id) {if (!elements.has(id)) elements.set(id, element()); return elements.get(id);}, querySelectorAll: () => [], querySelector: element, createElement: element},
-  localStorage: {getItem: k => storage.get(k) || null, setItem: (k, v) => storage.set(k, v)}, requestAnimationFrame: noop,
-  fetch: async path => ({ok: true, json: async () => JSON.parse(fs.readFileSync(path, 'utf8'))}),
-});
-const paths = ['modules/constants.js','modules/assets.js','modules/dom.js','modules/state.js','inputs.js','npcs.js','game.js'];
-const source = paths.map(path => fs.readFileSync(path, 'utf8').replace(/import\s*\{[\s\S]*?\}\s*from\s*"[^"]+";/g, '').replace(/export\s*\{[\s\S]*?\};/g, '')).join('\n').replace(/initializeGame\(\);\s*$/, 'globalThis.ready = initializeGame();');
-vm.runInContext(source, context);
+const {ready, run} = require('./harness.cjs');
 (async () => {
- await context.ready;
- vm.runInContext(`
+ await ready;
+ run(`
  player.displayName = 'BountyTest';
  selectCharacter('bountyHunter');
  assert.equal(hero.hasRifle, true);
@@ -107,7 +86,7 @@ vm.runInContext(source, context);
  assert.equal(hero.adrenalineTimer, 0); assert.equal(hero.hunterMarkTimer, 0); assert.equal(hero.hasRifle, true);
  localStorage.setItem(characterSaveKey('bountyHunter'), '{broken');
  assert.equal(restoreCharacterProgress('bountyHunter'), false);
- `, context);
+ `);
  for (const name of ['bounty-hunter-portrait','bounty-hunter-sprite','hunters-mark','adrenaline-shot','explosive-bolt','trail-pistol']) {
    assert.ok(fs.readFileSync('images/' + name + '.svg', 'utf8').includes('<svg'));
  }
