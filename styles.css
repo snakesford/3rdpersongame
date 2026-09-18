@@ -1907,3 +1907,15 @@ button.hidden {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
 }
+
+.humvee-slot-label {
+  position: absolute;
+  top: 5px;
+  left: 0;
+  right: 0;
+  color: var(--muted);
+  font-size: 10px;
+  text-align: center;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}

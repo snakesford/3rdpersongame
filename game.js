@@ -2342,7 +2342,7 @@ function updateAbilityUI() {
     ? `${vehicle.smartMissileCooldown.toFixed(1)}s` : "Ready";
   const sprint = getOrderedInventoryAbilities().find((ability) => ability.name === "Sprint");
   const sprintChip = document.getElementById("sprintAbility");
-  sprintChip.classList.toggle("hidden", !sprint);
+  sprintChip.classList.toggle("hidden", Boolean(vehicle) || !sprint);
   sprintChip.classList.toggle("ready", hero.sprintCooldownRemaining <= 0);
   sprintChip.classList.toggle("cooldown", hero.sprintCooldownRemaining > 0);
   sprintChip.querySelector(".ability-icon").textContent = sprint?.key || "";
@@ -2359,7 +2359,7 @@ function updateAbilityUI() {
     if (keyLabel) document.querySelector(keyLabel).textContent = ability.key;
   }
   const selectedAbilityName = hero.selectedClass ? CHARACTER_OPTIONS[hero.selectedClass].abilityName : "";
-  const showSlashAbility = Boolean(selectedAbilityName);
+  const showSlashAbility = !vehicle && Boolean(selectedAbilityName);
   const ready = hero.slashTimer <= 0;
   abilityNameEl.textContent = selectedAbilityName || "Choose Class";
   slashAbilityEl.classList.toggle("hidden", !showSlashAbility);
@@ -2369,7 +2369,7 @@ function updateAbilityUI() {
     ? (ready ? "Ready" : `${hero.slashTimer.toFixed(1)}s`)
     : "Pick Hero";
 
-  const showBattleMedicine = hero.selectedClass === "soldier";
+  const showBattleMedicine = !vehicle && hero.selectedClass === "soldier";
   const battleMedicineReady = hero.battleMedicineCooldownRemaining <= 0;
   battleMedicineAbilityEl.classList.toggle("hidden", !showBattleMedicine);
   battleMedicineAbilityNameEl.textContent = hero.battleMedicineBuffTimer > 0 ? "Battle Medicine +" : "Battle Medicine";
@@ -2383,7 +2383,7 @@ function updateAbilityUI() {
         ? "Ready"
         : `${hero.battleMedicineCooldownRemaining.toFixed(1)}s`;
 
-  const showGrenade = hero.selectedClass === "soldier";
+  const showGrenade = !vehicle && hero.selectedClass === "soldier";
   const grenadeReady = hero.grenadeCooldownRemaining <= 0;
   grenadeAbilityEl.classList.toggle("hidden", !showGrenade);
   grenadeAbilityNameEl.textContent = "Grenade";
@@ -2395,7 +2395,7 @@ function updateAbilityUI() {
       ? "Ready"
       : `${hero.grenadeCooldownRemaining.toFixed(1)}s`;
 
-  const showDash = hero.selectedClass === "robot";
+  const showDash = !vehicle && hero.selectedClass === "robot";
   const dashReady = hero.dashCooldownRemaining <= 0;
   dashAbilityEl.classList.toggle("hidden", !showDash);
   dashAbilityNameEl.textContent = "Dash";
@@ -2758,7 +2758,7 @@ function updateHumveeInventory() {
   }
   document.getElementById("inventoryHumveeHealth").textContent = `${Math.max(0, Math.ceil(vehicle.hp))} / ${vehicle.maxHp}`;
   document.getElementById("inventoryHumveeAmmo").textContent = `${vehicle.ammo} / ${vehicle.maxAmmo}`;
-  document.getElementById("inventoryHumveeArmor").textContent = String(vehicle.armor || 0);
+  document.getElementById("inventoryHumveeDamage").textContent = String(HUMVEE_WEAPONS[vehicle.mountedWeapon].damage);
   document.querySelector("[data-humvee-slot] .inventory-ability-name").textContent = HUMVEE_WEAPONS[vehicle.mountedWeapon].name;
 }
 
@@ -2769,13 +2769,13 @@ function selectHumveeAbilitySlot(slot) {
   const details = document.getElementById("inventoryHumveeDetails");
   const title = document.createElement("h2");
   if (slot.dataset.humveeSlot !== "0") {
-    title.textContent = "Smart Missile";
+    title.textContent = "Secondary — Smart Missile";
     const description = document.createElement("p");
-    description.textContent = `Press Q while driving to launch ${SMART_MISSILE.count} homing missiles at the nearest target within ${SMART_MISSILE.targetRange} units. Each detonates for up to ${SMART_MISSILE.damage} area damage with fragmentation. With no target, missiles launch in random directions. ${SMART_MISSILE.cooldown}-second cooldown.`;
+    description.textContent = `Press F while driving to launch ${SMART_MISSILE.count} homing missiles at the nearest target within ${SMART_MISSILE.targetRange} units. Each detonates for up to ${SMART_MISSILE.damage} area damage with fragmentation. With no target, missiles launch in random directions. ${SMART_MISSILE.cooldown}-second cooldown.`;
     details.replaceChildren(title, description);
     return;
   }
-  title.textContent = "Mounted Weapons";
+  title.textContent = "Primary Weapons";
   const weapons = document.createElement("ul");
   weapons.className = "inventory-humvee-weapons";
   const vehicle = getOccupiedHumvee();
@@ -2786,7 +2786,7 @@ function selectHumveeAbilitySlot(slot) {
     weapon.draggable = true;
     weapon.tabIndex = 0;
     weapon.setAttribute("role", "button");
-    weapon.title = "Drag onto the mounted weapon slot, or click to equip";
+    weapon.title = "Drag onto the Primary slot, or click to equip";
     weapon.addEventListener("dragstart", (event) => {
       draggedHumveeWeapon = { id, vehicleId: vehicle.id };
       event.dataTransfer.setData("text/plain", id);
@@ -8459,7 +8459,7 @@ window.addEventListener("keydown", (event) => {
     return;
   }
 
-  if (key === "q" && hero.vehicleId !== null) {
+  if (key === "f" && hero.vehicleId !== null) {
     if (!event.repeat) useSmartMissile();
     return;
   }
