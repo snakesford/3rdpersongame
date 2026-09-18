@@ -4957,7 +4957,7 @@ function explodeGrenade(grenade) {
   const radius = grenade.explosionRadius ?? SOLDIER_GRENADE_RADIUS;
   const damage = grenade.damage ?? (SOLDIER_GRENADE_DAMAGE + player.weaponBonusDamage);
   const particles = [];
-  const particleCount = 34;
+  const particleCount = grenade.particleCount ?? 34;
   for (let index = 0; index < particleCount; index += 1) {
     const angle = Math.random() * Math.PI * 2;
     const distanceScale = 0.45 + Math.random() * 0.75;
@@ -4979,8 +4979,9 @@ function explodeGrenade(grenade) {
     x: grenade.targetX,
     y: grenade.targetY,
     radius,
-    ttl: 0.22,
-    maxTtl: 0.22,
+    ttl: grenade.effectDuration ?? 0.22,
+    maxTtl: grenade.effectDuration ?? 0.22,
+    coreScale: grenade.coreScale ?? 1,
     particles,
   });
   damageEnemiesInRadiusFromPoint(grenade.targetX, grenade.targetY, damage, radius, grenade.ownerId);
@@ -6502,6 +6503,18 @@ function cleanupDestroyedBuildings() {
     }
     if (hero.vehicleId === building.id) exitHumvee();
     buildings.splice(i, 1);
+    if (building.type === "humvee") {
+      explodeGrenade({
+        targetX: building.x + building.w / 2,
+        targetY: building.y + building.h / 2,
+        damage: 200,
+        explosionRadius: 180,
+        particleCount: 70,
+        effectDuration: 0.65,
+        coreScale: 3,
+        ownerId: building.id,
+      });
+    }
     if (player.selectedBuildingId === building.id) {
       player.selectedBuildingId = null;
       updateTrainButton();
@@ -8058,7 +8071,7 @@ function drawGrenadeShockwaves() {
   for (const shockwave of grenadeShockwaves) {
     const progress = 1 - shockwave.ttl / shockwave.maxTtl;
     const alpha = 1 - progress;
-    const coreRadius = 8 + progress * 18;
+    const coreRadius = (8 + progress * 18) * (shockwave.coreScale || 1);
 
     ctx.beginPath();
     ctx.fillStyle = `rgba(255, 220, 132, ${alpha * 0.48})`;
