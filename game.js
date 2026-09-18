@@ -7,6 +7,7 @@ import {
   grenadeImage,
   humveeImage,
   exhaustImage,
+  fireImage,
   skeletonImage,
   soldierIdleImage,
   soldierMedkitImage,
@@ -7705,6 +7706,32 @@ function drawArcherHero() {
   ctx.restore();
 }
 
+function getHumveeFireCount(hp) {
+  return hp > 0 && hp < 400 ? Math.min(8, Math.ceil((400 - hp) / 50)) : 0;
+}
+
+function drawHumveeFire(vehicle) {
+  const count = getHumveeFireCount(vehicle.hp);
+  if (!count || !fireImage.complete || fireImage.naturalWidth === 0) return;
+  const anchors = [
+    [0.83, 0.66], [0.15, 0.72], [0.52, 0.78], [0.7, 0.52],
+    [0.3, 0.66], [0.94, 0.82], [0.05, 0.85], [0.46, 0.48],
+  ];
+  const intensity = (400 - vehicle.hp) / 400;
+  const time = lastTimestamp / 1000;
+  ctx.save();
+  for (let index = 0; index < count; index += 1) {
+    const [x, y] = anchors[index];
+    const flicker = Math.sin(time * 13 + index * 2.1);
+    const height = 25 + intensity * 20 + flicker * 3;
+    const width = height * fireImage.naturalWidth / fireImage.naturalHeight;
+    ctx.globalAlpha = 0.8 + Math.sin(time * 17 + index) * 0.15;
+    ctx.drawImage(fireImage, x * vehicle.w - width / 2 + flicker,
+      y * vehicle.h - height, width, height);
+  }
+  ctx.restore();
+}
+
 function drawBuilding(building) {
   if (building.type === "humvee") {
     ctx.save();
@@ -7727,6 +7754,7 @@ function drawBuilding(building) {
       ctx.translate(building.x + (building.facingLeft ? building.w : 0), building.y);
       if (building.facingLeft) ctx.scale(-1, 1);
       ctx.drawImage(humveeImage, 40, 128, 432, 256, 0, 0, building.w, building.h);
+      drawHumveeFire(building);
       ctx.restore();
     }
     drawHealthBar(building.x + building.w / 2, building.y - 18, 150, building.hp / building.maxHp);

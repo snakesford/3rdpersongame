@@ -17,6 +17,7 @@ const bowImage = loadImage("./images/bow.png");
 const grenadeImage = loadImage("./images/grenade.png");
 const humveeImage = loadImage("./images/humvee.png");
 const exhaustImage = loadImage("./images/exaust.png");
+const fireImage = loadImage("./images/fire.png");
 const archerImage = loadImage("./images/archer.png");
 const archerRunningImage = loadImage("./images/archer-running.png");
 const archerShootingImage = loadImage("./images/archer-shooting.png");
@@ -31,6 +32,7 @@ export {
   grenadeImage,
   humveeImage,
   exhaustImage,
+  fireImage,
   skeletonImage,
   soldierIdleImage,
   soldierMedkitImage,
