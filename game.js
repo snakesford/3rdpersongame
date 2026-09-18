@@ -3664,7 +3664,7 @@ function getOccupiedHumvee() {
 }
 
 function getNearbyHumvee() {
-  return buildings.find((building) => building.type === "humvee" && building.hp > 0 && !building.driverId
+  return buildings.find((building) => building.type === "humvee" && building.hp > 0
     && Math.hypot(hero.x - clamp(hero.x, building.x, building.x + building.w),
       hero.y - clamp(hero.y, building.y, building.y + building.h)) <= hero.radius + 36) || null;
 }
@@ -3683,7 +3683,16 @@ function exitHumvee() {
 }
 
 function enterHumvee(vehicle) {
-  if (!vehicle || vehicle.driverId || vehicle.hp <= 0 || hero.isDead || hero.hp <= 0) return;
+  if (!vehicle || vehicle.hp <= 0 || hero.isDead || hero.hp <= 0) return;
+  if (vehicle.driverId) {
+    if (trainingDriver?.id !== vehicle.driverId) return;
+    releaseDriverVehicle();
+    // Use the player's clear approach position as the Driver's exit point.
+    trainingDriver.x = hero.x;
+    trainingDriver.y = hero.y;
+    spawnTextPopup(trainingDriver.x, trainingDriver.y - 30, "Driver ejected",
+      "rgba(170, 225, 255, 1)", 1.2);
+  }
   cancelHarvest();
   cancelGrenadeAim();
   mouse.leftDown = false;
@@ -8506,7 +8515,7 @@ function drawModeHint() {
   const vehicle = getOccupiedHumvee() || getNearbyHumvee();
   if (vehicle && player.hasSelectedCharacter && !hero.isDead && !isInterfacePanelOpen()) {
     drawNameplate(vehicle.x + vehicle.w / 2, vehicle.y + vehicle.h + 24,
-      hero.vehicleId !== null ? "E · Exit" : "E", "rgba(15, 33, 24, 0.9)");
+      hero.vehicleId !== null ? "E · Exit" : vehicle.driverId ? "E · Take control" : "E", "rgba(15, 33, 24, 0.9)");
     return;
   }
   const nearbyTutorialNpc = getNearbyTutorialNpc();
