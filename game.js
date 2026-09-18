@@ -3839,6 +3839,7 @@ function fireHumveeWeapon(vehicle, targetX, targetY) {
     projectile.speed = weapon.speed;
     projectile.explosionRadius = weapon.radius;
     projectile.ownerId = vehicle.id;
+    projectile.damagesTrees = vehicle.mountedWeapon === "machineGun";
     if (weapon.radius) projectile.canHeadshot = false;
     projectile.x = x;
     projectile.y = y;
@@ -5266,6 +5267,15 @@ function updateBurstProjectile(projectile, dt) {
   for (const tree of trees) {
     if (intersectsTree(projectile, projectile.radius, tree)) {
       projectile.active = false;
+      if (projectile.damagesTrees) {
+        tree.mountedGunHitsRemaining ??= 3 + Math.floor(Math.random() * 4);
+        tree.mountedGunHitsRemaining -= 1;
+        if (tree.mountedGunHitsRemaining <= 0) {
+          if (harvestTreeId === tree.id) cancelHarvest();
+          trees.splice(trees.indexOf(tree), 1);
+          spawnTextPopup(tree.x, tree.y - tree.radius - 10, "Tree down", "rgba(201, 255, 184, 1)", 0.8);
+        }
+      }
       return;
     }
   }
