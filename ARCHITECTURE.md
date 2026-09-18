@@ -66,6 +66,39 @@ The HTTP integration follows the [Socket.IO server initialization documentation]
 
 ## Before gameplay synchronization
 
+### Multiplayer rooms
+
+The character selection screen includes Create game, Join game, a room code and
+player count, and Leave game. Codes are six uppercase letters/digits (excluding
+ambiguous characters); joining accepts lowercase and surrounding whitespace.
+`lobby.js` owns this UI and uses the room helpers exported by `network.js`:
+`createRoom()`, `joinRoom(code)`, `leaveRoom()`, `getRoom()`, and
+`sendRoomMessage(data)`. Requests return promises and reject with readable errors.
+
+`rooms.cjs` owns room membership on the server. Each connection can belong to one
+game, with at most two connections per game. The server handles `room:create`,
+`room:join`, and `room:leave` with `{ok, room}` or `{ok: false, error}` acknowledgments
+(leave returns only `{ok: true}`). It publishes `room:state` only to that game's
+members. State includes `code`, `players` (socket IDs), and `capacity`.
+
+`room:message` relays data only to the sender's peer, wrapped as
+`{senderId, data}`. Both identity and destination come from server membership;
+payload fields cannot select a destination or change the event name. There is no
+global broadcast or gameplay handler. This uses [Socket.IO room-scoped delivery](https://socket.io/docs/v4/rooms/).
+
+Rooms live in memory in one server process. Leaving or disconnecting releases a
+slot and updates the remaining member; the last departure deletes the room.
+There is no special host role, so the remaining player can keep using the code.
+Reconnecting starts outside a room and requires joining again. Restarting the
+server clears all rooms. Gameplay remains local and unsynchronized.
+
+`tests/rooms-browser.cjs`, run by `npm run test:browser`, checks the lobby controls,
+concurrent joins against the two-player limit, invalid/missing codes, single-room
+membership, cross-room isolation including forged destination/identity fields,
+and cleanup on leaving/disconnecting.
+
+### Remaining gameplay work
+
 - Simulation and UI remain coupled: damage, rewards, equipment and world transitions update DOM and local effects directly. Separate authoritative state changes from presentation events.
 - State is still a single local world. Player/hero references, shared collections and local storage need session/player ownership before supporting multiple players.
 - Combat, vehicles, buildings and world transitions still call one another through the registry. Narrow these interfaces into explicit actions and events before networking them.

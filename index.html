@@ -223,6 +223,18 @@
 
   <div id="characterSelect" class="start-screen">
     <div class="start-panel">
+      <section class="room-lobby" aria-labelledby="roomLobbyTitle">
+        <h3 id="roomLobbyTitle">Multiplayer · 2 players</h3>
+        <button id="createGameBtn" type="button">Create game</button>
+        <form id="joinGameForm">
+          <label for="roomCodeInput">Room code</label>
+          <input id="roomCodeInput" maxlength="6" placeholder="ABC234" autocomplete="off" autocapitalize="characters" spellcheck="false" required>
+          <button id="joinGameBtn" type="submit">Join game</button>
+        </form>
+        <p id="roomStatus" role="status" aria-live="polite">Connecting to server…</p>
+        <button id="leaveGameBtn" type="button" hidden>Leave game</button>
+        <p class="room-note">Room lobby only. Gameplay is not synchronized yet.</p>
+      </section>
       <div id="nameStep">
         <span class="start-kicker">Enter Your Name</span>
         <h2>Name your player before choosing a hero</h2>
@@ -374,6 +386,7 @@
   <div id="overlayMessage" class="overlay hidden"></div>
 
   <script type="module" src="network.js"></script>
+  <script type="module" src="lobby.js"></script>
   <script type="module" src="game.js"></script>
 </body>
 </html>

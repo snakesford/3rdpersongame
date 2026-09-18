@@ -1938,3 +1938,13 @@ button.hidden {
 }
 
 .inventory-humvee-slot[data-position="left-upper"] { grid-column: 1; grid-row: 2; }
+.room-lobby {
+  margin-bottom: 24px;
+  padding-bottom: 20px;
+  border-bottom: 1px solid var(--panel-border);
+}
+.room-lobby h3 { margin: 0 0 12px; }
+.room-lobby form { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-top: 12px; }
+.room-lobby input { width: 110px; padding: 10px; font: inherit; text-transform: uppercase; }
+.room-lobby button:disabled { opacity: 0.5; cursor: default; }
+.room-lobby .room-note { color: var(--muted); font-size: 12px; }

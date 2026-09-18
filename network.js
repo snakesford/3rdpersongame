@@ -2,6 +2,29 @@ import { io } from "/socket.io/socket.io.esm.min.js";
 
 // One same-origin connection, independent of game state and the frame loop.
 const socket = io({ autoConnect: false });
+let room = null;
+socket.on("room:state", state => { room = state; });
+socket.on("disconnect", () => { room = null; });
+
+export function getRoom() {
+  return room ? { ...room, players: [...room.players] } : null;
+}
+
+function request(event, payload = null) {
+  if (!socket.connected) return Promise.reject(new Error("Not connected to the server."));
+  return new Promise((resolve, reject) => {
+    socket.timeout(5000).emit(event, payload, (error, result) => {
+      if (error) return reject(new Error("Server did not respond. Please reconnect and try again."));
+      if (!result?.ok) return reject(new Error(result?.error || "Room request failed."));
+      resolve(result);
+    });
+  });
+}
+
+export const createRoom = () => request("room:create");
+export const joinRoom = code => request("room:join", { code });
+export const leaveRoom = () => request("room:leave");
+export const sendRoomMessage = data => request("room:message", data);
 
 export function connect() {
   socket.connect();

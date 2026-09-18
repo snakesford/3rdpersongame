@@ -2,6 +2,7 @@ const http = require("http");
 const fs = require("fs");
 const path = require("path");
 const { Server } = require("socket.io");
+const { attachRooms } = require("./rooms.cjs");
 
 const HOST = "127.0.0.1";
 const PORT = 4173;
@@ -48,6 +49,7 @@ function serveStatic(req, res) {
 function createGameServer(requestHandler = serveStatic) {
   const server = http.createServer(requestHandler);
   const io = new Server(server);
+  attachRooms(io);
 
   io.on("connection", socket => {
     console.log(`[network] Connected: ${socket.id}`);

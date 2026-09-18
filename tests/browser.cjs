@@ -117,6 +117,12 @@ function cleanup(code) {
   };
   await waitForDisconnect(firstId);
   console.log('Browser networking checks passed: connect, event round trip, disconnect, reconnect');
+  const roomChecks = require('./rooms-browser.cjs');
+  const roomResult = await send('Runtime.evaluate', {
+    expression: `(${roomChecks.toString()})()`, awaitPromise: true, returnByValue: true,
+  }, sessionId);
+  if (roomResult.exceptionDetails) throw new Error(JSON.stringify(roomResult.exceptionDetails));
+  console.log(roomResult.result.value);
   const checks = `
     player.displayName = 'BrowserTest';
     for (const classId of Object.keys(runtime.CHARACTER_OPTIONS)) {
