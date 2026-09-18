@@ -1919,3 +1919,5 @@ button.hidden {
   text-transform: uppercase;
   letter-spacing: 0.04em;
 }
+
+.inventory-humvee-slot[data-position="left-upper"] { grid-column: 1; grid-row: 2; }

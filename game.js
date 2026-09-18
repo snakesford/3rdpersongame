@@ -195,11 +195,16 @@ const INVENTORY_ABILITY_SLOT_POSITIONS = ["left-upper", "left-lower", "top-left"
 let draggedInventoryAbility = null;
 const BATTLE_MEDICINE_USE_DURATION = 0.9;
 const HUMVEE_WEAPONS = {
-  machineGun: { name: "Mounted Gun", ammo: 300, damage: 50, width: 30, speed: 720, radius: 0 },
+  machineGun: { name: "Mounted Gun", ammo: 300, damage: 50, width: 30, speed: 720, radius: 0, range: 1200 },
   grenade40: { name: "40mm Grenade Launcher", ammo: 75, damage: 120, width: 42, speed: 420, radius: 110, interval: 2, range: 850 },
   howitzer50: { name: "50mm Howitzer Cannon", ammo: 15, damage: 600, width: 38, speed: 2400, radius: 200, interval: 3, range: 1600 },
 };
 let draggedHumveeWeapon = null;
+let draggedHumveeTech = null;
+const HUMVEE_TECH = {
+  trophy: { name: "Trophy System", description: "40% chance to completely block each incoming attack." },
+  repair: { name: "Repair Kit", description: "Restores 10 HP per second after 5 seconds without taking damage." },
+};
 const humveeExhaustParticles = [];
 let humveeExhaustTimer = 0;
 const SMART_MISSILE = { count: 6, damage: 150, blastRadius: 95, targetRange: 700, speed: 600, cooldown: 12, range: 1500 };
@@ -1158,6 +1163,9 @@ function createBuilding(type, x, y, isPlayer, options = {}) {
     building.maxAmmo = 300;
     building.gunCooldown = 0;
     building.smartMissileCooldown = 0;
+    building.tech = null;
+    building.techActive = false;
+    building.repairDelay = 5;
   }
   buildings.push(building);
   return building;
@@ -2338,6 +2346,13 @@ function updateAbilityUI() {
   });
   const vehicle = getOccupiedHumvee();
   const missileChip = document.getElementById("smartMissileAbility");
+  const techChip = document.getElementById("humveeTechAbility");
+  techChip.classList.toggle("hidden", !vehicle?.tech);
+  techChip.style.opacity = "";
+  techChip.setAttribute("aria-disabled", String(!vehicle?.tech));
+  techChip.classList.toggle("ready", Boolean(vehicle?.techActive));
+  document.getElementById("humveeTechName").textContent = HUMVEE_TECH[vehicle?.tech]?.name || "Tech";
+  document.getElementById("humveeTechStatus").textContent = vehicle?.techActive ? "Active" : "Off · Press Q";
   missileChip.classList.toggle("hidden", !vehicle);
   missileChip.style.opacity = "";
   missileChip.setAttribute("aria-disabled", String(!vehicle || vehicle.smartMissileCooldown > 0));
@@ -2765,6 +2780,7 @@ function updateHumveeInventory() {
   document.getElementById("inventoryHumveeAmmo").textContent = `${vehicle.ammo} / ${vehicle.maxAmmo}`;
   document.getElementById("inventoryHumveeDamage").textContent = String(HUMVEE_WEAPONS[vehicle.mountedWeapon].damage);
   document.querySelector("[data-humvee-slot] .inventory-ability-name").textContent = HUMVEE_WEAPONS[vehicle.mountedWeapon].name;
+  document.querySelector('[data-humvee-slot="2"] .inventory-ability-name').textContent = HUMVEE_TECH[vehicle.tech]?.name || "Empty";
 }
 
 function selectHumveeAbilitySlot(slot) {
@@ -2773,6 +2789,34 @@ function selectHumveeAbilitySlot(slot) {
   });
   const details = document.getElementById("inventoryHumveeDetails");
   const title = document.createElement("h2");
+  if (slot.dataset.humveeSlot === "2") {
+    title.textContent = "Tech";
+    const options = document.createElement("ul");
+    options.className = "inventory-humvee-weapons";
+    const vehicle = getOccupiedHumvee();
+    for (const [id, tech] of Object.entries(HUMVEE_TECH)) {
+      const option = document.createElement("li");
+      option.textContent = `${tech.name}${vehicle.tech === id ? " (Equipped)" : ""} — ${tech.description} Press Q while driving to toggle on/off.`;
+      option.draggable = true;
+      option.tabIndex = 0;
+      option.setAttribute("role", "button");
+      option.setAttribute("aria-pressed", String(vehicle.tech === id));
+      option.title = "Drag onto the Tech slot, or click to equip";
+      option.addEventListener("dragstart", (event) => {
+        draggedHumveeTech = { id, vehicleId: vehicle.id };
+        event.dataTransfer.setData("text/plain", id);
+        event.dataTransfer.effectAllowed = "move";
+      });
+      option.addEventListener("dragend", () => { draggedHumveeTech = null; slot.classList.remove("ability-drop-ready"); });
+      option.addEventListener("click", () => equipHumveeTech(id));
+      option.addEventListener("keydown", (event) => {
+        if (event.key === "Enter" || event.key === " ") { event.preventDefault(); equipHumveeTech(id); }
+      });
+      options.appendChild(option);
+    }
+    details.replaceChildren(title, options);
+    return;
+  }
   if (slot.dataset.humveeSlot !== "0") {
     title.textContent = "Secondary — Smart Missile";
     const description = document.createElement("p");
@@ -2807,6 +2851,38 @@ function selectHumveeAbilitySlot(slot) {
   details.replaceChildren(title, weapons);
 }
 
+function equipHumveeTech(id) {
+  const vehicle = getOccupiedHumvee();
+  if (!vehicle || !player.inventoryOpen || !HUMVEE_TECH[id]) return;
+  if (vehicle.tech !== id) vehicle.techActive = false;
+  vehicle.tech = id;
+  updateHumveeInventory();
+  selectHumveeAbilitySlot(document.querySelector('[data-humvee-slot="2"]'));
+}
+
+function toggleHumveeTech() {
+  const vehicle = getOccupiedHumvee();
+  if (!vehicle?.tech || vehicle.hp <= 0 || hero.hp <= 0 || isInterfacePanelOpen()
+    || player.victory || player.loss) return false;
+  vehicle.techActive = !vehicle.techActive;
+  spawnTextPopup(vehicle.x + vehicle.w / 2, vehicle.y - 25,
+    `${HUMVEE_TECH[vehicle.tech].name}: ${vehicle.techActive ? "Active" : "Off"}`,
+    "rgba(156, 225, 255, 1)", 1.1);
+  updateAbilityUI();
+  return true;
+}
+
+function updateHumveeTech(dt) {
+  for (const vehicle of buildings) {
+    if (vehicle.type !== "humvee" || vehicle.hp <= 0) continue;
+    const repairTime = Math.max(0, dt - vehicle.repairDelay);
+    vehicle.repairDelay = Math.max(0, vehicle.repairDelay - dt);
+    if (vehicle.techActive && vehicle.tech === "repair" && repairTime > 0) {
+      vehicle.hp = Math.min(vehicle.maxHp, vehicle.hp + 10 * repairTime);
+    }
+  }
+}
+
 function equipHumveeWeapon(id) {
   const vehicle = getOccupiedHumvee();
   if (!vehicle || !player.inventoryOpen || !HUMVEE_WEAPONS[id]) return;
@@ -2820,8 +2896,11 @@ function equipHumveeWeapon(id) {
 
 document.querySelectorAll("[data-humvee-slot]").forEach((slot) => {
   slot.addEventListener("click", () => selectHumveeAbilitySlot(slot));
-  const canDrop = () => slot.dataset.humveeSlot === "0" && player.inventoryOpen && draggedHumveeWeapon
-    && getOccupiedHumvee()?.id === draggedHumveeWeapon.vehicleId;
+  const canDrop = () => {
+    const dragged = slot.dataset.humveeSlot === "2" ? draggedHumveeTech
+      : slot.dataset.humveeSlot === "0" ? draggedHumveeWeapon : null;
+    return player.inventoryOpen && dragged && getOccupiedHumvee()?.id === dragged.vehicleId;
+  };
   slot.addEventListener("dragover", (event) => {
     if (!canDrop()) return;
     event.preventDefault();
@@ -2832,8 +2911,10 @@ document.querySelectorAll("[data-humvee-slot]").forEach((slot) => {
   slot.addEventListener("drop", (event) => {
     if (!canDrop()) return;
     event.preventDefault();
-    equipHumveeWeapon(draggedHumveeWeapon.id);
+    if (slot.dataset.humveeSlot === "2") equipHumveeTech(draggedHumveeTech.id);
+    else equipHumveeWeapon(draggedHumveeWeapon.id);
     draggedHumveeWeapon = null;
+    draggedHumveeTech = null;
     slot.classList.remove("ability-drop-ready");
   });
 });
@@ -3727,7 +3808,7 @@ function fireHumveeGun(targetX, targetY) {
       explosionRadius: weapon.radius, ownerId: vehicle.id,
     });
   } else {
-    const range = weapon.radius ? Math.min(weapon.range, Math.hypot(targetX - x, targetY - y)) : getRifleRange();
+    const range = weapon.radius ? Math.min(weapon.range, Math.hypot(targetX - x, targetY - y)) : weapon.range;
     const projectile = spawnBurstProjectile({ baseAngle: angle, angleOffset: 0, range }, weapon.damage, weapon.width);
     projectile.speed = weapon.speed;
     projectile.explosionRadius = weapon.radius;
@@ -3741,6 +3822,12 @@ function fireHumveeGun(targetX, targetY) {
   vehicle.ammo -= 1;
   vehicle.weaponAmmo[vehicle.mountedWeapon] = vehicle.ammo;
   vehicle.gunCooldown = weapon.interval || getRifleFireInterval() * 2;
+  if (vehicle.mountedWeapon === "grenade40" || vehicle.mountedWeapon === "howitzer50") {
+    const heavyRecoil = vehicle.mountedWeapon === "howitzer50";
+    vehicle.recoilStartedAt = lastTimestamp;
+    vehicle.recoilDuration = heavyRecoil ? 450 : 250;
+    vehicle.recoilAmplitude = heavyRecoil ? 7 : 3;
+  }
   return true;
 }
 
@@ -4683,7 +4770,7 @@ function applyRangedProjectileHit(target, projectile) {
   }
 
   finalDamage = Math.max(1, Math.round(finalDamage));
-  dealDamage(target, finalDamage, true);
+  if (dealDamage(target, finalDamage, true) === false) return;
 
   if (isHeadshot) {
     const popupPoint = getDamagePopupPoint(target);
@@ -4693,6 +4780,15 @@ function applyRangedProjectileHit(target, projectile) {
 
 function dealDamage(target, amount, showPopup = false) {
   if (target === hero && getOccupiedHumvee()) target = getOccupiedHumvee();
+  if (target.type === "humvee" && amount > 0) {
+    if (target.hp <= 0) return false;
+    if (target.techActive && target.tech === "trophy" && Math.random() < 0.4) {
+      spawnTextPopup(target.x + target.w / 2, target.y - 25,
+        "Trophy System: Blocked!", "rgba(156, 225, 255, 1)", 1.1);
+      return false;
+    }
+    target.repairDelay = 5;
+  }
   target.hp -= amount;
   if (showPopup) {
     spawnDamagePopup(target, amount);
@@ -5197,6 +5293,11 @@ function updateBurstProjectile(projectile, dt) {
     }
   }
 
+  if (projectile.ownerId !== undefined) {
+    if (projectile.traveled >= projectile.maxDistance || projectile.x < 0 || projectile.y < 0
+      || projectile.x > WORLD.width || projectile.y > getWorldHeight()) projectile.active = false;
+    return;
+  }
   const offscreenMargin = 24;
   if (
     projectile.traveled >= projectile.maxDistance ||
@@ -6471,6 +6572,7 @@ function update(dt) {
   updateCamera(dt);
   updateHero(dt);
   updateHumveeExhaust(dt);
+  updateHumveeTech(dt);
   updateGrenades(dt);
   if (!player.inTutorialWorld && !player.inVillageWorld) {
     updateDodgeArena(dt);
@@ -7613,6 +7715,15 @@ function drawBuilding(building) {
     if (humveeImage.complete && humveeImage.naturalWidth > 0) {
       // Crop transparent margins so the visible vehicle fills its collision bounds.
       ctx.save();
+      if (hero.vehicleId === building.id && building.hp > 0) {
+        const vibrationTime = lastTimestamp / 1000;
+        ctx.translate(Math.sin(vibrationTime * 71) * 0.24, Math.sin(vibrationTime * 89) * 0.36);
+      }
+      if (building.recoilDuration) {
+        const elapsed = Math.max(0, lastTimestamp - building.recoilStartedAt);
+        const strength = building.recoilAmplitude * Math.max(0, 1 - elapsed / building.recoilDuration);
+        ctx.translate(Math.cos(elapsed * 0.075) * strength, Math.sin(elapsed * 0.095) * strength * 0.75);
+      }
       ctx.translate(building.x + (building.facingLeft ? building.w : 0), building.y);
       if (building.facingLeft) ctx.scale(-1, 1);
       ctx.drawImage(humveeImage, 40, 128, 432, 256, 0, 0, building.w, building.h);
@@ -8509,6 +8620,11 @@ window.addEventListener("keydown", (event) => {
     if (isPlayerBaseSelected()) {
       startBarracksPlacement();
     }
+    return;
+  }
+
+  if (key === "q" && hero.vehicleId !== null) {
+    if (!event.repeat) toggleHumveeTech();
     return;
   }
 
