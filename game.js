@@ -714,14 +714,61 @@ function buildProfessionProgressView(professionId) {
   const xpRequired = getProfessionXpRequired(state.level);
   const nextUnlock = getNextProfessionUnlock(professionId, state.reputation);
   return {
-    label: `${profession.label} XP Progress`,
+    label: professionId === "mercenary" ? "XP Progress" : `${profession.label} XP Progress`,
     value: `${state.xp}/${xpRequired} XP`,
     percent: clamp(state.xp / xpRequired, 0, 1),
-    reputationText: `${profession.label} Reputation ${state.reputation}`,
+    reputationText: `${professionId === "mercenary" ? "" : `${profession.label} `}Reputation ${state.reputation}`,
+    rankRewards: professionId === "mercenary" ? [
+      { rank: 1, gold: 30 },
+      { rank: 2, gold: 35 },
+      { rank: 3, ability: "Sprint" },
+    ] : null,
     unlockText: nextUnlock
       ? `Next unlock at Reputation ${nextUnlock.reputation}: ${nextUnlock.text}`
       : "Nothing is unlocked next.",
   };
+}
+
+function renderProfessionRewards(progressView) {
+  dialogueProgressUnlockEl.replaceChildren();
+  if (!progressView.rankRewards) {
+    dialogueProgressUnlockEl.textContent = progressView.unlockText;
+    return;
+  }
+
+  const heading = document.createElement("div");
+  heading.textContent = "Rank Rewards";
+  const rewards = document.createElement("div");
+  rewards.className = "profession-rewards";
+  for (const reward of progressView.rankRewards) {
+    const tile = document.createElement("div");
+    tile.className = "profession-reward";
+    const badge = document.createElement("span");
+    badge.className = "profession-reward-rank";
+    badge.textContent = `Rank ${reward.rank}`;
+    tile.appendChild(badge);
+
+    if (reward.gold !== undefined) {
+      const coin = document.createElement("img");
+      coin.className = "profession-reward-coin";
+      coin.src = "./images/coin.png";
+      coin.alt = "Gold";
+      const amount = document.createElement("span");
+      amount.className = "profession-reward-amount";
+      amount.textContent = String(reward.gold);
+      tile.append(coin, amount);
+    } else {
+      const ability = document.createElement("span");
+      ability.className = "profession-reward-ability";
+      ability.textContent = reward.ability;
+      const note = document.createElement("span");
+      note.className = "profession-reward-note";
+      note.textContent = "Coming soon";
+      tile.append(ability, note);
+    }
+    rewards.appendChild(tile);
+  }
+  dialogueProgressUnlockEl.append(heading, rewards);
 }
 
 function awardTutorialProfessionProgress(professionId, xp, reputation, rewardMessage) {
@@ -1613,7 +1660,7 @@ function openTutorialNpcMenu(npc, text = null, taskOffered = false, progressView
   const profession = TUTORIAL_PROFESSIONS[npc.professionId];
   const state = getTutorialProfessionState(npc.professionId);
   tutorialDialogue.npcId = npc.id;
-  tutorialDialogue.text = text || (!state.introSeen ? profession.intro : profession.workText);
+  tutorialDialogue.text = text ?? (!state.introSeen ? profession.intro : profession.workText);
   tutorialDialogue.progressView = progressView;
   tutorialDialogue.taskOffered = taskOffered;
   tutorialDialogue.options = buildTutorialDialogueOptions(npc);
@@ -1711,7 +1758,7 @@ function handleTutorialNpcOption(optionId) {
   if (optionId === "progress") {
     openTutorialNpcMenu(
       npc,
-      `Completed tasks ${state.completed}. Review your current standing below.`,
+      "",
       false,
       buildProfessionProgressView(npc.professionId)
     );
@@ -1796,7 +1843,9 @@ function updateDialogueUI() {
 
   if (tutorialDialogue.npcId) {
     const npc = getTutorialNpcById(tutorialDialogue.npcId);
-    dialogueSpeakerEl.textContent = npc?.name || "Guide";
+    dialogueSpeakerEl.textContent = npc?.professionId === "mercenary" && tutorialDialogue.progressView
+      ? "Progress"
+      : npc?.name || "Guide";
     dialogueTextEl.textContent = tutorialDialogue.text;
     if (npc?.kind === "shootingInstructor") {
       dialogueProgressEl.classList.add("hidden");
@@ -1820,7 +1869,7 @@ function updateDialogueUI() {
       dialogueProgressValueEl.textContent = tutorialDialogue.progressView.value;
       dialogueProgressFillEl.style.width = `${Math.round(tutorialDialogue.progressView.percent * 100)}%`;
       dialogueProgressReputationEl.textContent = tutorialDialogue.progressView.reputationText;
-      dialogueProgressUnlockEl.textContent = tutorialDialogue.progressView.unlockText;
+      renderProfessionRewards(tutorialDialogue.progressView);
       dialogueProgressEl.classList.remove("hidden");
     } else {
       dialogueProgressEl.classList.add("hidden");
