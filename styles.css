@@ -688,7 +688,7 @@ button.hidden {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding: 26px 4px 18px;
+  padding: 26px 4px 30px;
   border: 1px solid rgba(224, 183, 102, 0.4);
   border-radius: 8px;
   background: rgba(0, 0, 0, 0.25);
@@ -713,12 +713,24 @@ button.hidden {
 }
 
 .profession-reward-amount {
-  position: absolute;
-  right: 8px;
-  bottom: 5px;
   color: #f5d58e;
-  font-size: 18px;
+  font-size: 16px;
   font-weight: 700;
+}
+
+.profession-reward-gold {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.profession-reward-check {
+  position: absolute;
+  right: 3px;
+  bottom: 2px;
+  width: 28px;
+  height: 28px;
+  object-fit: contain;
 }
 
 .profession-reward-ability {

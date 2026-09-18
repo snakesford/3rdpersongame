@@ -321,6 +321,7 @@ const tutorialProfessionState = Object.fromEntries(
     {
       xp: 0,
       reputation: 1,
+      claimedRewardRanks: [],
       completed: 0,
       introSeen: false,
       activeTask: null,
@@ -722,11 +723,27 @@ function buildProfessionProgressView(professionId) {
       { rank: 1, gold: 30 },
       { rank: 2, gold: 35 },
       { rank: 3, ability: "Sprint" },
-    ] : null,
+    ].map((reward) => ({
+      ...reward,
+      unlocked: state.reputation > reward.rank,
+      claimed: state.claimedRewardRanks.includes(reward.rank),
+    })) : null,
     unlockText: nextUnlock
       ? `Next unlock at Reputation ${nextUnlock.reputation}: ${nextUnlock.text}`
       : "Nothing is unlocked next.",
   };
+}
+
+function awardMercenaryRankRewards() {
+  const state = getTutorialProfessionState("mercenary");
+  let goldAwarded = 0;
+  for (const reward of buildProfessionProgressView("mercenary").rankRewards) {
+    if (!reward.unlocked || state.claimedRewardRanks.includes(reward.rank)) continue;
+    state.claimedRewardRanks.push(reward.rank);
+    goldAwarded += reward.gold || 0;
+  }
+  player.money += goldAwarded;
+  if (goldAwarded > 0) updateInventoryUI();
 }
 
 function renderProfessionRewards(progressView) {
@@ -756,7 +773,10 @@ function renderProfessionRewards(progressView) {
       const amount = document.createElement("span");
       amount.className = "profession-reward-amount";
       amount.textContent = String(reward.gold);
-      tile.append(coin, amount);
+      const gold = document.createElement("span");
+      gold.className = "profession-reward-gold";
+      gold.append(coin, amount);
+      tile.appendChild(gold);
     } else {
       const ability = document.createElement("span");
       ability.className = "profession-reward-ability";
@@ -765,6 +785,13 @@ function renderProfessionRewards(progressView) {
       note.className = "profession-reward-note";
       note.textContent = reward.ability === "Sprint" ? "+150% speed" : "Coming soon";
       tile.append(ability, note);
+    }
+    if (reward.claimed) {
+      const check = document.createElement("img");
+      check.className = "profession-reward-check";
+      check.src = "./images/check-mark.png";
+      check.alt = "Claimed";
+      tile.appendChild(check);
     }
     rewards.appendChild(tile);
   }
@@ -782,10 +809,12 @@ function awardTutorialProfessionProgress(professionId, xp, rewardMessage) {
     state.reputation += 1;
   }
 
+  if (professionId === "mercenary") awardMercenaryRankRewards();
+
   if (rewardMessage) {
     statusTextEl.textContent = rewardMessage;
   }
-  if (professionId === "mercenary" && previousReputation < 3 && state.reputation >= 3) {
+  if (professionId === "mercenary" && previousReputation <= 3 && state.reputation > 3) {
     updateInventoryAbilities();
     updateAbilityUI();
     const popup = document.createElement("div");
@@ -794,7 +823,7 @@ function awardTutorialProfessionProgress(professionId, xp, rewardMessage) {
     const title = document.createElement("strong");
     title.textContent = "New ability unlocked: Sprint";
     const detail = document.createElement("span");
-    detail.textContent = "Mercenary Reputation 3 reached! Equip Sprint in your inventory for +150% movement speed.";
+    detail.textContent = "Mercenary Reputation 3 completed! Equip Sprint in your inventory for +150% movement speed.";
     popup.append(title, detail);
     document.body.appendChild(popup);
     setTimeout(() => popup.remove(), 6500);
@@ -2380,7 +2409,7 @@ function getInventoryAbilities() {
   if (hero.selectedClass === "robot") {
     abilities.push({ name: "Dash", key: "Shift", description: "Quickly dash in your movement direction.", cooldown: hero.dashCooldown, remaining: hero.dashCooldownRemaining });
   }
-  if (selected && getTutorialProfessionState("mercenary").reputation >= 3) {
+  if (selected && getTutorialProfessionState("mercenary").claimedRewardRanks.includes(3)) {
     abilities.push({ name: "Sprint", key: "Sprint", description: `Increase movement speed by 150% (2.5× normal speed) for ${SPRINT_DURATION} seconds.`, cooldown: SPRINT_COOLDOWN, remaining: hero.sprintCooldownRemaining });
   }
   return abilities;
@@ -8243,6 +8272,7 @@ function selectCharacter(classId) {
   heroGrenades.length = 0;
   grenadeShockwaves.length = 0;
   player.hasSelectedCharacter = true;
+  awardMercenaryRankRewards();
   characterSelectEl.classList.add("hidden");
   statusTextEl.textContent = classId === "soldier"
     ? `${selectedClass.name} selected. Walk near a tree and press E to harvest wood. Press F for Burst Shot and G for Grenade.`
