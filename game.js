@@ -3710,7 +3710,38 @@ function enterHumvee(vehicle) {
   statusTextEl.textContent = "Driving Humvee. WASD to move. E to exit. Abilities disabled.";
 }
 
-function canMoveHumvee(vehicle, x, y) {
+function getHumveeRamTargets() {
+  return [...enemies.filter((enemy) => enemy.hp > 0 && enemy.active !== false),
+    ...(enemyHero?.active && enemyHero.hp > 0 ? [enemyHero] : [])];
+}
+
+function humveeTargetDistance(vehicle, target, x = vehicle.x, y = vehicle.y) {
+  return Math.hypot(target.x - clamp(target.x, x, x + vehicle.w),
+    target.y - clamp(target.y, y, y + vehicle.h));
+}
+
+function moveHumveeWithRamming(vehicle, x, y) {
+  if (!canMoveHumvee(vehicle, x, y, true)) return;
+  vehicle.ramContacts ??= new Set();
+  let blocked = false;
+  for (const target of getHumveeRamTargets()) {
+    if (humveeTargetDistance(vehicle, target, x, y) >= target.radius) continue;
+    const boss = target.kind === "boss";
+    if (boss) blocked = true;
+    if (vehicle.ramContacts.has(target.id)) continue;
+    vehicle.ramContacts.add(target.id);
+    const damage = boss ? 150 : target.radius <= 20 ? target.hp : 200;
+    dealDamage(target, damage, true);
+    spawnTextPopup(target.x, target.y - target.radius - 18, boss ? "RAM HIT" : "RUN OVER",
+      "rgba(255, 210, 138, 1)", 0.8);
+  }
+  if (!blocked) {
+    vehicle.x = x;
+    vehicle.y = y;
+  }
+}
+
+function canMoveHumvee(vehicle, x, y, ignoreBosses = false) {
   if (x < 0 || y < 0 || x + vehicle.w > WORLD.width || y + vehicle.h > getWorldHeight()) return false;
   const overlapsRect = (rect) => x < rect.x + rect.w && x + vehicle.w > rect.x
     && y < rect.y + rect.h && y + vehicle.h > rect.y;
@@ -3719,6 +3750,8 @@ function canMoveHumvee(vehicle, x, y) {
   const circles = villageProps.filter((prop) => prop.collidable && prop.shape !== "rect");
   if (circles.some((circle) => Math.hypot(circle.x - clamp(circle.x, x, x + vehicle.w),
     circle.y - clamp(circle.y, y, y + vehicle.h)) < circle.radius)) return false;
+  if (!ignoreBosses && getHumveeRamTargets().some((target) => target.kind === "boss"
+    && humveeTargetDistance(vehicle, target, x, y) < target.radius)) return false;
   return !villageFences.some((fence) => overlapsRect({
     x: Math.min(fence.x1, fence.x2) - 3, y: Math.min(fence.y1, fence.y2) - 3,
     w: Math.abs(fence.x2 - fence.x1) + 6, h: Math.abs(fence.y2 - fence.y1) + 6,
@@ -3943,6 +3976,12 @@ function updateHumveeDriving(dt) {
   vehicle.gunCooldown = Math.max(0, vehicle.gunCooldown - dt);
   vehicle.smartMissileCooldown = Math.max(0, vehicle.smartMissileCooldown - dt);
   if (!isInterfacePanelOpen() && !player.victory && !player.loss) {
+    vehicle.ramContacts ??= new Set();
+    const ramTargets = getHumveeRamTargets();
+    for (const id of vehicle.ramContacts) {
+      const target = ramTargets.find((entry) => entry.id === id);
+      if (!target || humveeTargetDistance(vehicle, target) > target.radius + 12) vehicle.ramContacts.delete(id);
+    }
     const dx = (keys.has("d") ? 1 : 0) - (keys.has("a") ? 1 : 0);
     const dy = (keys.has("s") ? 1 : 0) - (keys.has("w") ? 1 : 0);
     const length = Math.hypot(dx, dy) || 1;
@@ -3955,13 +3994,9 @@ function updateHumveeDriving(dt) {
       const speedMultiplier = humveeOverlapsTree(vehicle)
         || humveeOverlapsTree(vehicle, vehicle.x + stepX, vehicle.y + stepY) ? 0.75 : 1;
       const nextX = vehicle.x + stepX * speedMultiplier;
-      if (nextX !== vehicle.x && canMoveHumvee(vehicle, nextX, vehicle.y)) {
-        vehicle.x = nextX;
-      }
+      if (nextX !== vehicle.x) moveHumveeWithRamming(vehicle, nextX, vehicle.y);
       const nextY = vehicle.y + stepY * speedMultiplier;
-      if (nextY !== vehicle.y && canMoveHumvee(vehicle, vehicle.x, nextY)) {
-        vehicle.y = nextY;
-      }
+      if (nextY !== vehicle.y) moveHumveeWithRamming(vehicle, vehicle.x, nextY);
       if (dx || dy) crushHumveeTrees(vehicle);
     }
     if (dx) vehicle.facingLeft = dx < 0;
