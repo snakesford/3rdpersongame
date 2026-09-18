@@ -19,7 +19,7 @@ const context = vm.createContext({console, assert, Math, Set, Map, setInterval: 
   localStorage: {getItem: k => storage.get(k) || null, setItem: (k, v) => storage.set(k, v)}, requestAnimationFrame: noop,
   fetch: async path => ({ok: true, json: async () => JSON.parse(fs.readFileSync(path, 'utf8'))}),
 });
-const paths = ['modules/constants.js','modules/assets.js','modules/dom.js','modules/state.js','inputs.js','game.js'];
+const paths = ['modules/constants.js','modules/assets.js','modules/dom.js','modules/state.js','inputs.js','npcs.js','game.js'];
 const source = paths.map(path => fs.readFileSync(path, 'utf8').replace(/import\s*\{[\s\S]*?\}\s*from\s*"[^"]+";/g, '').replace(/export\s*\{[\s\S]*?\};/g, '')).join('\n').replace(/initializeGame\(\);\s*$/, 'globalThis.ready = initializeGame();');
 vm.runInContext(source, context);
 (async () => {
