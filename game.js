@@ -2455,7 +2455,7 @@ function getInventoryAbilitySlots() {
     player.level >= level && abilities.some((ability) => ability.name === savedOrder[index])
       ? savedOrder[index] : null);
   for (const ability of abilities) {
-    if (slots.includes(ability.name)) continue;
+    if (ability.name === "Sprint" || slots.includes(ability.name)) continue;
     const empty = slots.findIndex((name, index) => !name && player.level >= INVENTORY_ABILITY_SLOT_LEVELS[index]);
     if (empty >= 0) slots[empty] = ability.name;
   }
