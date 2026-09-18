@@ -29,6 +29,18 @@ module.exports = async function checkPortals(evaluate, wait, first, second) {
     })()`);
     await wait(second, `network.getRemotePlayers()[0].movement.worldId === '${to}'`);
     assert.equal(await evaluate(first,"import('./modules/combat-session.js').then(m=>m.combatSession.active)"),true);
+    if (to === 'main') {
+      for (const session of [first,second]) await evaluate(session, `(async()=>{
+        const n=await import('./network.js'); window.enemySamples=[];
+        window.stopEnemySamples=n.on('combat:state',s=>window.enemySamples.push({revision:s.revision,enemies:s.enemies}));
+      })()`);
+      await wait(second,'window.enemySamples.length >= 3');
+      const samples=[];
+      for (const session of [first,second]) samples.push(await evaluate(session,'window.stopEnemySamples(); window.enemySamples'));
+      const common=samples[0].find(a=>samples[1].some(b=>b.revision===a.revision));
+      assert.ok(common?.enemies.length > 0,'Server spawns main-world enemies');
+      assert.deepEqual(common,samples[1].find(b=>b.revision===common.revision),'Both clients receive identical enemy state');
+    }
   }
   console.log('Keyboard teleporter round trips passed with normal collisions: village/main and village/training, synchronized in both browsers');
 };

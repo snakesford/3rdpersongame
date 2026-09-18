@@ -417,7 +417,7 @@ function createRenderingSystem(services) {
     minimapCtx.arc(toMapX(hero.x), toMapY(hero.y), 3.5, 0, Math.PI * 2);
     minimapCtx.fill();
 
-    if (runtime.enemyHero.active) {
+    if (!combatSession.active && runtime.enemyHero.active) {
       minimapCtx.fillStyle = "#ff7f7f";
       minimapCtx.beginPath();
       minimapCtx.arc(toMapX(runtime.enemyHero.x), toMapY(runtime.enemyHero.y), 3.5, 0, Math.PI * 2);
@@ -1767,8 +1767,9 @@ function createRenderingSystem(services) {
       const record = multiplayer.players.get(state.id);
       const position = record?.isLocal ? hero : multiplayer.getRenderState(state.id);
       if (!position || (record?.isLocal ? worldId : position.worldId) !== worldId) continue;
+      const markedEnemy = snapshot.enemies?.find(e => e.id === state.markId && !e.isDead && e.worldId === worldId);
       const marked = multiplayer.players.get(state.markId);
-      const point = marked?.isLocal ? hero : marked && multiplayer.getRenderState(marked.id);
+      const point = markedEnemy || (marked?.isLocal ? hero : marked && multiplayer.getRenderState(marked.id));
       services.drawBountyEffects({...position,...state,selectedClass:record.selectedCharacter},
         state.hunterMarkTimer > 0 && point ? {x:point.x,y:point.y,markerY:point.y-52} : null);
     }
@@ -1879,7 +1880,14 @@ function createRenderingSystem(services) {
       drawHealthBar(unit.x, unit.y - 28, 44, unit.hp / unit.maxHp);
     }
 
-    for (const unit of enemies) {
+    const visibleEnemies = combatSession.active
+      ? (combatSession.snapshot?.enemies || []).filter(e => e.worldId === getPlayerWorldId(player) && !e.isDead)
+      : enemies;
+    for (const unit of visibleEnemies) {
+      if (unit.isAttacking) {
+        ctx.strokeStyle = '#ffbd75'; ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.arc(unit.x, unit.y, unit.radius + 5, 0, Math.PI * 2); ctx.stroke();
+      }
       const isBoss = unit.kind === "boss";
       if (unit.kind === "skeleton" && skeletonImage.complete && skeletonImage.naturalWidth > 0) {
         const size = 42;
@@ -1916,7 +1924,7 @@ function createRenderingSystem(services) {
       }
     }
 
-    if (runtime.enemyHero.active) {
+    if (!combatSession.active && runtime.enemyHero.active) {
       drawEntityCircle(runtime.enemyHero, COLORS.enemy, runtime.enemyHero.equippedArmorValue >= 80 ? "#86db7e" : "#f2b0b0");
       drawHealthBar(runtime.enemyHero.x, runtime.enemyHero.y - 34, 60, runtime.enemyHero.hp / runtime.enemyHero.maxHp);
       drawNameplate(runtime.enemyHero.x, runtime.enemyHero.y - 50, runtime.enemyHero.displayName || DEFAULT_ENEMY_NAME, "rgba(56, 18, 18, 0.9)");

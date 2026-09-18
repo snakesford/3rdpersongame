@@ -1,4 +1,5 @@
 const {randomInt} = require('node:crypto');
+const {createEnemies} = require('./server-enemies.cjs');
 const characters = require('./character-options.json');
 
 // Multiplayer-only base loadouts. Single-player combat.js and its upgrade rules
@@ -23,6 +24,7 @@ function segmentHit(start, end, target, radius) {
 }
 function createCombat(room, {now = performance.now(), random = () => randomInt(0, 1000000)/1000000} = {}) {
   const states = new Map();
+  const enemies = createEnemies(room.spawnId);
   let clock = now, revision = 0, nextId = 0;
   let projectiles = [], effects = [], deployables = [], events = [];
   for (const player of room.players.values()) {
@@ -33,23 +35,25 @@ function createCombat(room, {now = performance.now(), random = () => randomInt(0
       shotUntil:0, shotAngle:0, medicineUntil:0, regenUntil:0, adrenalineUntil:0, markUntil:0, markId:null,
       sprintUntil:0, dashUntil:0});
   }
-  const targets = owner => [...room.players.values()].filter(p => p.id !== owner.id &&
-    states.get(p.id)?.hp > 0 && p.movement?.onFoot && p.movement.worldId === owner.movement.worldId);
+  const livingPlayers = () => [...room.players.values()].filter(p => states.get(p.id)?.hp > 0 && p.movement?.onFoot);
+  const targets = owner => (enemies.entities.has(owner.id) ? livingPlayers() :
+    [...livingPlayers(), ...enemies.entities.values()].filter(p => !p.dead))
+    .filter(p => p.id !== owner.id && p.movement.worldId === owner.movement.worldId);
   const effect = (owner, data, duration=220) => effects.push({id:++nextId, ownerId:owner.id,
     worldId:owner.movement.worldId, x:owner.movement.x, y:owner.movement.y, until:clock+duration, ...data});
   function damage(owner, target, amount, headshot=false, penetration=null) {
-    const state=states.get(target.id), source=states.get(owner.id);
+    const state=states.get(target.id) || enemies.entities.get(target.id), source=states.get(owner.id);
     if (!state || state.dead) return;
-    if (source.markUntil > clock && source.markId === target.id) amount *= 1.25;
+    if (source?.markUntil > clock && source.markId === target.id) amount *= 1.25;
     if (penetration !== null || target.selectedCharacter === 'engineer') {
-      amount *= 100/(100+characters[target.selectedCharacter].stats.armor*(1-(penetration || 0)));
+      amount *= 100/(100+(characters[target.selectedCharacter]?.stats.armor || 0)*(1-(penetration || 0)));
     }
     const dealt=Math.min(state.hp, Math.max(1, Math.round(amount)));
     state.hp=Math.max(0,state.hp-dealt);
     events.push({id:++nextId, type:'hit', sourceId:owner.id, targetId:target.id, damage:dealt,
       headshot, hp:state.hp, x:target.movement.x, y:target.movement.y});
     if (!state.hp) {
-      state.dead=true; state.reloadUntil=0;
+      state.dead=true; state.diedAt=clock; state.reloadUntil=0;
       state.medicineUntil=0; state.shotUntil=0; state.sprintUntil=0; state.dashUntil=0;
       events.push({id:++nextId,type:'death',sourceId:owner.id,targetId:target.id});
       // Cancel delayed casts and deployables, but already fired projectiles continue.
@@ -102,16 +106,22 @@ function createCombat(room, {now = performance.now(), random = () => randomInt(0
         }
       }
     }
+    enemies.update(clock, dt, livingPlayers(), (enemy,target,config,angle) => {
+      events.push({id:++nextId,type:'enemy:attack',sourceId:enemy.id,targetId:target.id});
+      if(config.attackStyle === 'ranged') projectile(enemy,angle,{damage:config.damage,
+        speed:config.projectileSpeed,radius:config.projectileRadius,range:config.attackRange+100,style:'arrow'});
+      else damage(enemy,target,config.damage);
+    });
     const survivors=[];
     for (const p of projectiles) {
-      const owner=room.players.get(p.ownerId);
+      const owner=room.players.get(p.ownerId) || enemies.entities.get(p.ownerId);
       if (!owner || owner.movement.worldId !== p.worldId || (states.get(owner.id)?.dead && p.startsAt > previous)) continue;
       if (p.startsAt > clock) {survivors.push(p); continue;}
       const travel=Math.min(p.range-p.traveled,p.speed*Math.max(0,clock-Math.max(previous,p.startsAt))/1000);
       const end={x:p.x+Math.cos(p.angle)*travel,y:p.y+Math.sin(p.angle)*travel};
       let hit=null, fraction=Infinity;
       if (p.style !== 'grenade') for (const target of targets(owner)) {
-        const t=segmentHit(p,end,target.movement,18+p.radius);
+        const t=segmentHit(p,end,target.movement,(target.radius || 18)+p.radius);
         if (t !== null && t < fraction) {hit=target; fraction=t;}
       }
       p.traveled+=travel;
@@ -164,7 +174,7 @@ function createCombat(room, {now = performance.now(), random = () => randomInt(0
             const distance=Math.hypot(t.movement.x-position.x,t.movement.y-position.y);
             return distance<=600 && Math.abs(normalize(Math.atan2(t.movement.y-position.y,t.movement.x-position.x)-angle))<=Math.atan2(30,distance);
           });
-          if (!target) return reject('Aim at a player within range.');
+          if (!target) return reject('Aim at a target within range.');
           state.markId=target.id; state.markUntil=clock+8000;
         } else if (config.effect === 'burst') {
           config.shotAnglesDegrees.forEach((degrees,index)=>projectile(owner,angle+degrees*Math.PI/180,
@@ -208,6 +218,7 @@ function createCombat(room, {now = performance.now(), random = () => randomInt(0
   function snapshot() {
     events = events.slice(-128);
     return {spawnId:room.spawnId,revision:++revision,serverTime:clock,
+      enemies:enemies.snapshot(clock),
       players:[...states.values()].filter(s=>room.players.has(s.id)).map(s=>({id:s.id,hp:s.hp,maxHp:s.maxHp,
         ammo:s.ammo,maxAmmo:s.maxAmmo,isDead:s.dead,isReloading:!!s.reloadUntil,reloadTimer:remaining(s.reloadUntil,clock),
         rifleCooldown:remaining(s.fireUntil,clock),bowCooldown:remaining(s.fireUntil,clock),
