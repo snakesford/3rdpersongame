@@ -225,9 +225,10 @@ function createCombat(room, {now = performance.now(), random = () => randomInt(0
       deployables:deployables.map(d=>({id:d.id,ownerId:d.ownerId,worldId:d.worldId,x:d.x,y:d.y,kind:d.kind,angle:d.angle,
         ttl:Number.isFinite(d.until)?remaining(d.until,clock):0})), events:events.map(event => ({...event}))};
   }
-  function remove(id) {
-    states.delete(id); projectiles=projectiles.filter(p=>p.ownerId!==id); effects=effects.filter(e=>e.ownerId!==id);deployables=deployables.filter(d=>d.ownerId!==id);
+  function travel(id) {
+    projectiles=projectiles.filter(p=>p.ownerId!==id); effects=effects.filter(e=>e.ownerId!==id);deployables=deployables.filter(d=>d.ownerId!==id);
   }
-  return {act,advance,snapshot,remove,isDead:id=>states.get(id)?.dead || false};
+  function remove(id) { states.delete(id); travel(id); }
+  return {act,advance,snapshot,remove,travel,isDead:id=>states.get(id)?.dead || false};
 }
 module.exports={createCombat, weapons, segmentHit};

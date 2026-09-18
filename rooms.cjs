@@ -2,6 +2,7 @@ const { randomInt, randomUUID } = require('node:crypto');
 
 const ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 const channel = code => `game:${code}`;
+const { isPortalTravel } = require('./portal-travel.cjs');
 const { createCombat } = require('./multiplayer-combat.cjs');
 const { sanitizeActions } = require('./action-protocol.cjs');
 const characters = require('./character-options.json');
@@ -129,18 +130,25 @@ function attachRooms(io) {
         return fail(ack, 'Invalid or stale movement.');
       }
       if (room.combat) {
-        if (worldId !== player.movement.worldId || !onFoot) return fail(ack, 'Multiplayer combat is on foot in the room world.');
+        if (!onFoot) return fail(ack, 'Multiplayer combat is on foot.');
+        if (worldId !== player.movement.worldId && !isPortalTravel(player.movement, {x,y,worldId})) {
+          return fail(ack, 'Use a teleporter to change worlds.');
+        }
         const motion = motionBudgets.get(player.id), now = performance.now();
         const speed = Math.max(680, characters[player.selectedCharacter].agility * 3);
         motion.budget = Math.min(150, motion.budget + (now - motion.at) / 1000 * speed);
         motion.at = now;
-        const distance = Math.hypot(x-player.movement.x, y-player.movement.y);
+        const traveling = worldId !== player.movement.worldId;
+        const distance = traveling ? 0 : Math.hypot(x-player.movement.x, y-player.movement.y);
+        if (traveling) { motion.budget = 80; room.combat.travel(player.id); }
         if (distance > motion.budget) return fail(ack, 'Movement is too fast.');
         motion.budget -= distance;
       }
       // Only movement fields are relayed; identity, room, and combat fields are ignored.
+      const traveling = worldId !== player.movement.worldId;
       player.movement = { x, y, worldId, facingAngle, lastMoveAngle, isMoving, onFoot, sequence, spawnId: room.spawnId };
-      socket.to(channel(room.code)).volatile.emit('player:movement', { id: player.id, ...player.movement });
+      const peers = socket.to(channel(room.code));
+      (traveling ? peers : peers.volatile).emit('player:movement', { id: player.id, ...player.movement });
       reply(ack, { ok: true });
     });
     socket.on('combat:action', (payload, ack) => {

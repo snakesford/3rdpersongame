@@ -20,6 +20,7 @@ socket.on('player:actions', actions => {
 });
 let movementSequence = 0;
 let movementSpawn = null;
+let movementWorld = null;
 let lastMovementSentAt = -Infinity;
 let lastMovement = '';
 socket.on('player:movement', movement => {
@@ -78,14 +79,18 @@ export function sendMovement(state, now = performance.now()) {
     movementSequence = 0;
     lastMovementSentAt = -Infinity;
     lastMovement = '';
+    movementWorld = null;
   }
-  if (now - lastMovementSentAt < 50) return false;
+  const traveling = movementWorld !== state.worldId;
+  if (!traveling && now - lastMovementSentAt < 50) return false;
   const {x, y, worldId, facingAngle, lastMoveAngle, isMoving, onFoot} = state;
   const movement = {x, y, worldId, facingAngle, lastMoveAngle, isMoving, onFoot};
   const serialized = JSON.stringify(movement);
   // Repeat stationary state so a dropped stop packet repairs itself.
   if (serialized === lastMovement && now - lastMovementSentAt < 250) return false;
-  socket.volatile.emit('player:movement', {...movement, spawnId: room.spawnId, sequence: ++movementSequence});
+  // Never drop a world transition or throttle it behind ordinary movement.
+  (traveling ? socket : socket.volatile).emit('player:movement', {...movement, spawnId: room.spawnId, sequence: ++movementSequence});
+  movementWorld = worldId;
   lastMovement = serialized;
   lastMovementSentAt = now;
   return true;

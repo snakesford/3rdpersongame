@@ -35,7 +35,7 @@ export function installCombatControls(systems) {
   wrap('useRobotDash', () => request('ability','dash',hero.x+Math.cos(hero.lastMoveAngle || 0)*100,hero.y+Math.sin(hero.lastMoveAngle || 0)*100));
   // No client-side combat simulations, healing, pickups or vehicle weapons in a room.
   for (const name of ['useAxeSwing','updateReload','updateActiveAbility','updateHeroProjectiles','updateGrenades',
-    'updateEngineerDeployables','dealDamage','respawnHero','updateAutomaticPickups','updatePlayerWorldInteractions',
+    'updateEngineerDeployables','dealDamage','respawnHero','updateAutomaticPickups',
     'enterHumvee','fireHumveeGun','useSmartMissile']) wrap(name, () => false);
   wrap('updatePlayerCombatTimers', dt => {
     // Only presentation countdowns advance locally. Server snapshots correct them.
