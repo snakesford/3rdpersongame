@@ -3552,7 +3552,7 @@ function updateHumveeDriving(dt) {
     const dx = (keys.has("d") ? 1 : 0) - (keys.has("a") ? 1 : 0);
     const dy = (keys.has("s") ? 1 : 0) - (keys.has("w") ? 1 : 0);
     const length = Math.hypot(dx, dy) || 1;
-    const travel = 320 * dt;
+    const travel = 320 * getRoadSpeedMultiplier() * dt;
     // Small steps prevent driving through thin obstacles during long frames.
     const steps = Math.max(1, Math.ceil(travel / 8));
     for (let step = 0; step < steps; step += 1) {
