@@ -196,7 +196,7 @@ let draggedInventoryAbility = null;
 const BATTLE_MEDICINE_USE_DURATION = 0.9;
 const HUMVEE_WEAPONS = {
   machineGun: { name: "Mounted Gun", ammo: 300, damage: 50, width: 30, speed: 720, radius: 0, range: 1200 },
-  grenade40: { name: "40mm Grenade Launcher", ammo: 75, damage: 120, width: 42, speed: 420, radius: 110, interval: 2, range: 850 },
+  grenade40: { name: "40mm Grenade Launcher", ammo: 75, damage: 120, width: 42, speed: 1000, radius: 110, interval: 2, range: 850 },
   howitzer50: { name: "50mm Howitzer Cannon", ammo: 15, damage: 600, width: 38, speed: 2400, radius: 200, interval: 3, range: 1600 },
 };
 let draggedHumveeWeapon = null;
