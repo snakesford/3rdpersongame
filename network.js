@@ -1,13 +1,29 @@
 import { io } from "/socket.io/socket.io.esm.min.js";
+import { multiplayer } from "./modules/multiplayer.js";
 
 // One same-origin connection, independent of game state and the frame loop.
 const socket = io({ autoConnect: false });
 let room = null;
-socket.on("room:state", state => { room = state; });
-socket.on("disconnect", () => { room = null; });
+socket.on("player:identity", ({ id }) => {
+  multiplayer.setIdentity(id);
+  multiplayer.setRoomPlayers(room?.players);
+});
+socket.on("room:state", state => {
+  room = state;
+  multiplayer.setRoomPlayers(state?.players);
+});
+socket.on("disconnect", () => {
+  room = null;
+  multiplayer.reset();
+});
+
+export const getLocalPlayerId = () => multiplayer.localPlayerId;
+export const getLocalPlayer = () => multiplayer.getLocalPlayer();
+export const getRemotePlayers = () => multiplayer.getRemotePlayers();
+export const getPlayers = () => multiplayer.players;
 
 export function getRoom() {
-  return room ? { ...room, players: [...room.players] } : null;
+  return room ? { ...room, players: room.players.map(player => ({ ...player })) } : null;
 }
 
 function request(event, payload = null) {

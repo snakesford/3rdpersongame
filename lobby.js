@@ -1,4 +1,4 @@
-import { createRoom, joinRoom, leaveRoom, getRoom, isConnected, on } from './network.js';
+import { createRoom, joinRoom, leaveRoom, getRoom, getPlayers, isConnected, on } from './network.js';
 
 const createButton = document.getElementById('createGameBtn');
 const joinButton = document.getElementById('joinGameBtn');
@@ -6,6 +6,7 @@ const leaveButton = document.getElementById('leaveGameBtn');
 const form = document.getElementById('joinGameForm');
 const codeInput = document.getElementById('roomCodeInput');
 const status = document.getElementById('roomStatus');
+const roster = document.getElementById('roomPlayers');
 let busy = false;
 
 function render(message) {
@@ -14,6 +15,13 @@ function render(message) {
   createButton.disabled = joinButton.disabled = codeInput.disabled = busy || !connected || !!room;
   leaveButton.disabled = busy || !connected;
   leaveButton.hidden = !room;
+  roster.replaceChildren(...[...getPlayers().values()].map(player => {
+    const item = document.createElement('li');
+    item.textContent = player.isLocal ? 'You (local player)' : 'Remote player';
+    item.dataset.playerId = player.id;
+    item.dataset.local = String(player.isLocal);
+    return item;
+  }));
   status.textContent = message || (!connected ? 'Connecting to server…' : room
     ? `Room ${room.code} · ${room.players.length}/${room.capacity} players${room.players.length === 1 ? ' · Share your code with a friend.' : ' · Both players connected.'}`
     : 'Create a game or enter a friend’s room code.');
@@ -35,6 +43,7 @@ form.addEventListener('submit', event => {
   act(() => joinRoom(codeInput.value));
 });
 on('room:state', () => render());
+on('player:identity', () => render());
 on('connect', () => render());
 on('disconnect', () => render('Disconnected. Rejoin using your code once connected.'));
 on('connect_error', () => render('Server unavailable. Retrying…'));

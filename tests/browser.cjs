@@ -87,6 +87,8 @@ function cleanup(code) {
       const off = network.on(event, value => {clearTimeout(timeout); off(); resolve(value);});
     });
     if (!network.isConnected()) await nextEvent('connect');
+    if (!network.getLocalPlayerId()) await nextEvent('player:identity');
+    const firstPlayerId = network.getLocalPlayerId();
     const firstId = network.getSocketId();
     network.connect(); // Must reuse the existing connection.
     const reply = nextEvent('network:reply');
@@ -96,10 +98,14 @@ function cleanup(code) {
     network.disconnect();
     await disconnected;
     if (network.isConnected() || network.getSocketId()) throw new Error('Still connected');
+    if (network.getLocalPlayerId() || network.getPlayers().size) throw new Error('Stale player registry after disconnect');
     if (network.send('network:test', {message: 'offline'})) throw new Error('Offline send succeeded');
     const reconnected = nextEvent('connect');
     network.connect();
     await reconnected;
+    if (!network.getLocalPlayerId()) await nextEvent('player:identity');
+    if (network.getLocalPlayerId() === firstPlayerId) throw new Error('Reconnected with stale player ID');
+    if (network.getPlayers().size !== 1 || !network.getLocalPlayer().isLocal) throw new Error('Invalid reconnected player state');
     if (network.getSocketId() === firstId) throw new Error('Expected a new session');
     return {firstId, secondId: network.getSocketId()};
   })()`, awaitPromise: true, returnByValue: true}, sessionId);

@@ -79,7 +79,7 @@ ambiguous characters); joining accepts lowercase and surrounding whitespace.
 game, with at most two connections per game. The server handles `room:create`,
 `room:join`, and `room:leave` with `{ok, room}` or `{ok: false, error}` acknowledgments
 (leave returns only `{ok: true}`). It publishes `room:state` only to that game's
-members. State includes `code`, `players` (socket IDs), and `capacity`.
+members. State includes `code`, `players` (records shaped as `{id}`), and `capacity`.
 
 `room:message` relays data only to the sender's peer, wrapped as
 `{senderId, data}`. Both identity and destination come from server membership;
@@ -96,6 +96,36 @@ server clears all rooms. Gameplay remains local and unsynchronized.
 concurrent joins against the two-player limit, invalid/missing codes, single-room
 membership, cross-room isolation including forged destination/identity fields,
 and cleanup on leaving/disconnecting.
+
+### Player identity and state
+
+Every connection receives a server-generated UUID in `player:identity` (`{id}`),
+even before joining a room. This player ID is separate from the Socket.IO ID and
+the local hero's numeric entity ID. It remains unchanged across room joins/leaves
+for that connection. Disconnect removes the server's player record; reconnecting
+gets a new ID. These are session identities, not persistent accounts.
+
+The server tracks connected players and each room's players in maps keyed by
+player ID. `room:message.senderId` is now the server-assigned player ID. Clients
+cannot choose or override it through request payloads.
+
+`modules/multiplayer.js` holds the shared client `multiplayer` registry, also
+exported from `modules/state.js`. Its `players` map contains records shaped as
+`{id, isLocal}`, with `localPlayerId` explicitly identifying this client. Each
+client sees itself as local and its room peer as remote. Outside a room, only
+the local identity remains; disconnect clears everything. Room updates remove
+departed peers while preserving records for players who remain.
+
+`network.js` exposes `getLocalPlayerId()`, `getLocalPlayer()`,
+`getRemotePlayers()`, and `getPlayers()` (a map snapshot). Records are read-only,
+and callers cannot mutate membership through returned snapshots. The lobby labels
+“You (local player)” and “Remote player.” Identity records contain no movement
+state yet. The existing `player` and `hero` remain local gameplay objects with
+their original movement, rendering, controls, and save behavior.
+
+Browser checks cover unique identities across five connections, both peers'
+local/remote perspectives, room isolation, read-only snapshots, peer removal,
+and fresh identity/empty peer state after reconnecting.
 
 ### Remaining gameplay work
 

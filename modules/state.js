@@ -1,4 +1,5 @@
 import { PLAYER_BASE_SPAWN, QUEST_ID, TUTORIAL_WORLD } from "./constants.js";
+export { multiplayer } from "./multiplayer.js";
 
 const player = {
   displayName: "",

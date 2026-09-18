@@ -1,4 +1,4 @@
-const { randomInt } = require('node:crypto');
+const { randomInt, randomUUID } = require('node:crypto');
 
 const ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 const channel = code => `game:${code}`;
@@ -6,16 +6,21 @@ const channel = code => `game:${code}`;
 function attachRooms(io) {
   // Membership is owned by the server, never supplied by message senders.
   const rooms = new Map();
-  const snapshot = room => ({ code: room.code, players: [...room.players], capacity: 2 });
+  const players = new Map();
+  const snapshot = room => ({ code: room.code, players: [...room.players.values()], capacity: 2 });
   const publish = room => io.to(channel(room.code)).emit('room:state', snapshot(room));
 
   io.on('connection', socket => {
+    const player = Object.freeze({ id: randomUUID() });
+    players.set(player.id, player);
+    socket.data.playerId = player.id;
+    socket.emit('player:identity', player);
     const reply = (ack, value) => { if (typeof ack === 'function') ack(value); };
     const fail = (ack, error) => reply(ack, { ok: false, error });
     function enter(room, ack) {
       // Synchronous with the default in-memory adapter: no gap between capacity
       // checks and membership changes, even when two players join together.
-      room.players.add(socket.id);
+      room.players.set(player.id, player);
       socket.data.roomCode = room.code;
       socket.join(channel(room.code));
       publish(room);
@@ -27,7 +32,7 @@ function attachRooms(io) {
       delete socket.data.roomCode;
       if (!room) return;
       socket.leave(channel(code));
-      room.players.delete(socket.id);
+      room.players.delete(player.id);
       if (room.players.size === 0) rooms.delete(code);
       else publish(room);
     }
@@ -38,7 +43,7 @@ function attachRooms(io) {
       do {
         code = Array.from({ length: 6 }, () => ALPHABET[randomInt(ALPHABET.length)]).join('');
       } while (rooms.has(code));
-      const room = { code, players: new Set() };
+      const room = { code, players: new Map() };
       rooms.set(code, room);
       enter(room, ack);
     });
@@ -58,15 +63,16 @@ function attachRooms(io) {
     });
     socket.on('room:message', (payload, ack) => {
       const room = rooms.get(socket.data.roomCode);
-      if (!room || !room.players.has(socket.id)) return fail(ack, 'Join a game first.');
+      if (!room || !room.players.has(player.id)) return fail(ack, 'Join a game first.');
       // Fixed event name and server-derived destination/identity prevent clients
       // from targeting another room or impersonating room lifecycle events.
       socket.to(channel(room.code)).emit('room:message', {
-        senderId: socket.id, data: payload,
+        senderId: player.id, data: payload,
       });
       reply(ack, { ok: true });
     });
     socket.on('disconnecting', leave);
+    socket.on('disconnect', () => players.delete(player.id));
   });
 }
 
