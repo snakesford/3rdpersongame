@@ -1877,7 +1877,8 @@ button.hidden {
   object-fit: contain;
   filter: drop-shadow(0 12px 12px rgba(0, 0, 0, 0.4));
 }
-.inventory-humvee-slot[data-position="top-left"] { grid-column: 2 / 4; grid-row: 1; }
+.inventory-humvee-slot[data-position="top-left"] { grid-column: 2; grid-row: 1; }
+.inventory-humvee-slot[data-position="top-right"] { grid-column: 3; grid-row: 1; }
 .inventory-humvee-slot .inventory-ability-name { text-align: center; }
 
 .inventory-humvee-weapons {

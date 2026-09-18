@@ -2757,6 +2757,13 @@ function selectHumveeAbilitySlot(slot) {
   });
   const details = document.getElementById("inventoryHumveeDetails");
   const title = document.createElement("h2");
+  if (slot.dataset.humveeSlot !== "0") {
+    title.textContent = "Empty ability slot";
+    const description = document.createElement("p");
+    description.textContent = "No Humvee ability equipped.";
+    details.replaceChildren(title, description);
+    return;
+  }
   title.textContent = "Mounted Weapons";
   const weapons = document.createElement("ul");
   weapons.className = "inventory-humvee-weapons";
@@ -2797,7 +2804,7 @@ function equipHumveeWeapon(id) {
 
 document.querySelectorAll("[data-humvee-slot]").forEach((slot) => {
   slot.addEventListener("click", () => selectHumveeAbilitySlot(slot));
-  const canDrop = () => player.inventoryOpen && draggedHumveeWeapon
+  const canDrop = () => slot.dataset.humveeSlot === "0" && player.inventoryOpen && draggedHumveeWeapon
     && getOccupiedHumvee()?.id === draggedHumveeWeapon.vehicleId;
   slot.addEventListener("dragover", (event) => {
     if (!canDrop()) return;
@@ -2829,7 +2836,7 @@ function selectInventoryTab(tabName) {
   if (tabName === "humvee") {
     updateHumveeInventory();
     document.getElementById("inventoryHumveeDetails").replaceChildren();
-    document.querySelector('[data-humvee-slot="0"]').setAttribute("aria-pressed", "false");
+    document.querySelectorAll("[data-humvee-slot]").forEach((slot) => slot.setAttribute("aria-pressed", "false"));
   }
 }
 
