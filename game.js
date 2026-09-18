@@ -5,6 +5,7 @@ import {
   archerShootingImage,
   bowImage,
   grenadeImage,
+  humveeImage,
   skeletonImage,
   soldierIdleImage,
   soldierMedkitImage,
@@ -3484,6 +3485,13 @@ function activateVillageWorld() {
     fence.y2 += offsetY;
   }
   const range = VILLAGE_WORLD.range;
+  createBuilding("humvee", range.x - 290, range.y - 290, false, {
+    w: 150,
+    h: 89,
+    hp: 1000,
+    maxHp: 1000,
+    selectable: false,
+  });
   const villageRoadX = 310 + offsetX;
   const villageRoadY = 1558 + offsetY;
   const rangeApproachY = range.y - 90;
@@ -7088,6 +7096,22 @@ function drawArcherHero() {
 }
 
 function drawBuilding(building) {
+  if (building.type === "humvee") {
+    ctx.save();
+    ctx.fillStyle = "rgba(0, 0, 0, 0.22)";
+    ctx.beginPath();
+    ctx.ellipse(building.x + building.w / 2, building.y + building.h - 8, building.w * 0.48, 15, 0, 0, Math.PI * 2);
+    ctx.fill();
+    if (humveeImage.complete && humveeImage.naturalWidth > 0) {
+      // Crop transparent margins so the visible vehicle fills its collision bounds.
+      ctx.drawImage(humveeImage, 40, 128, 432, 256, building.x, building.y, building.w, building.h);
+    }
+    drawHealthBar(building.x + building.w / 2, building.y - 18, 150, building.hp / building.maxHp);
+    drawNameplate(building.x + building.w / 2, building.y - 34,
+      `Humvee • ${Math.max(0, Math.ceil(building.hp))} / ${building.maxHp} HP`, "rgba(15, 33, 24, 0.9)");
+    ctx.restore();
+    return;
+  }
   if (building.type === "villageHouse") {
     ctx.fillStyle = COLORS.villageWall;
     ctx.fillRect(building.x, building.y + 22, building.w, building.h - 22);
