@@ -98,6 +98,7 @@ module.exports = async function checkSpawn(send, firstSession, url) {
     assert.equal((await inspect(firstSession)).game.x, first.game.x + 20);
     assert.deepEqual((await inspect(secondSession)).remote.spawnPosition, first.local.spawnPosition);
     await require('./portals-browser.cjs')(evaluate, wait, firstSession, secondSession);
+    await require('./vehicles-browser.cjs')(evaluate, wait, firstSession, secondSession);
     await require('./movement-browser.cjs')(evaluate, wait, firstSession, secondSession);
     await require('./actions-browser.cjs')(evaluate, wait, firstSession, secondSession);
     await send('Target.closeTarget', {targetId});

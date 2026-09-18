@@ -130,12 +130,13 @@ function attachRooms(io) {
         return fail(ack, 'Invalid or stale movement.');
       }
       if (room.combat) {
-        if (!onFoot) return fail(ack, 'Multiplayer combat is on foot.');
-        if (worldId !== player.movement.worldId && !isPortalTravel(player.movement, {x,y,worldId})) {
+        const vehicle=room.combat.driven(player.id);
+        if (onFoot === !!vehicle) return fail(ack, 'Driver seat does not match movement.');
+        if (worldId !== player.movement.worldId && !isPortalTravel(player.movement, {x,y,worldId}, !!vehicle)) {
           return fail(ack, 'Use a teleporter to change worlds.');
         }
         const motion = motionBudgets.get(player.id), now = performance.now();
-        const speed = Math.max(680, characters[player.selectedCharacter].agility * 3);
+        const speed = vehicle ? 480 : Math.max(680, characters[player.selectedCharacter].agility * 3);
         motion.budget = Math.min(150, motion.budget + (now - motion.at) / 1000 * speed);
         motion.at = now;
         const traveling = worldId !== player.movement.worldId;
@@ -147,6 +148,7 @@ function attachRooms(io) {
       // Only movement fields are relayed; identity, room, and combat fields are ignored.
       const traveling = worldId !== player.movement.worldId;
       player.movement = { x, y, worldId, facingAngle, lastMoveAngle, isMoving, onFoot, sequence, spawnId: room.spawnId };
+      room.combat?.moveVehicle(player.id, player.movement);
       const peers = socket.to(channel(room.code));
       (traveling ? peers : peers.volatile).emit('player:movement', { id: player.id, ...player.movement });
       reply(ack, { ok: true });

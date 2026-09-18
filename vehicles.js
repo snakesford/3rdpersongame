@@ -1,3 +1,4 @@
+import { combatSession } from './modules/combat-session.js';
 import { clamp, distance } from "./modules/math.js";
 import {
   buildings,
@@ -34,6 +35,11 @@ function createVehiclesSystem(services) {
   };
 
   const SMART_MISSILE = { count: 6, damage: 150, blastRadius: 95, targetRange: 700, speed: 600, cooldown: 12, range: 1500 };
+
+  function vehicleRequest(operation, extra={}) {
+    const v=getOccupiedHumvee(), x=v?v.x+v.w/2:hero.x, y=v?v.y+v.h*0.2:hero.y;
+    return combatSession.send?.({kind:'vehicle',operation,angle:Math.atan2(mouse.worldY-y,mouse.worldX-x),distance:Math.hypot(mouse.worldX-x,mouse.worldY-y),...extra}) || false;
+  }
 
   function updateHumveeInventory() {
     const vehicle = getOccupiedHumvee();
@@ -121,6 +127,7 @@ function createVehiclesSystem(services) {
   function equipHumveeTech(id) {
     const vehicle = getOccupiedHumvee();
     if (!vehicle || !player.inventoryOpen || !HUMVEE_TECH[id]) return;
+    if (combatSession.active) return vehicleRequest('tech',{tech:id});
     if (vehicle.tech !== id) vehicle.techActive = false;
     vehicle.tech = id;
     updateHumveeInventory();
@@ -131,6 +138,7 @@ function createVehiclesSystem(services) {
     const vehicle = getOccupiedHumvee();
     if (!vehicle?.tech || vehicle.hp <= 0 || hero.hp <= 0 || services.isInterfacePanelOpen()
       || player.victory || player.loss) return false;
+    if (combatSession.active) return vehicleRequest('toggleTech');
     vehicle.techActive = !vehicle.techActive;
     services.spawnTextPopup(vehicle.x + vehicle.w / 2, vehicle.y - 25,
       `${HUMVEE_TECH[vehicle.tech].name}: ${vehicle.techActive ? "Active" : "Off"}`,
@@ -153,6 +161,7 @@ function createVehiclesSystem(services) {
   function equipHumveeWeapon(id) {
     const vehicle = getOccupiedHumvee();
     if (!vehicle || !player.inventoryOpen || !HUMVEE_WEAPONS[id]) return;
+    if (combatSession.active) return vehicleRequest('equip',{weapon:id});
     vehicle.weaponAmmo[vehicle.mountedWeapon] = vehicle.ammo;
     vehicle.mountedWeapon = id;
     vehicle.ammo = vehicle.weaponAmmo[id];
@@ -199,6 +208,7 @@ function createVehiclesSystem(services) {
   }
 
   function exitHumvee() {
+    if (combatSession.active) return vehicleRequest('exit');
     const vehicle = getOccupiedHumvee();
     hero.vehicleId = null;
     if (vehicle) {
@@ -212,6 +222,7 @@ function createVehiclesSystem(services) {
   }
 
   function enterHumvee(vehicle) {
+    if (combatSession.active) return vehicleRequest('enter',{vehicleId:vehicle?.id});
     if (!vehicle || vehicle.hp <= 0 || hero.isDead || hero.hp <= 0) return;
     if (vehicle.driverId) {
       if (services.npcState.trainingDriver?.id !== vehicle.driverId) return;
@@ -327,6 +338,7 @@ function createVehiclesSystem(services) {
     const vehicle = getOccupiedHumvee();
     if (!vehicle || vehicle.hp <= 0 || hero.hp <= 0 || !player.hasSelectedCharacter
       || services.isInterfacePanelOpen() || player.victory || player.loss || vehicle.smartMissileCooldown > 0) return false;
+    if (combatSession.active) return vehicleRequest('missile');
     const origin = { x: vehicle.x + vehicle.w / 2, y: vehicle.y + vehicle.h * 0.2 };
     const target = getSmartMissileTarget(origin, vehicle.id);
     const point = target ? services.getEntityTargetPoint(target) : null;
@@ -376,6 +388,11 @@ function createVehiclesSystem(services) {
   function fireHumveeGun(targetX, targetY) {
     const vehicle = getOccupiedHumvee();
     if (!vehicle || hero.hp <= 0 || services.isInterfacePanelOpen()) return false;
+    if (combatSession.active) {
+      const x=vehicle.x+vehicle.w/2,y=vehicle.y+vehicle.h*0.2;
+      if(vehicle.gunCooldown>0 || vehicle.ammo<=0) return false;
+      return vehicleRequest('fire',{angle:Math.atan2(targetY-y,targetX-x),distance:Math.hypot(targetX-x,targetY-y)});
+    }
     return fireHumveeWeapon(vehicle, targetX, targetY);
   }
 
@@ -507,7 +524,7 @@ function createVehiclesSystem(services) {
     vehicle.smartMissileCooldown = Math.max(0, vehicle.smartMissileCooldown - dt);
     if (!services.isInterfacePanelOpen() && !player.victory && !player.loss) {
       vehicle.ramContacts ??= new Set();
-      const ramTargets = getHumveeRamTargets();
+      const ramTargets = combatSession.active ? [] : getHumveeRamTargets();
       for (const id of vehicle.ramContacts) {
         const target = ramTargets.find((entry) => entry.id === id);
         if (!target || humveeTargetDistance(vehicle, target) > target.radius + 12) vehicle.ramContacts.delete(id);
@@ -523,10 +540,16 @@ function createVehiclesSystem(services) {
         const speedMultiplier = humveeOverlapsTree(vehicle)
           || humveeOverlapsTree(vehicle, vehicle.x + stepX, vehicle.y + stepY) ? 0.75 : 1;
         const nextX = vehicle.x + stepX * speedMultiplier;
-        if (nextX !== vehicle.x) moveHumveeWithRamming(vehicle, nextX, vehicle.y);
+        if (nextX !== vehicle.x) {
+          if(combatSession.active) {if(canMoveHumvee(vehicle,nextX,vehicle.y,true)) vehicle.x=nextX;}
+          else moveHumveeWithRamming(vehicle, nextX, vehicle.y);
+        }
         const nextY = vehicle.y + stepY * speedMultiplier;
-        if (nextY !== vehicle.y) moveHumveeWithRamming(vehicle, vehicle.x, nextY);
-        if (dx || dy) crushHumveeTrees(vehicle);
+        if (nextY !== vehicle.y) {
+          if(combatSession.active) {if(canMoveHumvee(vehicle,vehicle.x,nextY,true)) vehicle.y=nextY;}
+          else moveHumveeWithRamming(vehicle, vehicle.x, nextY);
+        }
+        if ((dx || dy) && !combatSession.active) crushHumveeTrees(vehicle);
       }
       if (dx) vehicle.facingLeft = dx < 0;
       if (dx || dy) vehicle.driveAngle = Math.atan2(dy, dx);
@@ -590,7 +613,9 @@ function createVehiclesSystem(services) {
     vehicle.portalCooldown = 1;
     vehicle.rockTilt = 0;
     vehicle.rockLift = 0;
-    enterHumvee(vehicle);
+    if(combatSession.active) hero.vehicleId=vehicle.id;
+    else enterHumvee(vehicle);
+    hero.x=vehicle.x+vehicle.w/2; hero.y=vehicle.y+vehicle.h/2;
     services.updateCamera(1);
     return true;
   }

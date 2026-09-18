@@ -1,5 +1,6 @@
 const {randomInt} = require('node:crypto');
 const {createEnemies} = require('./server-enemies.cjs');
+const {createVehicles,vehicleWeapons} = require('./server-vehicles.cjs');
 const characters = require('./character-options.json');
 
 // Multiplayer-only base loadouts. Single-player combat.js and its upgrade rules
@@ -25,6 +26,14 @@ function segmentHit(start, end, target, radius) {
 function createCombat(room, {now = performance.now(), random = () => randomInt(0, 1000000)/1000000} = {}) {
   const states = new Map();
   const enemies = createEnemies(room.spawnId);
+  const vehicles = createVehicles(room.spawnId);
+  const driven = id => [...vehicles.values()].find(v=>v.driverId===id);
+  function exitVehicle(id) {
+    const v=driven(id), owner=room.players.get(id);
+    if (!v) return;
+    v.driverId=null; v.ramContacts.clear();
+    if (owner) Object.assign(owner.movement,{x:v.x+v.w/2,y:Math.min(2782,v.y+v.h+26),onFoot:true});
+  }
   const pickups = new Map(), lootWorlds = new Set();
   function spawnPickupDrop(item, position, delay=300) {
     const id = `${room.spawnId}:pickup:${++nextId}`;
@@ -49,14 +58,18 @@ function createCombat(room, {now = performance.now(), random = () => randomInt(0
     return weapon ? {...weapon, damage:weapon.damage+state.bonusDamage} : null;
   };
   const livingPlayers = () => [...room.players.values()].filter(p => states.get(p.id)?.hp > 0 && p.movement?.onFoot);
-  const targets = owner => (enemies.entities.has(owner.id) ? livingPlayers() :
-    [...livingPlayers(), ...enemies.entities.values()].filter(p => !p.dead))
-    .filter(p => p.id !== owner.id && p.movement.worldId === owner.movement.worldId);
+  const targets = owner => (enemies.entities.has(owner.id) ? [...livingPlayers(),...[...vehicles.values()].filter(v=>v.hp>0)] :
+    [...livingPlayers(), ...enemies.entities.values(),...vehicles.values()].filter(p => !p.dead))
+    .filter(p => p.id !== owner.id && p.driverId !== owner.id && p.movement.worldId === owner.movement.worldId);
   const effect = (owner, data, duration=220) => effects.push({id:++nextId, ownerId:owner.id,
     worldId:owner.movement.worldId, x:owner.movement.x, y:owner.movement.y, until:clock+duration, ...data});
   function damage(owner, target, amount, headshot=false, penetration=null) {
-    const state=states.get(target.id) || enemies.entities.get(target.id), source=states.get(owner.id);
+    const state=states.get(target.id) || enemies.entities.get(target.id) || vehicles.get(target.id), source=states.get(owner.id);
     if (!state || state.dead) return;
+    if (vehicles.has(target.id)) {
+      if (state.techActive && state.tech==='trophy' && random()<0.4) return;
+      state.repairUntil=clock+5000; headshot=false;
+    }
     if (source?.markUntil > clock && source.markId === target.id) amount *= 1.25;
     if (penetration !== null || target.selectedCharacter === 'engineer') {
       amount *= 100/(100+Math.max(characters[target.selectedCharacter]?.stats.armor || 0,state.equippedArmorValue || 0)*(1-(penetration || 0)));
@@ -66,6 +79,8 @@ function createCombat(room, {now = performance.now(), random = () => randomInt(0
     events.push({id:++nextId, type:'hit', sourceId:owner.id, targetId:target.id, damage:dealt,
       headshot, hp:state.hp, x:target.movement.x, y:target.movement.y});
     if (!state.hp) {
+      if (vehicles.has(target.id) && state.driverId) exitVehicle(state.driverId);
+      if (states.has(target.id)) exitVehicle(target.id);
       if (target.kind==='boss') spawnPickupDrop({type:'rareHelmet',armorValue:85},target.movement,0);
       else if (target.kind==='enemyHero') spawnPickupDrop({type:'enemyHelmet',armorValue:80},target.movement);
       else if (target.campId==='hiddenCamp' && random()<0.28) {
@@ -86,16 +101,18 @@ function createCombat(room, {now = performance.now(), random = () => randomInt(0
   }
   function projectile(owner, angle, config, delay=0, origin=owner.movement) {
     projectiles.push({id:++nextId,ownerId:owner.id,worldId:owner.movement.worldId,
+      vehicleId:driven(owner.id)?.id || null,
       x:origin.x,y:origin.y,angle, traveled:0, startsAt:clock+delay,
       damage:config.damage,speed:config.speed,radius:config.radius,range:config.range,
       chance:config.chance || 0,multiplier:config.multiplier || 2, style:config.style || 'bullet',
-      penetration:config.penetration ?? null, explosion:config.explosion || null});
+      penetration:config.penetration ?? null, explosion:config.explosion ? {...config.explosion,vehicleId:driven(owner.id)?.id || null} : null});
   }
   function explosion(owner, point, config, direct=null) {
     effect(owner,{effect:'nova',x:point.x,y:point.y,radius:config.radius},250);
     for (const target of targets(owner)) {
+      if (target.id===config.vehicleId) continue;
       const distance=Math.hypot(target.movement.x-point.x,target.movement.y-point.y);
-      if (target.id === direct?.id) damage(owner,target,45);
+      if (target.id === direct?.id) damage(owner,target,config.directDamage ?? 45);
       else if (distance <= config.radius) damage(owner,target,config.falloff
         ? Math.max(8,Math.round(config.damage*(1-distance/config.radius*0.6))) : config.damage);
     }
@@ -110,6 +127,9 @@ function createCombat(room, {now = performance.now(), random = () => randomInt(0
       if (state.reloadUntil && state.reloadUntil <= clock) {state.ammo=state.maxAmmo; state.reloadUntil=0;}
       const regen=characters[owner.selectedCharacter].stats.regen || 0;
       state.hp=Math.min(state.maxHp,state.hp+regen*dt+Math.max(0,Math.min(clock,state.regenUntil)-previous)/1000*2);
+    }
+    for (const v of vehicles.values()) {
+      if (v.hp>0 && v.techActive && v.tech==='repair') v.hp=Math.min(v.maxHp,v.hp+Math.max(0,clock-Math.max(previous,v.repairUntil))/1000*10);
     }
     for (const owner of room.players.values()) {
       const world=owner.movement?.worldId;
@@ -138,7 +158,7 @@ function createCombat(room, {now = performance.now(), random = () => randomInt(0
         }
       }
     }
-    enemies.update(clock, dt, livingPlayers(), (enemy,target,config,angle) => {
+    enemies.update(clock, dt, [...livingPlayers(),...[...vehicles.values()].filter(v=>v.hp>0)], (enemy,target,config,angle) => {
       events.push({id:++nextId,type:'enemy:attack',sourceId:enemy.id,targetId:target.id});
       if(config.attackStyle === 'ranged') projectile(enemy,angle,{damage:config.damage,
         speed:config.projectileSpeed,radius:config.projectileRadius,range:config.attackRange+100,style:'arrow'});
@@ -149,10 +169,19 @@ function createCombat(room, {now = performance.now(), random = () => randomInt(0
       const owner=room.players.get(p.ownerId) || enemies.entities.get(p.ownerId);
       if (!owner || owner.movement.worldId !== p.worldId || (states.get(owner.id)?.dead && p.startsAt > previous)) continue;
       if (p.startsAt > clock) {survivors.push(p); continue;}
+      if (p.style==='smartMissile') {
+        const target=targets(owner).filter(t=>t.id!==p.vehicleId && Math.hypot(t.movement.x-p.x,t.movement.y-p.y)<=700)
+          .sort((a,b)=>Math.hypot(a.movement.x-p.x,a.movement.y-p.y)-Math.hypot(b.movement.x-p.x,b.movement.y-p.y))[0];
+        if (target) {
+          const turn=normalize(Math.atan2(target.movement.y-p.y,target.movement.x-p.x)-p.angle);
+          p.angle+=Math.max(-5*dt,Math.min(5*dt,turn));
+        }
+      }
       const travel=Math.min(p.range-p.traveled,p.speed*Math.max(0,clock-Math.max(previous,p.startsAt))/1000);
       const end={x:p.x+Math.cos(p.angle)*travel,y:p.y+Math.sin(p.angle)*travel};
       let hit=null, fraction=Infinity;
       if (p.style !== 'grenade') for (const target of targets(owner)) {
+        if(target.id===p.vehicleId) continue;
         const t=segmentHit(p,end,target.movement,(target.radius || 18)+p.radius);
         if (t !== null && t < fraction) {hit=target; fraction=t;}
       }
@@ -161,7 +190,7 @@ function createCombat(room, {now = performance.now(), random = () => randomInt(0
         p.x+=(end.x-p.x)*fraction; p.y+=(end.y-p.y)*fraction;
         if (p.explosion) explosion(owner,p,p.explosion,hit);
         else {
-          const headshot=random() < p.chance;
+          const headshot=!vehicles.has(hit.id) && random() < p.chance;
           const helmet=states.get(hit.id)?.equippedHelmetType;
           const protection={helmet:0.2,rareHelmet:0.45,goldHelmet:0.75,enemyHelmet:0.6}[helmet] || 0;
           damage(owner,hit,p.damage*(headshot?1+(p.multiplier-1)*(1-protection):1),headshot,p.penetration);
@@ -180,10 +209,11 @@ function createCombat(room, {now = performance.now(), random = () => randomInt(0
     const reject=error=>({ok:false,error});
     if (!owner || !state || input?.spawnId !== room.spawnId) return reject('Combat requires the current room spawn.');
     if (!Number.isSafeInteger(input.sequence) || input.sequence <= state.sequence) return reject('Invalid or replayed action.');
-    if (!['fire','reload','ability','collect','equipHelmet'].includes(input.kind) || !Number.isFinite(input.angle) || Math.abs(input.angle)>Math.PI*2) return reject('Invalid combat action.');
+    if (!['fire','reload','ability','collect','equipHelmet','vehicle'].includes(input.kind) || !Number.isFinite(input.angle) || Math.abs(input.angle)>Math.PI*2) return reject('Invalid combat action.');
     if (input.kind === 'ability' && !['F','Q','G','Shift','dash'].includes(input.slot)) return reject('Invalid ability.');
     // Consume valid sequence numbers even when cooldown/death rejects an action.
     state.sequence=input.sequence;
+    if (input.kind==='vehicle' && !state.dead) return vehicleAction(owner,input);
     if (state.dead || !owner.movement?.onFoot) return reject('Cannot act while dead or in a vehicle.');
     const config=characters[owner.selectedCharacter], weapon=weaponFor(owner);
     const angle=normalize(input.angle), position=owner.movement;
@@ -284,12 +314,83 @@ function createCombat(room, {now = performance.now(), random = () => randomInt(0
     events.push({id:++nextId,type:'action',sourceId:id,kind:input.kind,slot:input.slot || null,angle});
     return {ok:true};
   }
+  function moveVehicle(id, position) {
+    const v=driven(id);
+    if (!v) return;
+    const old={...v.movement};
+    v.x=position.x-v.w/2; v.y=position.y-v.h/2; v.worldId=position.worldId;
+    v.movement={x:position.x,y:position.y,worldId:position.worldId};
+    if (old.worldId===position.worldId && (old.x!==position.x || old.y!==position.y)) {
+      v.driveAngle=Math.atan2(position.y-old.y,position.x-old.x); v.facingLeft=position.x<old.x;
+      const owner=room.players.get(id);
+      for (const target of targets(owner).filter(t=>!vehicles.has(t.id))) {
+        const near=Math.hypot(target.movement.x-position.x,target.movement.y-position.y)<70+(target.radius || 18);
+        if (!near) v.ramContacts.delete(target.id);
+        if (segmentHit(old,position,target.movement,70+(target.radius || 18))!==null && !v.ramContacts.has(target.id)) {
+          v.ramContacts.add(target.id);
+          damage(owner,target,target.kind==='boss'?150:(target.radius || 18)<=20?(states.get(target.id)||target).hp:200);
+        }
+      }
+    }
+  }
+  function vehicleAction(owner,input) {
+    const reject=error=>({ok:false,error}), state=states.get(owner.id);
+    let v=driven(owner.id);
+    if (input.operation==='enter') {
+      const target=vehicles.get(input.vehicleId), p=owner.movement;
+      if(v || !p.onFoot || !target || target.hp<=0 || target.driverId || target.worldId!==p.worldId ||
+        Math.hypot(p.x-Math.max(target.x,Math.min(p.x,target.x+target.w)),p.y-Math.max(target.y,Math.min(p.y,target.y+target.h)))>54) return reject('Driver seat unavailable.');
+      target.driverId=owner.id; Object.assign(p,target.movement,{onFoot:false});
+      state.reloadUntil=0; state.medicineUntil=0; state.sprintUntil=0; state.dashUntil=0;
+      return {ok:true};
+    }
+    if (!v || v.hp<=0) return reject('Only the driver can control this vehicle.');
+    if (input.operation==='exit') {exitVehicle(owner.id); return {ok:true};}
+    if (input.operation==='equip') {
+      if (!Object.hasOwn(vehicleWeapons,input.weapon)) return reject('Unknown vehicle weapon.');
+      v.mountedWeapon=input.weapon; v.ammo=v.weaponAmmo[input.weapon]; v.maxAmmo=vehicleWeapons[input.weapon].ammo;
+    } else if (input.operation==='tech') {
+      if (!['repair','trophy'].includes(input.tech)) return reject('Unknown vehicle tech.');
+      if(v.tech!==input.tech) v.techActive=false;
+      v.tech=input.tech;
+    } else if (input.operation==='toggleTech') {
+      if(!v.tech) return reject('No tech equipped.');
+      v.techActive=!v.techActive;
+    } else if (input.operation==='fire' || input.operation==='missile') {
+      const origin={x:v.x+v.w/2,y:v.y+v.h*0.2}, angle=normalize(input.angle);
+      if(input.operation==='missile') {
+        if(clock<v.missileUntil) return reject('Missiles are on cooldown.');
+        const target=targets(owner).filter(t=>Math.hypot(t.movement.x-origin.x,t.movement.y-origin.y)<=700)
+          .sort((a,b)=>Math.hypot(a.movement.x-origin.x,a.movement.y-origin.y)-Math.hypot(b.movement.x-origin.x,b.movement.y-origin.y))[0];
+        const base=target?Math.atan2(target.movement.y-origin.y,target.movement.x-origin.x):random()*Math.PI*2;
+        for(let i=0;i<6;i++) projectile(owner,base+(target?(i-2.5)*0.32:i*Math.PI/3),
+          {damage:150,speed:600,radius:6,range:1500,style:'smartMissile',explosion:{radius:95,damage:150,directDamage:150,falloff:true}},0,origin);
+        v.missileUntil=clock+12000;
+      } else {
+        if(clock<v.fireUntil || v.ammo<=0) return reject('Vehicle weapon is not ready.');
+        const config={...vehicleWeapons[v.mountedWeapon]};
+        if(config.explosion) {
+          if(!Number.isFinite(input.distance) || input.distance<1) return reject('Invalid target.');
+          config.range=Math.min(config.range,input.distance);
+          config.explosion={...config.explosion,directDamage:config.damage};
+        }
+        projectile(owner,angle,config,0,origin); v.ammo--; v.weaponAmmo[v.mountedWeapon]=v.ammo;
+        v.fireUntil=clock+(v.mountedWeapon==='machineGun' ? (weapons[owner.selectedCharacter]?.ammo ? weapons[owner.selectedCharacter].interval : 80)*2 : config.interval);
+      }
+      v.aimAngle=angle;
+      events.push({id:++nextId,type:'vehicle:attack',sourceId:owner.id,vehicleId:v.id,weapon:v.mountedWeapon});
+    } else return reject('Unknown vehicle action.');
+    return {ok:true};
+  }
   function snapshot() {
     events = events.slice(-128);
     return {spawnId:room.spawnId,revision:++revision,serverTime:clock,
       enemies:enemies.snapshot(clock),
+      vehicles:[...vehicles.values()].map(({ramContacts,movement,...v})=>({...v,weaponAmmo:{...v.weaponAmmo},
+        gunCooldown:remaining(v.fireUntil,clock),smartMissileCooldown:remaining(v.missileUntil,clock)})),
       pickups:[...pickups.values()].map(({readyAt,...item})=>({...item,pickupDelay:remaining(readyAt,clock)})),
       players:[...states.values()].filter(s=>room.players.has(s.id)).map(s=>({id:s.id,hp:s.hp,maxHp:s.maxHp,
+        vehicleId:driven(s.id)?.id || null,vehicleExitPosition:{x:room.players.get(s.id).movement.x,y:room.players.get(s.id).movement.y},
         equippedHelmetType:s.equippedHelmetType,equippedArmorValue:s.equippedArmorValue,
         backpack:s.backpack.map(item=>({...item})),tutorialPathsUnlocked:s.tutorialPathsUnlocked,bonusDamage:s.bonusDamage,
         ammo:s.ammo,maxAmmo:s.maxAmmo,isDead:s.dead,isReloading:!!s.reloadUntil,reloadTimer:remaining(s.reloadUntil,clock),
@@ -311,7 +412,7 @@ function createCombat(room, {now = performance.now(), random = () => randomInt(0
   function travel(id) {
     projectiles=projectiles.filter(p=>p.ownerId!==id); effects=effects.filter(e=>e.ownerId!==id);deployables=deployables.filter(d=>d.ownerId!==id);
   }
-  function remove(id) { states.delete(id); travel(id); }
-  return {act,advance,snapshot,remove,travel,isDead:id=>states.get(id)?.dead || false};
+  function remove(id) { exitVehicle(id); states.delete(id); travel(id); }
+  return {act,advance,snapshot,remove,travel,driven,moveVehicle,isDead:id=>states.get(id)?.dead || false};
 }
 module.exports={createCombat, weapons, segmentHit};

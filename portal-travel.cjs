@@ -12,13 +12,13 @@ const routes = [
   {from:'arena',to:'main',spawn:{x:290,y:740}},
   {from:'waves',to:'tutorial',spawn:{x:1200,y:1090}},
 ];
-function isPortalTravel(previous, next) {
+function isPortalTravel(previous, next, vehicle=false) {
   // A sprinting player can enter a tile between 20 Hz movement samples.
-  const tolerance=80;
+  const tolerance=vehicle?160:80;
   return routes.some(route => route.from===previous.worldId && route.to===next.worldId &&
     (!route.tile || Math.hypot(
       previous.x-Math.max(route.tile.x,Math.min(previous.x,route.tile.x+route.tile.size)),
       previous.y-Math.max(route.tile.y,Math.min(previous.y,route.tile.y+route.tile.size))) <= tolerance) &&
-    Math.hypot(next.x-route.spawn.x,next.y-route.spawn.y) <= tolerance);
+    Math.hypot(next.x-route.spawn.x,next.y-route.spawn.y) <= (vehicle?400:tolerance));
 }
 module.exports={routes,isPortalTravel};

@@ -2,7 +2,7 @@ import { combatSession } from './modules/combat-session.js';
 import { getRoom, getLocalPlayer, readyPlayer, sendMovement, sendActions, sendCombatAction, on } from './network.js';
 import { getCharacterActions, getSelectedPlayerProfile, onCharacterSelected, onGameFrame, spawnMultiplayerPlayer, applyCombatPlayer, clearLocalCombatEffects, showCombatHit } from './game.js';
 import { characterSelectEl } from './modules/dom.js';
-import { hero, player } from './modules/state.js';
+import { hero, player, buildings } from './modules/state.js';
 import { getPlayerWorldId } from './modules/multiplayer.js';
 
 let submittedProfile = null;
@@ -10,11 +10,29 @@ let appliedSpawn = null;
 let savedHero = null;
 let savedInventory = null;
 let lastEventId = 0;
+let savedVehicles = [];
 function applyCombat() {
   const state = combatSession.player(getLocalPlayer()?.id);
   if (!combatSession.active || !state) return;
   const elapsed = Math.max(0, (Date.now() - combatSession.receivedAt) / 1000);
   const visual = {...state};
+  const oldVehicleId=hero.vehicleId, worldId=getPlayerWorldId(player);
+  // Keep local driving responsive; all other vehicle fields come from the server.
+  const localVehicle=buildings.find(v=>v.id===state.vehicleId);
+  const predicted=oldVehicleId===state.vehicleId && localVehicle ? {x:localVehicle.x,y:localVehicle.y,driveAngle:localVehicle.driveAngle,facingLeft:localVehicle.facingLeft} : null;
+  const vehicles=combatSession.snapshot.vehicles || [];
+  for(let i=buildings.length-1;i>=0;i--) if(buildings[i].type==='humvee' &&
+    !vehicles.some(v=>v.id===buildings[i].id && (v.worldId===worldId || v.id===state.vehicleId))) buildings.splice(i,1);
+  for(const data of vehicles) {
+    if(data.worldId!==worldId && data.id!==state.vehicleId) continue;
+    let vehicle=buildings.find(v=>v.id===data.id);
+    if(!vehicle) {vehicle={}; buildings.push(vehicle);}
+    Object.assign(vehicle,data,{weaponAmmo:{...data.weaponAmmo},gunCooldown:Math.max(0,data.gunCooldown-elapsed),smartMissileCooldown:Math.max(0,data.smartMissileCooldown-elapsed)});
+    if(data.id===state.vehicleId && predicted && (data.worldId!==worldId || Math.hypot(predicted.x-data.x,predicted.y-data.y)<=150)) Object.assign(vehicle,predicted);
+    if(data.id===state.vehicleId) {hero.x=vehicle.x+vehicle.w/2;hero.y=vehicle.y+vehicle.h/2;}
+  }
+  if(oldVehicleId && !state.vehicleId && state.vehicleExitPosition) Object.assign(hero,state.vehicleExitPosition);
+  delete visual.vehicleExitPosition;
   for (const key of Object.keys(visual)) {
     if (/Timer$|Cooldown$|CooldownRemaining$/.test(key)) visual[key] = Math.max(0, visual[key] - elapsed);
   }
@@ -32,6 +50,11 @@ function applyCombat() {
   }
 }
 function endCombat() {
+  if (combatSession.active) {
+    for(let i=buildings.length-1;i>=0;i--) if(buildings[i].type==='humvee') buildings.splice(i,1);
+    if(player.inVillageWorld) buildings.push(...savedVehicles);
+    savedVehicles=[];
+  }
   if (savedHero) {
     const {x, y} = hero;
     Object.assign(hero, savedHero, {x, y});
@@ -68,6 +91,7 @@ function sync() {
       combatSession.active = true;
       combatSession.send = sendCombatAction;
       spawnMultiplayerPlayer(local);
+      savedVehicles=buildings.filter(v=>v.type==='humvee').map(v=>structuredClone(v));
       clearLocalCombatEffects();
       applyCombat();
     }

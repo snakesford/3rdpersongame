@@ -119,7 +119,7 @@ export function sendCombatAction(action) {
   if (combatSpawn !== room.spawnId) {
     combatSpawn = room.spawnId; combatSequence = 0; pendingCombat.clear();
   }
-  const key = action.kind + (action.slot || '');
+  const key = action.kind + (action.operation || action.slot || '');
   if (pendingCombat.has(key)) return false;
   const spawnId = room.spawnId;
   pendingCombat.add(key);

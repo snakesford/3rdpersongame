@@ -1626,7 +1626,7 @@ function createRenderingSystem(services) {
     const vehicle = services.getOccupiedHumvee() || services.getNearbyHumvee();
     if (vehicle && player.hasSelectedCharacter && !hero.isDead && !services.isInterfacePanelOpen()) {
       drawNameplate(vehicle.x + vehicle.w / 2, vehicle.y + vehicle.h + 24,
-        hero.vehicleId !== null ? "E · Exit" : vehicle.driverId ? "E · Take control" : "E", "rgba(15, 33, 24, 0.9)");
+        hero.vehicleId !== null ? "E · Exit" : vehicle.driverId ? (combatSession.active ? "Occupied" : "E · Take control") : "E", "rgba(15, 33, 24, 0.9)");
       return;
     }
     if (services.drawTutorialNpcHint()) return;
@@ -1717,7 +1717,7 @@ function createRenderingSystem(services) {
     for (const remote of multiplayer.getRemotePlayers()) {
       if (!remote.spawnPosition || !remote.selectedCharacter) continue;
       const movement = multiplayer.getRenderState(remote.id);
-      if ((movement?.worldId || 'village') !== worldId || movement?.onFoot === false) continue;
+      if ((movement?.worldId || 'village') !== worldId || (combatSession.active ? combatSession.player(remote.id)?.vehicleId : movement?.onFoot === false)) continue;
       const actions = multiplayer.getActionState(remote.id);
       const subject = { ...remote.spawnPosition, radius: 18, facingAngle: 0,
         hasAxe: false, hasRifle: false, isMoving: false, runAnimationTimer: 0, ...movement, ...actions, selectedClass: remote.selectedCharacter };

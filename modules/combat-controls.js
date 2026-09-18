@@ -37,8 +37,7 @@ export function installCombatControls(systems) {
   // No client-side combat simulations, healing, pickups or vehicle weapons in a room.
   for (const name of ['updateReload','updateActiveAbility','updateHeroProjectiles','updateGrenades',
     'updateEngineerDeployables','dealDamage','respawnHero',
-    'initializeEnemyForces','initializeForestEncounterSpawners','spawnSkeletonWave','spawnSingleSkeleton',
-    'enterHumvee','fireHumveeGun','useSmartMissile']) wrap(name, () => false);
+    'initializeEnemyForces','initializeForestEncounterSpawners','spawnSkeletonWave','spawnSingleSkeleton']) wrap(name, () => false);
   wrap('updatePlayerCombatTimers', dt => {
     // Only presentation countdowns advance locally. Server snapshots correct them.
     for (const field of ['rifleShotAnimationTimer','battleMedicineUseTimer','adrenalineTimer','sprintTimer','dashTimer']) {
