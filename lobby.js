@@ -43,6 +43,10 @@ form.addEventListener('submit', event => {
   act(() => joinRoom(codeInput.value));
 });
 on('room:state', () => render());
+on('player:left', player => {
+  const room = getRoom();
+  if (room) render(`${player.name} ${player.reason === 'disconnected' ? 'disconnected' : 'left the game'}. Room ${room.code} · ${room.players.length}/${room.capacity} players.`);
+});
 on('player:identity', () => render());
 on('connect', () => render());
 on('disconnect', () => render('Disconnected. Rejoin using your code once connected.'));

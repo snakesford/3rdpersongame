@@ -44,11 +44,12 @@ function attachRooms(io) {
       publish(room);
       reply(ack, { ok: true, room: snapshot(room) });
     }
-    function leave() {
+    function leave(reason = 'left') {
       const code = socket.data.roomCode;
       const room = rooms.get(code);
       delete socket.data.roomCode;
       if (!room) return;
+      const departed = {id:player.id, name:player.name || 'Player', reason};
       socket.leave(channel(code));
       room.players.delete(player.id);
       room.combat?.remove(player.id);
@@ -59,7 +60,10 @@ function attachRooms(io) {
       player.movement = null;
       player.actions = null;
       if (room.players.size === 0) rooms.delete(code);
-      else publish(room);
+      else {
+        publish(room);
+        io.to(channel(code)).emit('player:left', departed);
+      }
     }
 
     socket.on('room:create', (_payload, ack) => {
@@ -191,7 +195,7 @@ function attachRooms(io) {
       });
       reply(ack, { ok: true });
     });
-    socket.on('disconnecting', leave);
+    socket.on('disconnecting', () => leave('disconnected'));
     socket.on('disconnect', () => players.delete(player.id));
   });
 }

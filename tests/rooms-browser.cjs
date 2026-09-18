@@ -90,8 +90,14 @@ module.exports = async function checkRooms() {
     document.getElementById('roomCodeInput').value = code.toLowerCase();
     document.getElementById('joinGameForm').requestSubmit();
     await until(() => network.getRoom()?.players.length === 2);
+    const departures=[];
+    const stopDepartures=network.on('player:left', event=>departures.push(event));
     member.disconnect();
     await until(() => network.getRoom()?.players.length === 1);
+    await until(()=>departures.some(event=>event.id===memberId));
+    stopDepartures();
+    assert(departures.length===1 && departures[0].reason==='disconnected', 'Missing or duplicate disconnect notification');
+    assert(document.getElementById('roomStatus').textContent.includes('disconnected'), 'Disconnect notification not visible');
     assert(!network.getPlayers().has(memberId), 'Disconnected remote player retained');
     assert(memberRegistry.localPlayerId === null && memberRegistry.players.size === 0, 'Disconnect did not reset peer registry');
     assert((await request(rejected, 'room:join', {code})).ok, 'Disconnect did not free a slot');
@@ -100,6 +106,10 @@ module.exports = async function checkRooms() {
     assert(hero.id === originalHeroId, 'Networking changed local gameplay entity ID');
     assert(network.getLocalPlayerId() === localId && network.getRemotePlayers().length === 0, 'Identity changed across room operations');
     assert(!(await request(rejected, 'room:join', {code})).ok, 'Empty room was not deleted');
+    outsider.disconnect();
+    otherGuest.disconnect();
+    await new Promise(resolve=>setTimeout(resolve,100));
+    assert(!(await request(rejected, 'room:join', {code:other.room.code})).ok, 'Abrupt disconnects retained an empty room');
     return 'Browser room and player checks passed: unique IDs, local/remote perspectives, roster cleanup, lobby, capacity race, isolation';
   } finally {
     clients.forEach(socket => socket.disconnect());

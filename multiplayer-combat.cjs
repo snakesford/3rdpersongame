@@ -412,7 +412,13 @@ function createCombat(room, {now = performance.now(), random = () => randomInt(0
   function travel(id) {
     projectiles=projectiles.filter(p=>p.ownerId!==id); effects=effects.filter(e=>e.ownerId!==id);deployables=deployables.filter(d=>d.ownerId!==id);
   }
-  function remove(id) { exitVehicle(id); states.delete(id); travel(id); }
+  function remove(id) {
+    exitVehicle(id); states.delete(id); travel(id);
+    for (const state of states.values()) if (state.markId===id) {state.markId=null; state.markUntil=0;}
+    for (const enemy of enemies.entities.values()) if (enemy.targetId===id) enemy.targetId=null;
+    for (const vehicle of vehicles.values()) vehicle.ramContacts.delete(id);
+    events=events.filter(event=>event.sourceId!==id && event.targetId!==id);
+  }
   return {act,advance,snapshot,remove,travel,driven,moveVehicle,isDead:id=>states.get(id)?.dead || false};
 }
 module.exports={createCombat, weapons, segmentHit};

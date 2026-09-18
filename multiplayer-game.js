@@ -51,6 +51,7 @@ function applyCombat() {
 }
 function endCombat() {
   if (combatSession.active) {
+    clearLocalCombatEffects();
     for(let i=buildings.length-1;i>=0;i--) if(buildings[i].type==='humvee') buildings.splice(i,1);
     if(player.inVillageWorld) buildings.push(...savedVehicles);
     savedVehicles=[];
