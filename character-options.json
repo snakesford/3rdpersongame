@@ -33,7 +33,15 @@
     "range": 600,
     "width": 18,
     "rounds": 7,
-    "shotAnglesDegrees": [0, 7, -4, -6, 3, 5, -7]
+    "shotAnglesDegrees": [
+      0,
+      7,
+      -4,
+      -6,
+      3,
+      5,
+      -7
+    ]
   },
   "mage": {
     "name": "Mage",
@@ -100,10 +108,32 @@
     "cooldown": 3,
     "agility": 255,
     "portrait": "./images/archer.png",
-    "stats": { "armor": 35, "health": 105, "weapon": 88, "regen": 1.1 },
+    "stats": {
+      "armor": 35,
+      "health": 105,
+      "weapon": 88,
+      "regen": 1.1
+    },
     "effect": "projectile",
     "damage": 42,
     "range": 0,
     "width": 10
+  },
+  "bountyHunter": {
+    "name": "Bounty Hunter",
+    "abilityName": "Hunter\u2019s Mark",
+    "cooldown": 12,
+    "agility": 345,
+    "portrait": "./images/bounty-hunter-portrait.png",
+    "sprite": "./images/bounty-hunter-sprite.png",
+    "stats": {
+      "armor": 25,
+      "health": 110,
+      "weapon": 82,
+      "regen": 1.0
+    },
+    "effect": "mark",
+    "damage": 20,
+    "headshotMultiplier": 2.5
   }
 }

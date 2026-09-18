@@ -2251,6 +2251,10 @@ function canAimSoldierGrenade() {
 }
 
 function startGrenadeAim() {
+  if (isBountyHunter()) {
+    if (canUseBountyAbility("G") && hero.grenadeCooldownRemaining <= 0) grenadeAim.active = true;
+    return;
+  }
   if (hero.vehicleId !== null) return false;
   if (!canAimSoldierGrenade()) {
     return false;
@@ -2261,6 +2265,7 @@ function startGrenadeAim() {
 }
 
 function useBattleMedicine() {
+  if (isBountyHunter()) return useAdrenalineShot();
   if (hero.vehicleId !== null) return false;
   if (
     !player.hasSelectedCharacter ||
@@ -2391,7 +2396,7 @@ function updateAbilityUI() {
     if (keyLabel) document.querySelector(keyLabel).textContent = ability.key;
   }
   const selectedAbilityName = hero.selectedClass ? CHARACTER_OPTIONS[hero.selectedClass].abilityName : "";
-  const showSlashAbility = !vehicle && Boolean(selectedAbilityName);
+  const showSlashAbility = !vehicle && getOrderedInventoryAbilities().some(a => a.actionKey === "F");
   const ready = hero.slashTimer <= 0;
   abilityNameEl.textContent = selectedAbilityName || "Choose Class";
   slashAbilityEl.classList.toggle("hidden", !showSlashAbility);
@@ -2401,10 +2406,10 @@ function updateAbilityUI() {
     ? (ready ? "Ready" : `${hero.slashTimer.toFixed(1)}s`)
     : "Pick Hero";
 
-  const showBattleMedicine = !vehicle && hero.selectedClass === "soldier";
+  const showBattleMedicine = !vehicle && ["soldier", "bountyHunter"].includes(hero.selectedClass) && getOrderedInventoryAbilities().some(a => a.actionKey === "Q");
   const battleMedicineReady = hero.battleMedicineCooldownRemaining <= 0;
   battleMedicineAbilityEl.classList.toggle("hidden", !showBattleMedicine);
-  battleMedicineAbilityNameEl.textContent = hero.battleMedicineBuffTimer > 0 ? "Battle Medicine +" : "Battle Medicine";
+  battleMedicineAbilityNameEl.textContent = isBountyHunter() ? "Adrenaline Shot" : hero.battleMedicineBuffTimer > 0 ? "Battle Medicine +" : "Battle Medicine";
   battleMedicineAbilityEl.classList.toggle("ready", showBattleMedicine && battleMedicineReady);
   battleMedicineAbilityEl.classList.toggle("cooldown", !showBattleMedicine || !battleMedicineReady);
   battleMedicineCooldownTextEl.textContent = !showBattleMedicine
@@ -2415,10 +2420,10 @@ function updateAbilityUI() {
         ? "Ready"
         : `${hero.battleMedicineCooldownRemaining.toFixed(1)}s`;
 
-  const showGrenade = !vehicle && hero.selectedClass === "soldier";
+  const showGrenade = !vehicle && ["soldier", "bountyHunter"].includes(hero.selectedClass) && getOrderedInventoryAbilities().some(a => a.actionKey === "G");
   const grenadeReady = hero.grenadeCooldownRemaining <= 0;
   grenadeAbilityEl.classList.toggle("hidden", !showGrenade);
-  grenadeAbilityNameEl.textContent = "Grenade";
+  grenadeAbilityNameEl.textContent = isBountyHunter() ? "Explosive Bolt" : "Grenade";
   grenadeAbilityEl.classList.toggle("ready", showGrenade && grenadeReady);
   grenadeAbilityEl.classList.toggle("cooldown", !showGrenade || !grenadeReady);
   grenadeCooldownTextEl.textContent = !showGrenade
@@ -2427,6 +2432,16 @@ function updateAbilityUI() {
       ? "Ready"
       : `${hero.grenadeCooldownRemaining.toFixed(1)}s`;
 
+  for (const [element, name] of [[battleMedicineAbilityEl, battleMedicineAbilityNameEl.textContent.replace(" +", "")], [grenadeAbilityEl, grenadeAbilityNameEl.textContent]]) {
+    const img = element.querySelector("img");
+    const path = getInventoryAbilityIcon({name});
+    if (img.getAttribute("src") !== path) img.src = path;
+    img.alt = name;
+  }
+  const markIcon = slashAbilityEl.querySelector(".ability-icon");
+  markIcon.style.backgroundImage = isBountyHunter() ? "url('./images/hunters-mark.svg')" : "";
+  markIcon.style.backgroundSize = "contain";
+  if (isBountyHunter() && hero.adrenalineTimer > 0) battleMedicineCooldownTextEl.textContent = `${hero.adrenalineTimer.toFixed(1)}s boost · ${hero.battleMedicineCooldownRemaining.toFixed(1)}s cooldown`;
   const showDash = !vehicle && hero.selectedClass === "robot";
   const dashReady = hero.dashCooldownRemaining <= 0;
   dashAbilityEl.classList.toggle("hidden", !showDash);
@@ -2451,22 +2466,31 @@ function updateTraderUI() {
   traderStatusEl.textContent = `Current bonus: +${player.weaponBonusStat} weapon`;
 }
 
+function isBountyHunter() { return hero.selectedClass === "bountyHunter"; }
+
 function getInventoryAbilities() {
   const selected = getSelectedClassConfig();
   const abilities = [];
   if (selected?.abilityName) {
     const descriptions = {
+      mark: "Damage • Mark the enemy under your cursor for 8 seconds. It takes 25% increased damage from you. 12s cooldown.",
       cone: "Strike enemies in an arc in front of you.",
       nova: "Release a blast that damages nearby enemies.",
       burst: `Fire a burst of ${selected.rounds || 7} rounds toward your aim.`,
       projectile: "Fire an arrow toward your aim.",
     };
-    abilities.push({ name: selected.abilityName, key: "F", description: descriptions[selected.effect] || "Use your class ability.", cooldown: (!hero.hasRifle && !hero.hasBow && !hero.hasAxe) ? getClassWeaponCooldown(selected) : selected.cooldown, remaining: hero.slashTimer });
+    abilities.push({ name: selected.abilityName, key: "F", description: descriptions[selected.effect] || "Use your class ability.", cooldown: (selected.effect !== "mark" && !hero.hasRifle && !hero.hasBow && !hero.hasAxe) ? getClassWeaponCooldown(selected) : selected.cooldown, remaining: hero.slashTimer });
   }
   if (hero.selectedClass === "soldier") {
     abilities.push(
       { name: "Battle Medicine", key: "Q", description: `Restore ${SOLDIER_BATTLE_MEDICINE_HEAL} HP and gain +${SOLDIER_BATTLE_MEDICINE_REGEN_BONUS} regeneration for ${SOLDIER_BATTLE_MEDICINE_DURATION} seconds.`, cooldown: SOLDIER_BATTLE_MEDICINE_COOLDOWN, remaining: hero.battleMedicineCooldownRemaining },
       { name: "Grenade", key: "G", description: "Hold G to aim, then release to throw a grenade that damages nearby enemies.", cooldown: SOLDIER_GRENADE_COOLDOWN, remaining: hero.grenadeCooldownRemaining }
+    );
+  }
+  if (isBountyHunter()) {
+    abilities.push(
+      { name: "Adrenaline Shot", key: "Q", description: "Support • Restore 30 HP immediately and gain 20% movement speed for 6 seconds.", cooldown: 20, remaining: hero.battleMedicineCooldownRemaining },
+      { name: "Explosive Bolt", key: "G", description: "Damage • Hold G to aim, release to fire. Deal 45 damage to the direct target and 25 to other enemies within 80 units. 8s cooldown.", cooldown: 8, remaining: hero.grenadeCooldownRemaining }
     );
   }
   if (hero.selectedClass === "robot") {
@@ -2535,6 +2559,9 @@ function selectInventoryAbility(ability) {
 
 function getInventoryAbilityIcon(ability) {
   return {
+    "Hunter’s Mark": "./images/hunters-mark.svg",
+    "Adrenaline Shot": "./images/adrenaline-shot.svg",
+    "Explosive Bolt": "./images/explosive-bolt.svg",
     "Grenade": "./images/grenade.png",
     "Battle Medicine": "./images/medkit.png",
   }[ability.name] || null;
@@ -2643,7 +2670,7 @@ function enableInventoryAbilityDrag(slot, ability, slotIndex = ability?.slotInde
 }
 
 function updateInventoryCharacterImage(image, selected = getSelectedClassConfig()) {
-  let source = hero.selectedClass === "soldier" ? "./images/soldier-stationary.png" : selected?.portrait;
+  let source = hero.selectedClass === "soldier" ? "./images/soldier-stationary.png" : (selected?.sprite || selected?.portrait);
   if (!source) {
     const shape = hero.selectedClass === "stickman"
       ? `<g fill="none" stroke="${COLORS.hero}" stroke-width="5" stroke-linecap="round"><circle cx="50" cy="24" r="12"/><path d="M50 36v40M28 57l22-12 22 12M50 76l-18 30m18-30 18 30"/></g>`
@@ -3015,11 +3042,11 @@ function getWeaponUpgradeRules() {
 }
 
 function getRifleDamage() {
-  return 16 + player.bonusDamage + player.weaponDetailDamageLevel * getWeaponUpgradeRules().damage.step;
+  return (isBountyHunter() ? 20 : 16) + player.bonusDamage + player.weaponDetailDamageLevel * getWeaponUpgradeRules().damage.step;
 }
 
 function getRifleMaxAmmo() {
-  return 30 + player.weaponDetailAmmoLevel * getWeaponUpgradeRules().ammo.step;
+  return (isBountyHunter() ? 8 : 30) + player.weaponDetailAmmoLevel * getWeaponUpgradeRules().ammo.step;
 }
 
 function getRifleReloadDuration() {
@@ -3031,7 +3058,7 @@ function getRifleRange() {
 }
 
 function getRifleFireInterval() {
-  return Math.max(0.03, 0.08 - player.weaponDetailFireRateLevel * getWeaponUpgradeRules().fireRate.rifleStep);
+  return Math.max(0.03, (isBountyHunter() ? 0.3 : 0.08) - player.weaponDetailFireRateLevel * getWeaponUpgradeRules().fireRate.rifleStep);
 }
 
 function getClassWeaponCooldown(selected) {
@@ -3047,8 +3074,8 @@ function getCurrentWeaponDetails() {
   if (hero.hasRifle) {
     return {
       type: "rifle",
-      name: "M4 Rifle",
-      meta: "Automatic rifle",
+      name: isBountyHunter() ? "Trail Pistol" : "M4 Rifle",
+      meta: isBountyHunter() ? "Compact precision sidearm" : "Automatic rifle",
       damage: `${getRifleDamage()} / shot`,
       ammo: hero.isReloading ? `${hero.ammo}/${hero.maxAmmo} reloading` : `${hero.ammo}/${hero.maxAmmo}`,
       reload: `${hero.reloadDuration.toFixed(1)}s`,
@@ -3422,9 +3449,9 @@ function updateEquipmentUI(selected, stats) {
     equipmentWeaponNameEl.textContent = "Bow";
     equipmentWeaponMetaEl.textContent = "Ranged weapon";
   } else if (equippedWeaponType === "rifle") {
-    equipmentWeaponIconEl.src = "./images/rifle.png";
-    equipmentWeaponNameEl.textContent = "M4 Rifle";
-    equipmentWeaponMetaEl.textContent = "Automatic rifle";
+    equipmentWeaponIconEl.src = isBountyHunter() ? "./images/trail-pistol.svg" : "./images/rifle.png";
+    equipmentWeaponNameEl.textContent = isBountyHunter() ? "Trail Pistol" : "M4 Rifle";
+    equipmentWeaponMetaEl.textContent = isBountyHunter() ? "Compact precision sidearm" : "Automatic rifle";
   } else if (equippedWeaponType === "axe") {
     equipmentWeaponIconEl.src = "./images/sword.jpg";
     equipmentWeaponNameEl.textContent = "Axe";
@@ -4626,9 +4653,13 @@ function respawnHero() {
   hero.grenadeCooldownRemaining = 0;
   hero.battleMedicineCooldownRemaining = 0;
   hero.battleMedicineBuffTimer = 0;
+  hero.adrenalineTimer = 0;
+  hero.hunterMarkTimer = 0;
+  hero.hunterMarkTargetId = null;
+  hero.slashTimer = 0;
   hero.battleMedicineUseTimer = 0;
   hero.weaponPickupCooldown = 0;
-  hero.hasRifle = hero.selectedClass === "soldier";
+  hero.hasRifle = ["soldier", "bountyHunter"].includes(hero.selectedClass);
   hero.rifleFireMode = "automatic";
   hero.rifleCooldown = 0;
   hero.rifleShotAnimationTimer = 0;
@@ -4842,7 +4873,7 @@ function buildProjectileHeadshotConfig(projectileType) {
   const config = RANGED_HEADSHOT_CONFIG[projectileType] || {};
   return {
     headshotChance: config.headshotChance ?? 0,
-    headshotMultiplier: config.headshotMultiplier ?? 2,
+    headshotMultiplier: isBountyHunter() && hero.vehicleId === null && projectileType === "bullet" ? getSelectedClassConfig().headshotMultiplier : (config.headshotMultiplier ?? 2),
   };
 }
 
@@ -4865,7 +4896,7 @@ function applyRangedProjectileHit(target, projectile) {
   }
 
   finalDamage = Math.max(1, Math.round(finalDamage));
-  if (dealDamage(target, finalDamage, true) === false) return;
+  if (dealDamage(target, finalDamage, true, projectile.sourceClass) === false) return;
 
   if (isHeadshot) {
     const popupPoint = getDamagePopupPoint(target);
@@ -4873,7 +4904,8 @@ function applyRangedProjectileHit(target, projectile) {
   }
 }
 
-function dealDamage(target, amount, showPopup = false) {
+function dealDamage(target, amount, showPopup = false, sourceClass = null) {
+  if (sourceClass === "bountyHunter" && isBountyHunter() && hero.hunterMarkTimer > 0 && target.id === hero.hunterMarkTargetId) amount *= 1.25;
   if (target === hero && getOccupiedHumvee()) target = getOccupiedHumvee();
   if (target.type === "humvee" && amount > 0) {
     if (target.hp <= 0) return false;
@@ -4898,15 +4930,15 @@ function damageEnemiesInCone(damage, radius, halfAngle) {
 
   for (let i = enemies.length - 1; i >= 0; i -= 1) {
     if (isPointInSlash(enemies[i])) {
-      dealDamage(enemies[i], damage, true);
+      dealDamage(enemies[i], damage, true, hero.selectedClass);
     }
   }
   if (isPointInSlash(enemyHero)) {
-    dealDamage(enemyHero, damage, true);
+    dealDamage(enemyHero, damage, true, hero.selectedClass);
   }
   for (const building of buildings) {
     if (!building.isPlayer && isPointInSlash(getEntityTargetPoint(building))) {
-      dealDamage(building, damage, true);
+      dealDamage(building, damage, true, hero.selectedClass);
     }
   }
 
@@ -4917,15 +4949,15 @@ function damageEnemiesInCone(damage, radius, halfAngle) {
 function damageEnemiesInRadius(damage, radius) {
   for (let i = enemies.length - 1; i >= 0; i -= 1) {
     if (distance(hero, enemies[i]) <= radius) {
-      dealDamage(enemies[i], damage, true);
+      dealDamage(enemies[i], damage, true, hero.selectedClass);
     }
   }
   if (distance(hero, enemyHero) <= radius) {
-    dealDamage(enemyHero, damage, true);
+    dealDamage(enemyHero, damage, true, hero.selectedClass);
   }
   for (const building of buildings) {
     if (!building.isPlayer && distance(hero, getEntityTargetPoint(building)) <= radius + 24) {
-      dealDamage(building, damage, true);
+      dealDamage(building, damage, true, hero.selectedClass);
     }
   }
 }
@@ -5084,6 +5116,7 @@ function explodeGrenade(grenade) {
 }
 
 function useSoldierGrenade(targetX, targetY) {
+  if (isBountyHunter()) return fireExplosiveBolt(targetX, targetY);
   if (hero.vehicleId !== null) return false;
   if (
     !player.hasSelectedCharacter ||
@@ -5158,6 +5191,7 @@ function spawnBurstProjectile(shot, damage, width) {
     maxDistance: shot.range,
     active: true,
     hitIds: new Set(),
+    sourceClass: hero.vehicleId === null ? hero.selectedClass : null,
     ricochetCount: 0,
     ricochetTimer: 0,
     projectileType: "bullet",
@@ -5182,6 +5216,7 @@ function spawnAbilityProjectile(config) {
     traveled: 0,
     maxDistance: config.range,
     active: true,
+    sourceClass: hero.selectedClass,
     stopOnHit: true,
     style: config.style || "arrow",
     projectileType,
@@ -5393,7 +5428,7 @@ function updateBurstProjectile(projectile, dt) {
 
   for (const building of buildings) {
     if (!building.isPlayer && !projectile.hitIds.has(building.id) && intersectsBuilding(projectile, projectile.radius, building)) {
-      dealDamage(building, projectile.damage, true);
+      dealDamage(building, projectile.damage, true, projectile.sourceClass);
       projectile.hitIds.add(building.id);
     }
   }
@@ -5455,7 +5490,7 @@ function updateAbilityProjectile(projectile, dt) {
 
   for (const building of buildings) {
     if (!building.isPlayer && intersectsBuilding(projectile, projectile.radius, building)) {
-      dealDamage(building, projectile.damage, true);
+      dealDamage(building, projectile.damage, true, projectile.sourceClass);
       projectile.active = false;
       return;
     }
@@ -5499,7 +5534,9 @@ function updateHumveeShell(projectile, dt) {
 
 function updateHeroProjectiles(dt) {
   for (let i = heroProjectiles.length - 1; i >= 0; i -= 1) {
-    if (heroProjectiles[i].style === "smartMissile") {
+    if (heroProjectiles[i].style === "explosiveBolt") {
+      updateExplosiveBolt(heroProjectiles[i], dt);
+    } else if (heroProjectiles[i].style === "smartMissile") {
       updateSmartMissile(heroProjectiles[i], dt);
     } else if (heroProjectiles[i].explosionRadius) {
       updateHumveeShell(heroProjectiles[i], dt);
@@ -5893,6 +5930,7 @@ function useSlash(targetX = null, targetY = null) {
       hero.facingAngle = Math.atan2(dy, dx);
     }
   }
+  if (selectedClass.effect === "mark") return useHuntersMark();
   hero.slashCooldown = (!hero.hasRifle && !hero.hasBow && !hero.hasAxe)
     ? getClassWeaponCooldown(selectedClass)
     : selectedClass.cooldown;
@@ -6161,6 +6199,8 @@ function updateHero(dt) {
     return;
   }
 
+  hero.adrenalineTimer = Math.max(0, hero.adrenalineTimer - dt);
+  hero.hunterMarkTimer = Math.max(0, hero.hunterMarkTimer - dt);
   hero.slashTimer = Math.max(0, hero.slashTimer - dt);
   hero.slashArcTimer = Math.max(0, hero.slashArcTimer - dt);
   hero.axeSwingTimer = Math.max(0, hero.axeSwingTimer - dt);
@@ -6277,7 +6317,8 @@ function updateHero(dt) {
   const dx = (keys.has("d") ? 1 : 0) - (keys.has("a") ? 1 : 0);
   const dy = (keys.has("s") ? 1 : 0) - (keys.has("w") ? 1 : 0);
   const movementSpeedMultiplier = getRoadSpeedMultiplier() * (isSoldierRifleShooting() ? 0.5 : 1)
-    * (hero.sprintTimer > 0 ? SPRINT_SPEED_MULTIPLIER : 1);
+    * (hero.sprintTimer > 0 ? SPRINT_SPEED_MULTIPLIER : 1)
+    * (hero.adrenalineTimer > 0 ? 1.2 : 1);
 
   if (isUsingBattleMedicine()) {
     hero.isMoving = false;
@@ -8407,6 +8448,15 @@ function drawGrenadeAimArc() {
     return;
   }
 
+  if (isBountyHunter()) {
+    ctx.save(); ctx.strokeStyle = "#f4bc65"; ctx.setLineDash([8, 6]);
+    ctx.beginPath(); ctx.moveTo(hero.x, hero.y);
+    const angle = Math.atan2(mouse.worldY - hero.y, mouse.worldX - hero.x);
+    const range = Math.min(600, Math.hypot(mouse.worldX - hero.x, mouse.worldY - hero.y));
+    const aimX = hero.x + Math.cos(angle) * range, aimY = hero.y + Math.sin(angle) * range;
+    ctx.lineTo(aimX, aimY); ctx.stroke();
+    ctx.beginPath(); ctx.arc(aimX, aimY, 80, 0, Math.PI * 2); ctx.stroke(); ctx.restore(); return;
+  }
   const target = getClampedGrenadeTarget(mouse.worldX, mouse.worldY);
   if (target.distance < 24) {
     return;
@@ -8525,6 +8575,10 @@ function drawSmartMissile(projectile) {
 
 function drawHeroProjectiles() {
   for (const projectile of heroProjectiles) {
+    if (projectile.style === "explosiveBolt") {
+      drawArrowProjectile(projectile);
+      continue;
+    }
     if (projectile.style === "smartMissile") {
       drawSmartMissile(projectile);
       continue;
@@ -8710,6 +8764,8 @@ function render() {
       drawHeroStickFigure();
     } else if (hero.selectedClass === "soldier") {
       drawSoldierHero();
+    } else if (isBountyHunter()) {
+      drawBountyHunter();
     } else if (hero.selectedClass === "archer") {
       drawArcherHero();
     } else {
@@ -8717,6 +8773,7 @@ function render() {
     }
     drawHealthBar(hero.x, hero.y - 34, 60, hero.hp / hero.maxHp);
   }
+  drawBountyEffects();
   drawDodgeArenaBullets();
   drawHarvestProgress();
   drawSlashArc();
@@ -9299,6 +9356,7 @@ function selectCharacter(classId) {
     return;
   }
 
+  saveCharacterProgress();
   hero.selectedClass = classId;
   hero.slashCooldown = selectedClass.cooldown;
   hero.slashRadius = selectedClass.radius || hero.slashRadius;
@@ -9321,9 +9379,13 @@ function selectCharacter(classId) {
   hero.grenadeCooldownRemaining = 0;
   hero.battleMedicineCooldownRemaining = 0;
   hero.battleMedicineBuffTimer = 0;
+  hero.adrenalineTimer = 0;
+  hero.hunterMarkTimer = 0;
+  hero.hunterMarkTargetId = null;
+  hero.slashTimer = 0;
   hero.battleMedicineUseTimer = 0;
   hero.weaponPickupCooldown = 0;
-  hero.hasRifle = classId === "soldier";
+  hero.hasRifle = ["soldier", "bountyHunter"].includes(classId);
   hero.rifleFireMode = "automatic";
   hero.rifleCooldown = 0;
   hero.rifleShotAnimationTimer = 0;
@@ -9337,6 +9399,7 @@ function selectCharacter(classId) {
   heroGrenades.length = 0;
   grenadeShockwaves.length = 0;
   player.hasSelectedCharacter = true;
+  restoreCharacterProgress(classId);
   awardMercenaryRankRewards();
   characterSelectEl.classList.add("hidden");
   statusTextEl.textContent = classId === "soldier"
@@ -9388,7 +9451,7 @@ function initializeCharacterCards() {
 
     if (selectedClass.abilityName) {
       const abilityEl = document.createElement("span");
-      abilityEl.textContent = classId === "soldier"
+      abilityEl.textContent = classId === "bountyHunter" ? "F: Hunter’s Mark | Q: Adrenaline Shot | G: Explosive Bolt" : classId === "soldier"
         ? `F: ${selectedClass.abilityName} | G: Grenade`
         : `F: ${selectedClass.abilityName}`;
       classCardEl.appendChild(abilityEl);
@@ -9457,5 +9520,181 @@ async function initializeGame() {
     classGridEl.textContent = "Start the local server with `node server.js`, then open http://127.0.0.1:4173";
   }
 }
+
+// Bounty Hunter uses the shared weapon, equipment, and ability-slot systems.
+const bountyHunterSprite = new Image();
+bountyHunterSprite.src = "./images/bounty-hunter-sprite.png";
+
+function bountyTargets() {
+  return [...enemies, enemyHero, ...buildings.filter(b => !b.isPlayer)].filter(t => t.hp > 0 && t.active !== false);
+}
+
+function canUseBountyAbility(key) {
+  return isBountyHunter() && player.hasSelectedCharacter && hero.hp > 0 && !hero.isDead
+    && hero.vehicleId === null && !player.isPlacingBuilding && !player.victory && !player.loss && !isInterfacePanelOpen()
+    && getOrderedInventoryAbilities().some(a => a.actionKey === key);
+}
+
+function useHuntersMark() {
+  if (!canUseBountyAbility("F") || hero.slashTimer > 0) return false;
+  // This game aims with the cursor; mark only the enemy actually under it.
+  const target = bountyTargets().find(t => t.w
+    ? mouse.worldX >= t.x && mouse.worldX <= t.x + t.w && mouse.worldY >= t.y && mouse.worldY <= t.y + t.h
+    : Math.hypot(t.x - mouse.worldX, t.y - mouse.worldY) <= t.radius + 12);
+  if (!target) { statusTextEl.textContent = "Aim at an enemy to use Hunter’s Mark."; return false; }
+  hero.hunterMarkTargetId = target.id;
+  hero.hunterMarkTimer = 8;
+  hero.slashTimer = 12;
+  updateAbilityUI();
+  return true;
+}
+
+function useAdrenalineShot() {
+  if (!canUseBountyAbility("Q") || hero.battleMedicineCooldownRemaining > 0) return false;
+  const healed = Math.min(30, hero.maxHp - hero.hp);
+  hero.hp += healed;
+  hero.adrenalineTimer = 6;
+  hero.battleMedicineCooldownRemaining = 20;
+  spawnTextPopup(hero.x, hero.y - 42, `+${healed} HP · Adrenaline`, "#a4f7cd", 1);
+  updateAbilityUI();
+  updateStatsUI();
+  return true;
+}
+
+function fireExplosiveBolt(targetX, targetY) {
+  if (!canUseBountyAbility("G") || hero.grenadeCooldownRemaining > 0 || !grenadeAim.active) return false;
+  const range = Math.hypot(targetX - hero.x, targetY - hero.y);
+  if (range < 1) return false;
+  hero.facingAngle = Math.atan2(targetY - hero.y, targetX - hero.x);
+  heroProjectiles.push({ ...spawnAbilityProjectile({damage: 45, range: Math.min(range, 600), speed: 900,
+    width: 8, canHeadshot: false, style: "explosiveBolt"}), sourceClass: "bountyHunter" });
+  hero.grenadeCooldownRemaining = 8;
+  cancelGrenadeAim();
+  updateAbilityUI();
+  return true;
+}
+
+function detonateExplosiveBolt(projectile, directTarget = null) {
+  if (directTarget) dealDamage(directTarget, 45, true, projectile.sourceClass);
+  for (const target of bountyTargets()) {
+    if (target !== directTarget && distance(projectile, getEntityTargetPoint(target)) <= 80) {
+      dealDamage(target, 25, true, projectile.sourceClass);
+    }
+  }
+  grenadeShockwaves.push({x: projectile.x, y: projectile.y, radius: 80, ttl: 0.25, maxTtl: 0.25, coreScale: 1,
+    particles: Array.from({length: 20}, (_, i) => ({angle: i * Math.PI / 10, targetRadius: 80, speedScale: 1, drift: 0, size: 3, color: "255, 194, 88"}))});
+  projectile.active = false;
+}
+
+function updateExplosiveBolt(projectile, dt) {
+  // Substeps prevent a fast bolt from skipping a target at low frame rates.
+  const travel = Math.min(projectile.speed * dt, projectile.maxDistance - projectile.traveled);
+  const steps = Math.max(1, Math.ceil(travel / 4));
+  for (let i = 0; i < steps && projectile.active; i++) {
+    projectile.x += Math.cos(projectile.angle) * travel / steps;
+    projectile.y += Math.sin(projectile.angle) * travel / steps;
+    projectile.traveled += travel / steps;
+    if (trees.some(t => intersectsTree(projectile, projectile.radius, t)) || stones.some(t => intersectsStone(projectile, projectile.radius, t))) {
+      detonateExplosiveBolt(projectile); return;
+    }
+    const target = bountyTargets().find(t => t.w ? intersectsBuilding(projectile, projectile.radius, t)
+      : distance(projectile, t) <= projectile.radius + t.radius);
+    if (target) { detonateExplosiveBolt(projectile, target); return; }
+    if (tryHitTutorialRangeTarget(projectile)) { detonateExplosiveBolt(projectile); return; }
+  }
+  if (projectile.traveled >= projectile.maxDistance - 0.001) detonateExplosiveBolt(projectile);
+}
+
+function drawBountyHunter() {
+  ctx.save();
+  ctx.translate(hero.x, hero.y);
+  if (Math.cos(hero.facingAngle) < 0) ctx.scale(-1, 1);
+  const bob = hero.isMoving ? Math.sin(hero.runAnimationTimer * 12) * 2 : 0;
+  if (bountyHunterSprite.complete && bountyHunterSprite.naturalWidth) ctx.drawImage(bountyHunterSprite, -30, -66 + bob, 60, 90);
+  else drawEntityCircle({x: 0, y: 0, radius: hero.radius}, "#79583b", "#dbad68");
+  ctx.restore();
+}
+
+function drawBountyEffects() {
+  if (!isBountyHunter() || hero.hp <= 0) return;
+  ctx.save();
+  if (hero.adrenalineTimer > 0) {
+    ctx.strokeStyle = "#8ff5cd"; ctx.lineWidth = 2;
+    ctx.globalAlpha = 0.45 + Math.sin(hero.adrenalineTimer * 12) * 0.2;
+    ctx.beginPath(); ctx.ellipse(hero.x, hero.y + 12, 28, 12, 0, 0, Math.PI * 2); ctx.stroke();
+    for (let i = 0; i < 5; i++) {
+      const a = hero.adrenalineTimer * 4 + i * Math.PI * 2 / 5;
+      ctx.fillStyle = "#b5ffe3"; ctx.fillRect(hero.x + Math.cos(a) * 24, hero.y - 10 + Math.sin(a) * 20, 3, 6);
+    }
+  }
+  const target = hero.hunterMarkTimer > 0 && bountyTargets().find(t => t.id === hero.hunterMarkTargetId);
+  if (target) {
+    const point = getEntityTargetPoint(target);
+    const y = target.y - (target.radius || 20) - 34;
+    ctx.globalAlpha = 1; ctx.strokeStyle = "#ffc36e"; ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.arc(point.x, y, 10, 0, Math.PI * 2);
+    ctx.moveTo(point.x - 16, y); ctx.lineTo(point.x + 16, y);
+    ctx.moveTo(point.x, y - 16); ctx.lineTo(point.x, y + 16); ctx.stroke();
+    ctx.fillStyle = "#fff0c4"; ctx.font = "bold 12px sans-serif"; ctx.textAlign = "center";
+    ctx.fillText(`${hero.hunterMarkTimer.toFixed(1)}s`, point.x, y - 20);
+  }
+  ctx.restore();
+}
+
+// Versioned per-character progress. World encounters restart on load, as before.
+const CHARACTER_SAVE_PREFIX = "timberlineCommandCharacterV1:";
+const SAVED_PLAYER_FIELDS = ["level", "xp", "upgradePoints", "wood", "money", "weaponBonusStat", "weaponBonusDamage",
+  "weaponDetailDamageLevel", "weaponDetailAmmoLevel", "weaponDetailReloadLevel", "weaponDetailRangeLevel",
+  "weaponDetailFireRateLevel", "bonusArmor", "bonusHealth", "bonusDamage", "bonusSpeed", "bonusRegen", "bonusAbilityDamage", "helmetBonusArmor"];
+const SAVED_EQUIPMENT_FIELDS = ["hasRifle", "hasBow", "hasAxe", "equippedArmorValue", "equippedHelmetType", "ammo"];
+function characterSaveKey(classId = hero.selectedClass) {
+  return CHARACTER_SAVE_PREFIX + encodeURIComponent(player.displayName) + ":" + classId;
+}
+function saveCharacterProgress() {
+  if (!player.hasSelectedCharacter || !hero.selectedClass) return;
+  try {
+    localStorage.setItem(characterSaveKey(), JSON.stringify({version: 1, classId: hero.selectedClass,
+      stats: Object.fromEntries(SAVED_PLAYER_FIELDS.map(k => [k, player[k]])),
+      equipment: Object.fromEntries(SAVED_EQUIPMENT_FIELDS.map(k => [k, hero[k]])),
+      backpack: player.backpack, abilityOrder: getInventoryAbilitySlots(),
+      cooldowns: {slashTimer: hero.slashTimer, battleMedicineCooldownRemaining: hero.battleMedicineCooldownRemaining, grenadeCooldownRemaining: hero.grenadeCooldownRemaining},
+      professions: tutorialProfessionState
+    }));
+  } catch (error) { console.warn("Character progress could not be saved", error); }
+}
+function restoreCharacterProgress(classId) {
+  try {
+    const saved = JSON.parse(localStorage.getItem(characterSaveKey(classId)) || "null");
+    if (!saved || saved.version !== 1 || saved.classId !== classId) return false;
+    for (const key of SAVED_PLAYER_FIELDS) {
+      if (Number.isFinite(saved.stats?.[key]) && saved.stats[key] >= 0) player[key] = saved.stats[key];
+    }
+    player.level = Math.max(1, Math.floor(player.level));
+    for (const key of SAVED_EQUIPMENT_FIELDS) {
+      const value = saved.equipment?.[key];
+      if (typeof value === typeof hero[key] && (typeof value !== "number" || Number.isFinite(value) && value >= 0)) hero[key] = value;
+    }
+    if (["helmet", "rareHelmet", "enemyHelmet", "goldHelmet"].includes(saved.equipment?.equippedHelmetType)) hero.equippedHelmetType = saved.equipment.equippedHelmetType;
+    if (Array.isArray(saved.backpack)) player.backpack = saved.backpack.filter(i => i && typeof i.type === "string").slice(0, player.backpackCapacity);
+    if (Array.isArray(saved.abilityOrder)) inventoryAbilityOrders.set(classId, saved.abilityOrder.slice(0, 6));
+    for (const [key, max] of Object.entries({slashTimer: 30, battleMedicineCooldownRemaining: 20, grenadeCooldownRemaining: 8})) {
+      if (Number.isFinite(saved.cooldowns?.[key])) hero[key] = Math.max(0, Math.min(max, saved.cooldowns[key]));
+    }
+    for (const [key, state] of Object.entries(tutorialProfessionState)) {
+      const stored = saved.professions?.[key];
+      if (!stored) continue;
+      for (const field of ["xp", "reputation", "completed"]) if (Number.isFinite(stored[field]) && stored[field] >= 0) state[field] = stored[field];
+      if (Array.isArray(stored.claimedRewardRanks)) state.claimedRewardRanks = stored.claimedRewardRanks.filter(Number.isFinite);
+      state.introSeen = Boolean(stored.introSeen);
+    }
+    hero.maxHp = getSelectedClassConfig().stats.health + player.bonusHealth;
+    hero.hp = hero.maxHp;
+    hero.speed = getHeroSpeed();
+    syncWeaponDerivedStats();
+    return true;
+  } catch (error) { console.warn("Invalid character save ignored", error); return false; }
+}
+window.addEventListener("pagehide", saveCharacterProgress);
+setInterval(saveCharacterProgress, 5000);
 
 initializeGame();

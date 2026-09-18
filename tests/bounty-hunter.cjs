@@ -1,0 +1,119 @@
+const fs = require('node:fs');
+const vm = require('node:vm');
+const assert = require('node:assert/strict');
+const noop = () => {};
+const canvasContext = new Proxy({measureText: text => ({width: text.length * 8})}, {get: (target, key) => target[key] ?? noop});
+function element() {
+  const classes = new Set(['hidden']);
+  return {style: {setProperty: noop}, dataset: {}, value: '', textContent: '', width: 240, height: 190,
+    classList: {add: x => classes.add(x), remove: x => classes.delete(x), contains: x => classes.has(x), toggle(x, force) {if (force) classes.add(x); else classes.delete(x);}},
+    querySelector: element, querySelectorAll: () => [], replaceChildren: noop, remove: noop, removeAttribute: noop, addEventListener: noop, append: noop, appendChild: noop, focus: noop, setAttribute: noop,
+    getAttribute() {return this.src;}, getContext: () => canvasContext, getBoundingClientRect: () => ({left: 0, top: 0}),
+  };
+}
+const elements = new Map();
+const storage = new Map();
+const context = vm.createContext({console, assert, Math, Set, Map, setInterval: noop, ResizeObserver: class {observe() {}}, Image: class {},
+  window: {location: {protocol: "http:"}, innerWidth: 1200, innerHeight: 800, addEventListener: noop},
+  document: {getElementById(id) {if (!elements.has(id)) elements.set(id, element()); return elements.get(id);}, querySelectorAll: () => [], querySelector: element, createElement: element},
+  localStorage: {getItem: k => storage.get(k) || null, setItem: (k, v) => storage.set(k, v)}, requestAnimationFrame: noop,
+  fetch: async path => ({ok: true, json: async () => JSON.parse(fs.readFileSync(path, 'utf8'))}),
+});
+const paths = ['modules/constants.js','modules/assets.js','modules/dom.js','modules/state.js','game.js'];
+const source = paths.map(path => fs.readFileSync(path, 'utf8').replace(/import\s*\{[\s\S]*?\}\s*from\s*"[^"]+";/g, '').replace(/export\s*\{[\s\S]*?\};/g, '')).join('\n').replace(/initializeGame\(\);\s*$/, 'globalThis.ready = initializeGame();');
+vm.runInContext(source, context);
+(async () => {
+ await context.ready;
+ vm.runInContext(`
+ player.displayName = 'BountyTest';
+ selectCharacter('bountyHunter');
+ assert.equal(hero.hasRifle, true);
+ assert.equal(hero.maxHp, 110);
+ assert.equal(getBaseArmor(), 25);
+ assert.equal(getHeroSpeed(), 345);
+ assert.equal(getHeroHeadshotDamage(), 50);
+ assert.equal(getCurrentWeaponDetails().name, 'Trail Pistol');
+ assert.equal(getInventoryAbilities().length, 3);
+ assert.equal(getInventoryAbilitySlots().filter(Boolean).length, 3);
+ assert.equal(INVENTORY_ABILITY_SLOT_LEVELS.join(','), '1,1,1,2,4,6');
+ assert.equal(getOrderedInventoryAbilities().map(a => a.key).join(','), 'F,Q,G');
+ render(); update(0.016);
+ const enemy = {id: 99991, x: hero.x + 60, y: hero.y, radius: 18, hp: 300};
+ const nearby = {id: 99992, x: enemy.x + 35, y: enemy.y, radius: 18, hp: 300};
+ enemies.push(enemy, nearby);
+ mouse.worldX = enemy.x; mouse.worldY = enemy.y;
+ assert.equal(useHuntersMark(), true);
+ assert.equal(hero.hunterMarkTimer, 8);
+ assert.equal(hero.slashTimer, 12);
+ dealDamage(enemy, 20, false, 'bountyHunter'); assert.equal(enemy.hp, 275);
+ dealDamage(enemy, 20, false); assert.equal(enemy.hp, 255, 'Allies do not receive mark bonus');
+ assert.equal(useHuntersMark(), false, 'Cooldown prevents remarking');
+ applyRangedProjectileHit(enemy, {baseDamage: 20, projectileType: 'bullet', canHeadshot: true, headshotChance: 1, headshotMultiplier: 2.5, sourceClass: 'bountyHunter'});
+ assert.equal(enemy.hp, 192.5, 'Headshot and mark multiply correctly');
+ enemy.hp = 255;
+ hero.hunterMarkTimer = 0;
+ dealDamage(enemy, 20, false, 'bountyHunter'); assert.equal(enemy.hp, 235, 'Expired mark has no bonus');
+ hero.slashTimer = 0; mouse.worldX = -500; mouse.worldY = -500;
+ assert.equal(useHuntersMark(), false); assert.equal(hero.slashTimer, 0, 'No target consumes no cooldown');
+ hero.hp = 60;
+ assert.equal(useAdrenalineShot(), true); assert.equal(hero.hp, 90);
+ assert.equal(hero.adrenalineTimer, 6); assert.equal(hero.battleMedicineCooldownRemaining, 20);
+ assert.equal(useAdrenalineShot(), false);
+ hero.battleMedicineCooldownRemaining = 0; hero.hp = 105; useAdrenalineShot(); assert.equal(hero.hp, 110);
+ assert.equal(getHeroRegen(), 1, 'Adrenaline does not inherit medicine regeneration');
+ const movementStart = {x: hero.x, y: hero.y};
+ keys.add('d'); hero.adrenalineTimer = 0; updateHero(0.01);
+ const normalTravel = hero.x - movementStart.x;
+ hero.x = movementStart.x; hero.y = movementStart.y; hero.adrenalineTimer = 6; updateHero(0.01);
+ assert.ok(normalTravel > 0); assert.ok(Math.abs((hero.x - movementStart.x) / normalTravel - 1.2) < 0.00001);
+ keys.clear(); hero.x = movementStart.x; hero.y = movementStart.y;
+ hero.adrenalineTimer = 0.001; hero.hunterMarkTimer = 0.001; updateHero(0.01);
+ assert.equal(hero.adrenalineTimer, 0); assert.equal(hero.hunterMarkTimer, 0);
+ trees.length = 0; stones.length = 0;
+ enemy.hp = 300; nearby.hp = 300;
+ startGrenadeAim(); assert.equal(grenadeAim.active, true);
+ assert.equal(fireExplosiveBolt(enemy.x, enemy.y), true);
+ assert.equal(hero.grenadeCooldownRemaining, 8); assert.equal(grenadeAim.active, false);
+ const bolt = heroProjectiles.at(-1); updateExplosiveBolt(bolt, 0.5);
+ assert.equal(bolt.active, false); assert.equal(enemy.hp, 255); assert.equal(nearby.hp, 275);
+ hero.hunterMarkTimer = 8; hero.hunterMarkTargetId = enemy.id;
+ detonateExplosiveBolt({x: enemy.x, y: enemy.y, sourceClass: 'bountyHunter'}, enemy);
+ assert.equal(enemy.hp, 198.75, 'Marked direct hit gets exactly 25% bonus');
+ hero.vehicleId = 123; hero.battleMedicineCooldownRemaining = 0;
+ assert.equal(useAdrenalineShot(), false); hero.vehicleId = null;
+ player.inventoryOpen = true; assert.equal(useAdrenalineShot(), false); player.inventoryOpen = false;
+ player.level = 4; player.bonusSpeed = 15; player.bonusHealth = 20;
+ hero.equippedHelmetType = 'rareHelmet'; hero.equippedArmorValue = 45;
+ inventoryAbilityOrders.set('bountyHunter', ['Explosive Bolt', 'Hunter’s Mark', 'Adrenaline Shot']);
+ assert.equal(getOrderedInventoryAbilities()[0].actionKey, 'G');
+ saveCharacterProgress();
+ player.level = 1; player.bonusSpeed = 0; hero.equippedHelmetType = null;
+ assert.equal(restoreCharacterProgress('bountyHunter'), true);
+ assert.equal(player.level, 4); assert.equal(hero.speed, 360); assert.equal(hero.maxHp, 130);
+ assert.equal(hero.equippedHelmetType, 'rareHelmet');
+ assert.equal(getOrderedInventoryAbilities()[0].name, 'Explosive Bolt');
+ render(); update(0.016);
+ selectCharacter('soldier');
+ assert.equal(hero.adrenalineTimer, 0); assert.equal(hero.hunterMarkTimer, 0);
+ assert.equal(getInventoryAbilities()[0].name, 'Burst Shot');
+ assert.equal(getRifleDamage(), 16); assert.equal(getRifleMaxAmmo(), 30);
+ assert.equal(buildProjectileHeadshotConfig('bullet').headshotMultiplier, 2);
+ assert.equal(getInventoryAbilities()[1].name, 'Battle Medicine');
+ render(); update(0.016);
+ for (const id of ['archer','mage','robot','swordsman','stickman','player']) {
+   selectCharacter(id); render(); update(0.016);
+ }
+ selectCharacter('bountyHunter'); hero.adrenalineTimer = 6; hero.hunterMarkTimer = 8; respawnHero();
+ assert.equal(hero.adrenalineTimer, 0); assert.equal(hero.hunterMarkTimer, 0); assert.equal(hero.hasRifle, true);
+ localStorage.setItem(characterSaveKey('bountyHunter'), '{broken');
+ assert.equal(restoreCharacterProgress('bountyHunter'), false);
+ `, context);
+ for (const name of ['bounty-hunter-portrait','bounty-hunter-sprite','hunters-mark','adrenaline-shot','explosive-bolt','trail-pistol']) {
+   assert.ok(fs.readFileSync('images/' + name + '.svg', 'utf8').includes('<svg'));
+ }
+ for (const config of Object.values(JSON.parse(fs.readFileSync('character-options.json', 'utf8')))) {
+   if (config.portrait) assert.ok(fs.existsSync(config.portrait));
+   if (config.sprite) assert.ok(fs.existsSync(config.sprite));
+ }
+ console.log('Bounty Hunter gameplay, UI, save/load, and existing character smoke tests passed.');
+})().catch(error => { console.error(error); process.exitCode = 1; });
