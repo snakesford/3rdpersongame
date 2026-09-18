@@ -1,6 +1,7 @@
 const http = require("http");
 const fs = require("fs");
 const path = require("path");
+const { Server } = require("socket.io");
 
 const HOST = "127.0.0.1";
 const PORT = 4173;
@@ -23,7 +24,7 @@ function send(res, statusCode, body, contentType = "text/plain; charset=utf-8") 
   res.end(body);
 }
 
-const server = http.createServer((req, res) => {
+function serveStatic(req, res) {
   const urlPath = req.url === "/" ? "/index.html" : req.url.split("?")[0];
   const safePath = path.normalize(urlPath).replace(/^(\.\.[/\\])+/, "");
   const filePath = path.join(ROOT, safePath);
@@ -42,8 +43,27 @@ const server = http.createServer((req, res) => {
     const ext = path.extname(filePath).toLowerCase();
     send(res, 200, data, MIME_TYPES[ext] || "application/octet-stream");
   });
-});
+}
 
-server.listen(PORT, HOST, () => {
-  console.log(`Timberline Command server running at http://${HOST}:${PORT}`);
-});
+function createGameServer(requestHandler = serveStatic) {
+  const server = http.createServer(requestHandler);
+  const io = new Server(server);
+
+  io.on("connection", socket => {
+    console.log(`[network] Connected: ${socket.id}`);
+    socket.on("disconnect", reason => {
+      console.log(`[network] Disconnected: ${socket.id} (${reason})`);
+    });
+  });
+
+  return { server, io };
+}
+
+if (require.main === module) {
+  const { server } = createGameServer();
+  server.listen(PORT, HOST, () => {
+    console.log(`Timberline Command server running at http://${HOST}:${PORT}`);
+  });
+}
+
+module.exports = { createGameServer };

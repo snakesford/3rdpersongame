@@ -40,10 +40,34 @@ The frame update calls retain their original order. In particular, ability timer
 
 The extraction audit compared 407 original named functions: 404 retained their bodies apart from reference qualification, and the three split functions retained the identical statement sequence after inlining their extracted helpers. No original function implementation was lost or duplicated.
 
-## Before multiplayer
+## Networking foundation
+
+Run `npm install`, then `npm start` and open `http://127.0.0.1:4173`.
+Socket.IO shares the existing HTTP server and serves its matching browser ES module
+locally. `network.js` loads separately from `game.js` and connects to the page's
+origin. The server logs connections and disconnections; no game state is sent or
+replicated yet.
+
+The client module exports `connect()`, `disconnect()`, `isConnected()`,
+`getSocketId()`, `send(event, ...args)`, and `on(event, handler)`.
+`on` returns an unsubscribe function and supports Socket.IO lifecycle events
+(`connect`, `disconnect`, `connect_error`). `send` returns false while disconnected
+instead of buffering events. Unexpected transport failures use Socket.IO's default
+reconnection; explicit disconnect stays disconnected until `connect()` is called.
+Page exit disconnects, and page restoration reconnects.
+
+`npm run test:browser` uses the production server factory with the existing
+test-only game instrumentation. It verifies browser connection, a test-only event
+round trip, explicit disconnection, reconnection, and cleanup on browser close,
+including the server's socket registry. It also runs the existing gameplay smoke
+checks. Google Chrome on macOS is required.
+
+The HTTP integration follows the [Socket.IO server initialization documentation](https://socket.io/docs/v4/server-initialization/).
+
+## Before gameplay synchronization
 
 - Simulation and UI remain coupled: damage, rewards, equipment and world transitions update DOM and local effects directly. Separate authoritative state changes from presentation events.
 - State is still a single local world. Player/hero references, shared collections and local storage need session/player ownership before supporting multiple players.
 - Combat, vehicles, buildings and world transitions still call one another through the registry. Narrow these interfaces into explicit actions and events before networking them.
 - Friendly and enemy units intentionally retain the same movement/attack routine. Selection uses entity IDs, while some targeting retains object references; network replication will need consistent identity and lifecycle handling.
-- Randomness, frame timing, input actions, purchases and rewards remain client-driven. Decide authority and synchronization rules before introducing a server; this refactor does not change them.
+- Randomness, frame timing, input actions, purchases and rewards remain client-driven. Decide authority and synchronization rules before networking gameplay; the networking foundation does not change them.

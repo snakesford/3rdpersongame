@@ -1,0 +1,13 @@
+{
+  "name": "timberline-command",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "start": "node server.js",
+    "test": "node tests/run.cjs",
+    "test:browser": "node tests/browser.cjs"
+  },
+  "dependencies": {
+    "socket.io": "^4.8.3"
+  }
+}

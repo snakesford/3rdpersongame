@@ -1,13 +1,14 @@
 // Real Chromium smoke checks. Requires Google Chrome on macOS.
 const fs = require('node:fs');
 const path = require('node:path');
-const http = require('node:http');
+const assert = require('node:assert/strict');
+const {createGameServer} = require('../server.js');
 const os = require('node:os');
 const {spawn} = require('node:child_process');
 const root = path.resolve(__dirname, '..');
 const profile = fs.mkdtempSync(path.join(os.tmpdir(), 'timberline-browser-'));
 let browser;
-const server = http.createServer((request, response) => {
+const {server, io} = createGameServer((request, response) => {
   const filename = path.join(root, new URL(request.url, 'http://localhost').pathname === '/' ? 'index.html' : new URL(request.url, 'http://localhost').pathname);
   if (!filename.startsWith(root + path.sep)) {response.writeHead(403).end(); return;}
   try {
@@ -23,6 +24,13 @@ const server = http.createServer((request, response) => {
     response.setHeader('Content-Type', ({'.js':'application/javascript', '.html':'text/html', '.css':'text/css', '.json':'application/json', '.svg':'image/svg+xml', '.png':'image/png'})[path.extname(filename)] || 'application/octet-stream');
     response.end(content);
   } catch {response.writeHead(404).end();}
+});
+const connections = [];
+const disconnections = [];
+io.on('connection', socket => {
+  connections.push(socket.id);
+  socket.on('network:test', payload => socket.emit('network:reply', payload));
+  socket.on('disconnect', () => disconnections.push(socket.id));
 });
 const pending = new Map();
 const errors = [];
@@ -44,7 +52,7 @@ function cleanup(code) {
   } else {
     removeProfile();
   }
-  server.close();
+  io.close();
   process.exitCode = code;
 }
 (async () => {
@@ -72,6 +80,43 @@ function cleanup(code) {
   await send('Page.navigate', {url: `http://127.0.0.1:${server.address().port}/`}, sessionId);
   const ready = await send('Runtime.evaluate', {expression: `new Promise(resolve => { const timer = setInterval(() => { if(window.gameReady) {clearInterval(timer); resolve(true);} }, 20); })`, awaitPromise: true, returnByValue: true}, sessionId);
   if (ready.exceptionDetails) throw new Error(JSON.stringify(ready.exceptionDetails));
+  const networkResult = await send('Runtime.evaluate', {expression: `(async () => {
+    const network = await import('./network.js');
+    const nextEvent = event => new Promise((resolve, reject) => {
+      const timeout = setTimeout(() => {off(); reject(new Error('Timed out: ' + event));}, 5000);
+      const off = network.on(event, value => {clearTimeout(timeout); off(); resolve(value);});
+    });
+    if (!network.isConnected()) await nextEvent('connect');
+    const firstId = network.getSocketId();
+    network.connect(); // Must reuse the existing connection.
+    const reply = nextEvent('network:reply');
+    if (!network.send('network:test', {message: 'hello'})) throw new Error('Send failed');
+    if ((await reply).message !== 'hello') throw new Error('Event payload mismatch');
+    const disconnected = nextEvent('disconnect');
+    network.disconnect();
+    await disconnected;
+    if (network.isConnected() || network.getSocketId()) throw new Error('Still connected');
+    if (network.send('network:test', {message: 'offline'})) throw new Error('Offline send succeeded');
+    const reconnected = nextEvent('connect');
+    network.connect();
+    await reconnected;
+    if (network.getSocketId() === firstId) throw new Error('Expected a new session');
+    return {firstId, secondId: network.getSocketId()};
+  })()`, awaitPromise: true, returnByValue: true}, sessionId);
+  if (networkResult.exceptionDetails) throw new Error(JSON.stringify(networkResult.exceptionDetails));
+  const {firstId, secondId} = networkResult.result.value;
+  assert.deepEqual(connections, [firstId, secondId]);
+  // Server-side close notification may arrive after the browser-side event.
+  const waitForDisconnect = async socketId => {
+    const until = Date.now() + 5000;
+    while (!disconnections.includes(socketId) && Date.now() < until) {
+      await new Promise(resolve => setTimeout(resolve, 20));
+    }
+    assert.ok(disconnections.includes(socketId), 'Server did not observe disconnect');
+    assert.equal(io.sockets.sockets.has(socketId), false);
+  };
+  await waitForDisconnect(firstId);
+  console.log('Browser networking checks passed: connect, event round trip, disconnect, reconnect');
   const checks = `
     player.displayName = 'BrowserTest';
     for (const classId of Object.keys(runtime.CHARACTER_OPTIONS)) {
@@ -115,5 +160,6 @@ function cleanup(code) {
   if (errors.length) throw new Error(JSON.stringify(errors, null, 2));
   console.log(result.result.value);
   await send('Browser.close');
+  await waitForDisconnect(secondId);
   cleanup(0);
 })().catch(error => {console.error(error); cleanup(1);});
