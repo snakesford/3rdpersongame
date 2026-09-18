@@ -79,6 +79,8 @@ const hero = {
   slashDamage: 35,
   slashArcTimer: 0,
   dashTimer: 0,
+  sprintTimer: 0,
+  sprintCooldownRemaining: 0,
   dashCooldown: 0,
   dashCooldownRemaining: 0,
   dashSpeed: 680,

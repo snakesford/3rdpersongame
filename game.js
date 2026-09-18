@@ -186,6 +186,9 @@ let selectedInventoryAbilityName = null;
 const inventoryAbilityOrders = new Map();
 const INVENTORY_ABILITY_SLOT_LEVELS = [1, 1, 1, 2, 4, 6];
 const INVENTORY_ABILITY_SLOT_KEYS = ["F", "Q", "G", "1", "2", "3"];
+const SPRINT_DURATION = 5;
+const SPRINT_COOLDOWN = 10;
+const SPRINT_SPEED_MULTIPLIER = 2.5;
 const INVENTORY_ABILITY_SLOT_POSITIONS = ["left-upper", "left-lower", "top-left", "top-right", "right-upper", "right-lower"];
 let draggedInventoryAbility = null;
 const BATTLE_MEDICINE_USE_DURATION = 0.9;
@@ -763,7 +766,7 @@ function renderProfessionRewards(progressView) {
       ability.textContent = reward.ability;
       const note = document.createElement("span");
       note.className = "profession-reward-note";
-      note.textContent = "Coming soon";
+      note.textContent = reward.ability === "Sprint" ? "+150% speed" : "Coming soon";
       tile.append(ability, note);
     }
     rewards.appendChild(tile);
@@ -773,8 +776,11 @@ function renderProfessionRewards(progressView) {
 
 function awardTutorialProfessionProgress(professionId, xp, reputation, rewardMessage) {
   const state = getTutorialProfessionState(professionId);
+  const previousLevel = state.level;
   state.xp += xp;
-  state.reputation += reputation;
+  if (professionId !== "mercenary") {
+    state.reputation += reputation;
+  }
   state.completed += 1;
 
   while (state.xp >= getProfessionXpRequired(state.level)) {
@@ -782,8 +788,26 @@ function awardTutorialProfessionProgress(professionId, xp, reputation, rewardMes
     state.level += 1;
   }
 
+  if (professionId === "mercenary") {
+    state.reputation = state.level - 1;
+  }
+
   if (rewardMessage) {
     statusTextEl.textContent = rewardMessage;
+  }
+  if (professionId === "mercenary" && previousLevel < 3 && state.level >= 3) {
+    updateInventoryAbilities();
+    updateAbilityUI();
+    const popup = document.createElement("div");
+    popup.className = "ability-unlock-popup";
+    popup.setAttribute("role", "status");
+    const title = document.createElement("strong");
+    title.textContent = "New ability unlocked: Sprint";
+    const detail = document.createElement("span");
+    detail.textContent = "Mercenary Rank 3 reached! Equip Sprint in your inventory for +150% movement speed.";
+    popup.append(title, detail);
+    document.body.appendChild(popup);
+    setTimeout(() => popup.remove(), 6500);
   }
 }
 
@@ -2267,6 +2291,15 @@ function startBarracksPlacement() {
 }
 
 function updateAbilityUI() {
+  const sprint = getOrderedInventoryAbilities().find((ability) => ability.name === "Sprint");
+  const sprintChip = document.getElementById("sprintAbility");
+  sprintChip.classList.toggle("hidden", !sprint);
+  sprintChip.classList.toggle("ready", hero.sprintCooldownRemaining <= 0);
+  sprintChip.classList.toggle("cooldown", hero.sprintCooldownRemaining > 0);
+  sprintChip.querySelector(".ability-icon").textContent = sprint?.key || "";
+  document.getElementById("sprintCooldownText").textContent = hero.sprintTimer > 0
+    ? `Active ${hero.sprintTimer.toFixed(1)}s`
+    : hero.sprintCooldownRemaining > 0 ? `${hero.sprintCooldownRemaining.toFixed(1)}s` : "Ready";
   for (const ability of getOrderedInventoryAbilities()) {
     const keyLabel = {
       F: "#slashAbility .ability-icon",
@@ -2357,6 +2390,9 @@ function getInventoryAbilities() {
   }
   if (hero.selectedClass === "robot") {
     abilities.push({ name: "Dash", key: "Shift", description: "Quickly dash in your movement direction.", cooldown: hero.dashCooldown, remaining: hero.dashCooldownRemaining });
+  }
+  if (selected && getTutorialProfessionState("mercenary").level >= 3) {
+    abilities.push({ name: "Sprint", key: "Sprint", description: `Increase movement speed by 150% (2.5× normal speed) for ${SPRINT_DURATION} seconds.`, cooldown: SPRINT_COOLDOWN, remaining: hero.sprintCooldownRemaining });
   }
   return abilities;
 }
@@ -2514,10 +2550,12 @@ function enableInventoryAbilityDrag(slot, ability, slotIndex = ability?.slotInde
     event.preventDefault();
     const order = getInventoryAbilitySlots();
     const source = order.indexOf(draggedInventoryAbility.name);
+    const draggedName = draggedInventoryAbility.name;
     const target = slotIndex;
     clearInventoryAbilityDrag();
-    if (source < 0 || target < 0) return;
-    [order[source], order[target]] = [order[target], order[source]];
+    if (target < 0) return;
+    if (source < 0) order[target] = draggedName;
+    else [order[source], order[target]] = [order[target], order[source]];
     inventoryAbilityOrders.set(hero.selectedClass, order);
     updateInventoryAbilities();
   });
@@ -2585,7 +2623,9 @@ function updateInventoryAbilities() {
   const abilities = getOrderedInventoryAbilities();
   const sideAbilities = document.getElementById("inventorySideAbilities");
   sideAbilities.replaceChildren();
-  for (const ability of abilities) {
+  for (const available of getInventoryAbilities()) {
+    const ability = abilities.find((entry) => entry.name === available.name)
+      || { ...available, key: "Unequipped" };
     const button = document.createElement("button");
     button.type = "button";
     button.className = "inventory-side-ability inventory-backpack-slot";
@@ -3929,6 +3969,8 @@ function respawnHero() {
   hero.isDead = false;
   hero.deathTimer = 0;
   hero.dashTimer = 0;
+  hero.sprintTimer = 0;
+  hero.sprintCooldownRemaining = 0;
   hero.regenProgress = 0;
   hero.dashCooldown = selectedClass?.dashCooldown || 0;
   hero.dashCooldownRemaining = 0;
@@ -5183,6 +5225,19 @@ function useAxeSwing() {
   );
 }
 
+function useSprint() {
+  if (!player.hasSelectedCharacter || player.victory || player.loss || hero.hp <= 0
+    || isInterfacePanelOpen() || hero.sprintCooldownRemaining > 0
+    || !getOrderedInventoryAbilities().some((ability) => ability.name === "Sprint")) {
+    return false;
+  }
+  hero.sprintTimer = SPRINT_DURATION;
+  hero.sprintCooldownRemaining = SPRINT_COOLDOWN;
+  statusTextEl.textContent = `Sprint activated: +150% movement speed for ${SPRINT_DURATION} seconds.`;
+  updateAbilityUI();
+  return true;
+}
+
 function useRobotDash() {
   if (
     !player.hasSelectedCharacter ||
@@ -5386,6 +5441,8 @@ function updateHero(dt) {
   hero.rifleCooldown = Math.max(0, hero.rifleCooldown - dt);
   hero.rifleShotAnimationTimer = Math.max(0, hero.rifleShotAnimationTimer - dt);
   hero.dashTimer = Math.max(0, hero.dashTimer - dt);
+  hero.sprintTimer = Math.max(0, hero.sprintTimer - dt);
+  hero.sprintCooldownRemaining = Math.max(0, hero.sprintCooldownRemaining - dt);
   hero.dashCooldownRemaining = Math.max(0, hero.dashCooldownRemaining - dt);
   if (hero.isReloading) {
     hero.reloadTimer = Math.max(0, hero.reloadTimer - dt);
@@ -5482,7 +5539,8 @@ function updateHero(dt) {
 
   const dx = (keys.has("d") ? 1 : 0) - (keys.has("a") ? 1 : 0);
   const dy = (keys.has("s") ? 1 : 0) - (keys.has("w") ? 1 : 0);
-  const movementSpeedMultiplier = getRoadSpeedMultiplier() * (isSoldierRifleShooting() ? 0.5 : 1);
+  const movementSpeedMultiplier = getRoadSpeedMultiplier() * (isSoldierRifleShooting() ? 0.5 : 1)
+    * (hero.sprintTimer > 0 ? SPRINT_SPEED_MULTIPLIER : 1);
 
   if (isUsingBattleMedicine()) {
     hero.isMoving = false;
@@ -7837,6 +7895,7 @@ window.addEventListener("keydown", (event) => {
       if (ability?.actionKey === "Q") useBattleMedicine();
       else if (ability?.actionKey === "G") startGrenadeAim();
       else if (ability?.actionKey === "Shift") useRobotDash();
+      else if (ability?.actionKey === "Sprint") useSprint();
     }
     return;
   }
@@ -8168,6 +8227,8 @@ function selectCharacter(classId) {
   hero.hp = hero.maxHp;
   hero.regenProgress = 0;
   hero.dashTimer = 0;
+  hero.sprintTimer = 0;
+  hero.sprintCooldownRemaining = 0;
   hero.dashCooldown = selectedClass.dashCooldown || 0;
   hero.dashCooldownRemaining = 0;
   hero.hasAxe = false;

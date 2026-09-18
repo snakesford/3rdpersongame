@@ -646,6 +646,34 @@ button.hidden {
   line-height: 1.4;
 }
 
+.ability-unlock-popup {
+  position: fixed;
+  top: 80px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 100;
+  width: min(420px, calc(100vw - 32px));
+  display: grid;
+  gap: 6px;
+  padding: 16px 20px;
+  border: 1px solid #e0b766;
+  border-radius: 12px;
+  background: rgba(15, 33, 24, 0.97);
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.4);
+  color: #eff7e6;
+  text-align: center;
+  pointer-events: none;
+}
+
+.ability-unlock-popup strong {
+  color: #f5d58e;
+}
+
+.ability-unlock-popup span {
+  font-size: 13px;
+  line-height: 1.4;
+}
+
 .profession-rewards {
   display: grid;
   grid-template-columns: repeat(6, minmax(0, 1fr));
