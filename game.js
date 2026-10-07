@@ -273,7 +273,8 @@ async function loadEnemyOptions() {
 function initializeCharacterCards() {
   classGridEl.textContent = "";
 
-  for (const [classId, selectedClass] of Object.entries(runtime.CHARACTER_OPTIONS)) {
+  for (const classId of ["soldier", "custom", "archer"]) {
+    const selectedClass = runtime.CHARACTER_OPTIONS[classId];
     const classCardEl = document.createElement("button");
     classCardEl.className = "class-card";
     classCardEl.dataset.class = classId;

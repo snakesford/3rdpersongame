@@ -136,6 +136,22 @@
     "damage": 20,
     "headshotMultiplier": 2.5
   },
+  "custom": {
+    "name": "Custom",
+    "abilityName": "Slash",
+    "cooldown": 5,
+    "agility": 220,
+    "stats": {
+      "armor": 0,
+      "health": 100,
+      "weapon": 50,
+      "regen": 1
+    },
+    "effect": "cone",
+    "damage": 25,
+    "radius": 86,
+    "halfAngle": 1.5707963267948966
+  },
   "engineer": {
     "name": "Engineer",
     "abilityName": "Bolt Shot",

@@ -73,6 +73,7 @@ function cleanup(code) {
   const ready = await send('Runtime.evaluate', {expression: `new Promise(resolve => { const timer = setInterval(() => { if(window.gameReady) {clearInterval(timer); resolve(true);} }, 20); })`, awaitPromise: true, returnByValue: true}, sessionId);
   if (ready.exceptionDetails) throw new Error(JSON.stringify(ready.exceptionDetails));
   const checks = `
+    if ([...document.querySelectorAll('.class-card')].map(card => card.dataset.class).join(',') !== 'soldier,custom,archer') throw new Error('Character picker must show only Soldier, Custom and Archer');
     player.displayName = 'BrowserTest';
     for (const classId of Object.keys(runtime.CHARACTER_OPTIONS)) {
       selectCharacter(classId);
@@ -154,13 +155,13 @@ function cleanup(code) {
   await reloadGame();
   await check(`
     if (getSavedCharacter().classId !== 'soldier') throw new Error('New character was not remembered');
-    newGameBtnEl.click(); document.querySelector('[data-class="engineer"]').click();
+    newGameBtnEl.click(); document.querySelector('[data-class="soldier"]').click();
     if (player.money !== 0 || player.xp !== 0 || player.backpack.length !== 0) throw new Error('New game restored old class progress');
   `);
   await reloadGame();
   await check(`
     continueGameBtnEl.click();
-    if (hero.selectedClass !== 'engineer' || player.money !== 0) throw new Error('Fresh game was not saved');
+    if (hero.selectedClass !== 'soldier' || player.money !== 0) throw new Error('Fresh game was not saved');
   `);
   if (errors.length) throw new Error(JSON.stringify(errors, null, 2));
   console.log('Main menu, reload/continue, cancellation and new-game reset checks passed.');
