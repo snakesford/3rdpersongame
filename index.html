@@ -231,9 +231,20 @@
           <button id="confirmPlayerNameBtn" type="button">Continue</button>
         </div>
       </div>
+      <div id="mainMenu" class="hidden">
+        <span class="start-kicker">Welcome Back</span>
+        <h2>Continue your adventure</h2>
+        <p id="savedGameSummary"></p>
+        <div class="name-entry">
+          <button id="continueGameBtn" type="button">Continue Game</button>
+          <button id="newGameBtn" type="button">New Game</button>
+        </div>
+        <p>New Game replaces your current game with a fresh character. XP, money, equipment and upgrades reset.</p>
+      </div>
       <div id="classStep" class="hidden">
         <span class="start-kicker">Choose Your Hero</span>
-        <h2>Pick a character before the match starts</h2>
+        <h2>Choose a character for your new game</h2>
+        <button id="cancelNewGameBtn" class="hidden" type="button">Back to Main Menu</button>
         <div class="class-grid" role="region" aria-label="Playable characters" tabindex="0"></div>
       </div>
     </div>

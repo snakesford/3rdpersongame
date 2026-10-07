@@ -1,4 +1,4 @@
-import { hero, inventoryAbilityOrders, player, tutorialProfessionState } from "./modules/state.js";
+import { hero, inventoryAbilityOrders, player, runtime, tutorialProfessionState } from "./modules/state.js";
 import { clamp } from "./modules/math.js";
 import {
   statusTextEl,
@@ -117,6 +117,42 @@ function createProgressionSystem(services) {
     return CHARACTER_SAVE_PREFIX + encodeURIComponent(player.displayName) + ":" + classId;
   }
 
+  const initialProgress = JSON.stringify({
+    stats: Object.fromEntries(SAVED_PLAYER_FIELDS.map(key => [key, player[key]])),
+    equipment: Object.fromEntries(SAVED_EQUIPMENT_FIELDS.map(key => [key, hero[key]])),
+    professions: tutorialProfessionState,
+  });
+
+  function resetCharacterProgress() {
+    const defaults = JSON.parse(initialProgress);
+    Object.assign(player, defaults.stats, { backpack: [] });
+    Object.assign(hero, defaults.equipment);
+    for (const [key, state] of Object.entries(defaults.professions)) {
+      Object.assign(tutorialProfessionState[key], state);
+    }
+    inventoryAbilityOrders.clear();
+  }
+
+  function activeCharacterKey() {
+    return "timberlineCommandActiveCharacterV1:" + encodeURIComponent(player.displayName);
+  }
+
+  function getSavedCharacter() {
+    try {
+      const active = localStorage.getItem(activeCharacterKey());
+      // Older saves did not record the active character. Prefer the first valid save.
+      const candidates = active ? [active] : Object.keys(runtime.CHARACTER_OPTIONS);
+      for (const classId of candidates) {
+        if (!runtime.CHARACTER_OPTIONS[classId]) continue;
+        try {
+          const saved = JSON.parse(localStorage.getItem(characterSaveKey(classId)) || "null");
+          if (saved?.version === 1 && saved.classId === classId) return saved;
+        } catch { /* Skip a damaged legacy save. */ }
+      }
+    } catch (error) { console.warn("Saved character could not be read", error); }
+    return null;
+  }
+
   function saveCharacterProgress() {
     if (!player.hasSelectedCharacter || !hero.selectedClass) return;
     try {
@@ -127,6 +163,7 @@ function createProgressionSystem(services) {
         cooldowns: {slashTimer: hero.slashTimer, battleMedicineCooldownRemaining: hero.battleMedicineCooldownRemaining, grenadeCooldownRemaining: hero.grenadeCooldownRemaining},
         professions: tutorialProfessionState
       }));
+      localStorage.setItem(activeCharacterKey(), hero.selectedClass);
     } catch (error) { console.warn("Character progress could not be saved", error); }
   }
 
@@ -342,6 +379,8 @@ function createProgressionSystem(services) {
     SAVED_PLAYER_FIELDS,
     SAVED_EQUIPMENT_FIELDS,
     characterSaveKey,
+    getSavedCharacter,
+    resetCharacterProgress,
     saveCharacterProgress,
     restoreCharacterProgress,
     registerProgressionPersistence,

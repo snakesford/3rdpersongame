@@ -66,6 +66,11 @@ const dashAbilityEl = document.getElementById("dashAbility");
 const dashAbilityNameEl = document.getElementById("dashAbilityName");
 const dashCooldownTextEl = document.getElementById("dashCooldownText");
 const characterSelectEl = document.getElementById("characterSelect");
+const mainMenuEl = document.getElementById("mainMenu");
+const savedGameSummaryEl = document.getElementById("savedGameSummary");
+const continueGameBtnEl = document.getElementById("continueGameBtn");
+const newGameBtnEl = document.getElementById("newGameBtn");
+const cancelNewGameBtnEl = document.getElementById("cancelNewGameBtn");
 const nameStepEl = document.getElementById("nameStep");
 const classStepEl = document.getElementById("classStep");
 const openInventoryBtn = document.getElementById("openInventoryBtn");
@@ -94,6 +99,12 @@ const dialogueOptionsEl = document.getElementById("dialogueOptions");
 const dialogueHintEl = document.getElementById("dialogueHint");
 
 export {
+  mainMenuEl,
+  savedGameSummaryEl,
+  continueGameBtnEl,
+  newGameBtnEl,
+  cancelNewGameBtnEl,
+
   abilityNameEl,
   battleMedicineAbilityEl,
   battleMedicineAbilityNameEl,

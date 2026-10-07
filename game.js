@@ -15,6 +15,12 @@ import { registerPlayerInputs } from "./inputs.js";
 import { PLAYER_NAME_STORAGE_KEY } from "./modules/constants.js";
 import {
   characterSelectEl,
+  mainMenuEl,
+  savedGameSummaryEl,
+  continueGameBtnEl,
+  newGameBtnEl,
+  cancelNewGameBtnEl,
+
   classGridEl,
   classStepEl,
   confirmPlayerNameBtn,
@@ -50,6 +56,8 @@ const {
   registerVehicleInventoryControls,
   render,
   restoreCharacterProgress,
+  resetCharacterProgress,
+  getSavedCharacter,
   saveCharacterProgress,
   syncWeaponDerivedStats,
   updateAbilityUI,
@@ -107,9 +115,7 @@ function confirmPlayerName() {
   player.displayName = submittedName;
   playerPortraitNameEl.textContent = player.displayName;
   savePlayerName(submittedName);
-  nameStepEl.classList.add("hidden");
-  classStepEl.classList.remove("hidden");
-  statusTextEl.textContent = `Welcome, ${player.displayName}. Choose your hero.`;
+  showStartMenu();
 }
 
 // Keep gameplay coordinates in CSS pixels while rendering at display resolution.
@@ -179,13 +185,14 @@ registerBuildingControls();
 
 registerShopControls();
 
-function selectCharacter(classId) {
+function selectCharacter(classId, { newGame = false } = {}) {
   const selectedClass = runtime.CHARACTER_OPTIONS[classId];
   if (!selectedClass || !player.displayName) {
     return;
   }
 
-  saveCharacterProgress();
+  if (newGame) resetCharacterProgress();
+  else saveCharacterProgress();
   clearEngineerDeployables();
   hero.selectedClass = classId;
   hero.slashCooldown = selectedClass.cooldown;
@@ -229,7 +236,7 @@ function selectCharacter(classId) {
   heroGrenades.length = 0;
   grenadeShockwaves.length = 0;
   player.hasSelectedCharacter = true;
-  restoreCharacterProgress(classId);
+  if (!newGame) restoreCharacterProgress(classId);
   awardMercenaryRankRewards();
   characterSelectEl.classList.add("hidden");
   statusTextEl.textContent = classId === "soldier"
@@ -239,6 +246,8 @@ function selectCharacter(classId) {
   updateAbilityUI();
   updateStatsUI();
   updateXpUI();
+  updateInventoryUI();
+  saveCharacterProgress();
 }
 
 async function loadCharacterOptions() {
@@ -299,12 +308,43 @@ function initializeCharacterCards() {
     }
 
     classCardEl.addEventListener("click", () => {
-      selectCharacter(classId);
+      if (!player.hasSelectedCharacter) selectCharacter(classId, { newGame: true });
     });
 
     classGridEl.appendChild(classCardEl);
   }
 }
+
+function showStartMenu() {
+  const saved = getSavedCharacter();
+  nameStepEl.classList.add("hidden");
+  classStepEl.classList.toggle("hidden", Boolean(saved));
+  mainMenuEl.classList.toggle("hidden", !saved);
+  cancelNewGameBtnEl.classList.toggle("hidden", !saved);
+  if (saved) {
+    savedGameSummaryEl.textContent = `${player.displayName} · ${runtime.CHARACTER_OPTIONS[saved.classId].name} · Level ${saved.stats?.level || 1}`;
+    statusTextEl.textContent = `Welcome back, ${player.displayName}. Continue your game or start a new adventure.`;
+    continueGameBtnEl.focus();
+  } else {
+    statusTextEl.textContent = `Welcome, ${player.displayName}. Choose your hero.`;
+  }
+}
+
+continueGameBtnEl.addEventListener("click", () => {
+  if (player.hasSelectedCharacter) return;
+  const saved = getSavedCharacter();
+  if (saved) selectCharacter(saved.classId);
+  else showStartMenu();
+});
+
+newGameBtnEl.addEventListener("click", () => {
+  mainMenuEl.classList.add("hidden");
+  classStepEl.classList.remove("hidden");
+  statusTextEl.textContent = "Choose a character to start fresh. Your current game is replaced when you choose.";
+  cancelNewGameBtnEl.focus();
+});
+
+cancelNewGameBtnEl.addEventListener("click", showStartMenu);
 
 confirmPlayerNameBtn.addEventListener("click", () => {
   confirmPlayerName();
@@ -338,11 +378,9 @@ async function initializeGame() {
       player.displayName = savedPlayerName;
       playerPortraitNameEl.textContent = player.displayName;
       playerNameInputEl.value = savedPlayerName;
-      nameStepEl.classList.add("hidden");
-      classStepEl.classList.remove("hidden");
-      statusTextEl.textContent = `Welcome back, ${player.displayName}. Choose your hero.`;
+      showStartMenu();
     }
-    playerNameInputEl.focus();
+    if (!savedPlayerName) playerNameInputEl.focus();
     requestAnimationFrame(gameLoop);
   } catch (error) {
     console.error(error);

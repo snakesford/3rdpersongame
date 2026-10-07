@@ -114,6 +114,56 @@ function cleanup(code) {
   if (result.exceptionDetails) errors.push(result.exceptionDetails);
   if (errors.length) throw new Error(JSON.stringify(errors, null, 2));
   console.log(result.result.value);
+  async function evaluate(expression) {
+    const result = await send('Runtime.evaluate', {expression, awaitPromise: true, returnByValue: true}, sessionId);
+    if (result.exceptionDetails) throw new Error(JSON.stringify(result.exceptionDetails));
+    return result.result.value;
+  }
+  async function reloadGame() {
+    await evaluate('window.gameReady = false');
+    await send('Page.reload', {}, sessionId);
+    await evaluate(`new Promise(resolve => { const timer = setInterval(() => {
+      if (window.gameReady) { clearInterval(timer); resolve(true); }
+    }, 20); })`);
+  }
+  async function check(code) { await evaluate(`window.runGameChecks(${JSON.stringify(code)})`); }
+  await check(`
+    player.displayName = 'MenuTest'; savePlayerName(player.displayName);
+    selectCharacter('engineer', {newGame: true});
+    player.xp = 23; player.money = 450; player.bonusHealth = 20;
+    player.backpack = [{type: 'helmet'}];
+    tutorialProfessionState.mercenary.xp = 15;
+    saveCharacterProgress();
+  `);
+  await reloadGame();
+  await check(`
+    if (mainMenuEl.classList.contains('hidden') || !classStepEl.classList.contains('hidden')) throw new Error('Returning player must see main menu');
+    if (!savedGameSummaryEl.textContent.includes('Engineer')) throw new Error('Saved character missing');
+    continueGameBtnEl.click();
+    if (hero.selectedClass !== 'engineer' || player.xp !== 23 || player.money !== 450 || player.bonusHealth !== 20 || player.backpack.length !== 1) throw new Error('Continue lost progress');
+  `);
+  await reloadGame();
+  await check(`
+    newGameBtnEl.click(); cancelNewGameBtnEl.click();
+    if (mainMenuEl.classList.contains('hidden') || getSavedCharacter().stats.money !== 450) throw new Error('Cancel changed save');
+    newGameBtnEl.click();
+    document.querySelector('[data-class="soldier"]').click();
+    if (hero.selectedClass !== 'soldier' || player.xp !== 0 || player.money !== 0 || player.level !== 1 || player.bonusHealth !== 0 || player.backpack.length !== 0 || tutorialProfessionState.mercenary.xp !== 0) throw new Error('New game did not reset progress');
+    player.money = 123; saveCharacterProgress();
+  `);
+  await reloadGame();
+  await check(`
+    if (getSavedCharacter().classId !== 'soldier') throw new Error('New character was not remembered');
+    newGameBtnEl.click(); document.querySelector('[data-class="engineer"]').click();
+    if (player.money !== 0 || player.xp !== 0 || player.backpack.length !== 0) throw new Error('New game restored old class progress');
+  `);
+  await reloadGame();
+  await check(`
+    continueGameBtnEl.click();
+    if (hero.selectedClass !== 'engineer' || player.money !== 0) throw new Error('Fresh game was not saved');
+  `);
+  if (errors.length) throw new Error(JSON.stringify(errors, null, 2));
+  console.log('Main menu, reload/continue, cancellation and new-game reset checks passed.');
   await send('Browser.close');
   cleanup(0);
 })().catch(error => {console.error(error); cleanup(1);});
