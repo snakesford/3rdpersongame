@@ -289,9 +289,25 @@ function initializeCharacterCards() {
 
     classCardEl.append(portraitEl, nameEl);
 
+    if (classId === "soldier") {
+      for (const text of ["Starts with pistol", "starts with low protection armor"]) {
+        const detailEl = document.createElement("span");
+        detailEl.textContent = text;
+        classCardEl.appendChild(detailEl);
+      }
+    }
+
+    if (classId === "archer") {
+      for (const text of ["starts with bow", "starts with sneak skills"]) {
+        const detailEl = document.createElement("span");
+        detailEl.textContent = text;
+        classCardEl.appendChild(detailEl);
+      }
+    }
+
     if (selectedClass.abilityName) {
       const abilityEl = document.createElement("span");
-      abilityEl.textContent = `F: ${selectedClass.abilityName}`;
+      abilityEl.textContent = `Ability: ${selectedClass.abilityName}`;
       classCardEl.appendChild(abilityEl);
     }
 
