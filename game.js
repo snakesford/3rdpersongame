@@ -240,7 +240,7 @@ function selectCharacter(classId, { newGame = false } = {}) {
   awardMercenaryRankRewards();
   characterSelectEl.classList.add("hidden");
   statusTextEl.textContent = classId === "soldier"
-    ? `${selectedClass.name} selected. Walk near a tree and press E to harvest wood. Press F for Burst Shot and G for Grenade.`
+    ? `${selectedClass.name} selected. Walk near a tree and press E to harvest wood. Press F for Burst Shot.`
     : `${selectedClass.name} selected. Walk near a tree and press E to harvest wood.`;
   updateQuestUI();
   updateAbilityUI();
@@ -291,9 +291,7 @@ function initializeCharacterCards() {
 
     if (selectedClass.abilityName) {
       const abilityEl = document.createElement("span");
-      abilityEl.textContent = classId === "engineer" ? "F: Bolt Shot | Q: Repair Station | G: Auto Turret" : classId === "bountyHunter" ? "F: Hunter’s Mark | Q: Adrenaline Shot | G: Explosive Bolt" : classId === "soldier"
-        ? `F: ${selectedClass.abilityName} | G: Grenade`
-        : `F: ${selectedClass.abilityName}`;
+      abilityEl.textContent = `F: ${selectedClass.abilityName}`;
       classCardEl.appendChild(abilityEl);
     }
 

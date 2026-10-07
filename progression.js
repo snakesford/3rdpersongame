@@ -352,7 +352,7 @@ function createProgressionSystem(services) {
     if (rewardMessage) {
       statusTextEl.textContent = rewardMessage;
     }
-    if (professionId === "mercenary" && previousReputation <= 3 && state.reputation > 3) {
+    if (runtime.secondaryCharacterAbilitySlotsEnabled && professionId === "mercenary" && previousReputation <= 3 && state.reputation > 3) {
       services.updateInventoryAbilities();
       services.updateAbilityUI();
       const popup = document.createElement("div");

@@ -3,7 +3,9 @@ const assert = require('node:assert/strict');
 const {ready, run} = require('./harness.cjs');
 (async () => {
  await ready;
+ // Verify retained abilities with the temporary slot restriction lifted.
  run(`
+ runtime.secondaryCharacterAbilitySlotsEnabled = true;
  player.displayName = 'EngineerTest'; selectCharacter('engineer');
  assert.equal(hero.maxHp, 120); assert.equal(getBaseArmor(), 75); assert.equal(getHeroSpeed(), 225);
  assert.equal(getCurrentWeaponDetails().name, 'Heavy Nail Gun'); assert.equal(getRifleDamage(), 12);

@@ -222,6 +222,8 @@ const pickups = [
 
 // Mutable references shared across systems; never copy these into individual modules.
 const runtime = {
+  // Temporarily equip only the primary F ability; keep secondary slots empty.
+  secondaryCharacterAbilitySlotsEnabled: false,
   CHARACTER_OPTIONS: {},
   ENEMY_OPTIONS: {},
   harvestTreeId: null,

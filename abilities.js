@@ -52,6 +52,7 @@ function createAbilitiesSystem(services) {
   const BATTLE_MEDICINE_USE_DURATION = 0.9;
 
   function canAimSoldierGrenade() {
+    if (!runtime.secondaryCharacterAbilitySlotsEnabled) return false;
     return player.hasSelectedCharacter &&
       !player.victory &&
       !player.loss &&
@@ -62,6 +63,7 @@ function createAbilitiesSystem(services) {
   }
 
   function startGrenadeAim() {
+    if (!runtime.secondaryCharacterAbilitySlotsEnabled) return false;
     if (isEngineer()) return placeAutoTurret();
     if (isBountyHunter()) {
       if (canUseBountyAbility("G") && hero.grenadeCooldownRemaining <= 0) grenadeAim.active = true;
@@ -77,6 +79,7 @@ function createAbilitiesSystem(services) {
   }
 
   function useBattleMedicine() {
+    if (!runtime.secondaryCharacterAbilitySlotsEnabled) return false;
     if (isEngineer()) return placeRepairStation();
     if (isBountyHunter()) return useAdrenalineShot();
     if (hero.vehicleId !== null) return false;
@@ -207,7 +210,7 @@ function createAbilitiesSystem(services) {
       if (station) battleMedicineCooldownTextEl.textContent = `${station.ttl.toFixed(1)}s active · ${hero.battleMedicineCooldownRemaining.toFixed(1)}s cooldown`;
       if (turret) grenadeCooldownTextEl.textContent = `${Math.ceil(turret.hp)} HP · ${hero.grenadeCooldownRemaining > 0 ? hero.grenadeCooldownRemaining.toFixed(1) + "s" : "Ready"}`;
     }
-    const showDash = !vehicle && hero.selectedClass === "robot";
+    const showDash = runtime.secondaryCharacterAbilitySlotsEnabled && !vehicle && hero.selectedClass === "robot";
     const dashReady = hero.dashCooldownRemaining <= 0;
     dashAbilityEl.classList.toggle("hidden", !showDash);
     dashAbilityNameEl.textContent = "Dash";
@@ -225,6 +228,7 @@ function createAbilitiesSystem(services) {
   function isBountyHunter() { return hero.selectedClass === "bountyHunter"; }
 
   function useSoldierGrenade(targetX, targetY) {
+    if (!runtime.secondaryCharacterAbilitySlotsEnabled) return false;
     if (isBountyHunter()) return fireExplosiveBolt(targetX, targetY);
     if (hero.vehicleId !== null) return false;
     if (
@@ -329,6 +333,7 @@ function createAbilitiesSystem(services) {
   }
 
   function useSprint() {
+    if (!runtime.secondaryCharacterAbilitySlotsEnabled) return false;
     if (hero.vehicleId !== null) return false;
     if (!player.hasSelectedCharacter || player.victory || player.loss || hero.hp <= 0
       || services.isInterfacePanelOpen() || hero.sprintCooldownRemaining > 0
@@ -343,6 +348,7 @@ function createAbilitiesSystem(services) {
   }
 
   function useRobotDash() {
+    if (!runtime.secondaryCharacterAbilitySlotsEnabled) return false;
     if (hero.vehicleId !== null) return false;
     if (
       !player.hasSelectedCharacter ||
@@ -433,6 +439,7 @@ function createAbilitiesSystem(services) {
   }
 
   function canUseBountyAbility(key) {
+    if (key !== "F" && !runtime.secondaryCharacterAbilitySlotsEnabled) return false;
     return isBountyHunter() && player.hasSelectedCharacter && hero.hp > 0 && !hero.isDead
       && hero.vehicleId === null && !player.isPlacingBuilding && !player.victory && !player.loss && !services.isInterfacePanelOpen()
       && services.getOrderedInventoryAbilities().some(a => a.actionKey === key);
@@ -553,6 +560,7 @@ function createAbilitiesSystem(services) {
   function getEngineerTurret() { return engineerDeployables.find(d => d.kind === "autoTurret" && d.hp > 0); }
 
   function canUseEngineerAbility(key) {
+    if (key !== "F" && !runtime.secondaryCharacterAbilitySlotsEnabled) return false;
     return isEngineer() && player.hasSelectedCharacter && hero.hp > 0 && !hero.isDead
       && hero.vehicleId === null && !player.isPlacingBuilding && !player.victory && !player.loss
       && !services.isInterfacePanelOpen() && !services.isDialogueOpen()

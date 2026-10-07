@@ -383,6 +383,10 @@ function createInventorySystem(services) {
 
   function getInventoryAbilitySlots() {
     const abilities = getInventoryAbilities();
+    if (!runtime.secondaryCharacterAbilitySlotsEnabled) {
+      const primary = abilities.find(ability => ability.key === "F");
+      return INVENTORY_ABILITY_SLOT_KEYS.map(key => key === "F" ? primary?.name || null : null);
+    }
     const savedOrder = inventoryAbilityOrders.get(hero.selectedClass) || [];
     const slots = INVENTORY_ABILITY_SLOT_LEVELS.map((level, index) =>
       player.level >= level && abilities.some((ability) => ability.name === savedOrder[index])
@@ -419,6 +423,10 @@ function createInventorySystem(services) {
   }
 
   function enableInventoryAbilityDrag(slot, ability, slotIndex = ability?.slotIndex) {
+    if (!runtime.secondaryCharacterAbilitySlotsEnabled) {
+      slot.draggable = false;
+      return;
+    }
     slot.draggable = Boolean(ability);
     slot.addEventListener("dragstart", (event) => {
       if (!ability) return;
@@ -515,7 +523,7 @@ function createInventorySystem(services) {
       slot.setAttribute("aria-pressed", "false");
       slot.setAttribute("aria-controls", "inventoryAbilityDetails");
       slot.setAttribute("aria-label", locked ? `Ability slot unlocks at level ${unlockLevel}` : `Empty ability slot, key ${INVENTORY_ABILITY_SLOT_KEYS[index]}`);
-      slot.title = locked ? `Unlocks at level ${unlockLevel}` : "Drag an ability here to equip it";
+      slot.title = !runtime.secondaryCharacterAbilitySlotsEnabled ? "Ability slots are temporarily unavailable" : locked ? `Unlocks at level ${unlockLevel}` : "Drag an ability here to equip it";
       if (locked) {
         const lock = document.createElement("span");
         lock.className = "ability-lock-icon";
@@ -536,7 +544,7 @@ function createInventorySystem(services) {
         enableInventoryAbilityDrag(slot, null, index);
         slot.addEventListener("click", () => {
           selectInventoryAbility(null);
-          inventoryAbilityDetailsEl.querySelector("p").textContent = "Drag an ability onto this unlocked slot to equip it.";
+          inventoryAbilityDetailsEl.querySelector("p").textContent = runtime.secondaryCharacterAbilitySlotsEnabled ? "Drag an ability onto this unlocked slot to equip it." : "Ability slots are temporarily unavailable. Your abilities are kept for later.";
           slot.setAttribute("aria-pressed", "true");
         });
       }

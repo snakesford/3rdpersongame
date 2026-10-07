@@ -3,7 +3,9 @@ const assert = require('node:assert/strict');
 const {ready, run} = require('./harness.cjs');
 (async () => {
  await ready;
+ // Verify retained abilities with the temporary slot restriction lifted.
  run(`
+ runtime.secondaryCharacterAbilitySlotsEnabled = true;
  player.displayName = 'BountyTest';
  selectCharacter('bountyHunter');
  assert.equal(hero.hasRifle, true);

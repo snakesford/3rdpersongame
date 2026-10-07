@@ -77,7 +77,31 @@ function cleanup(code) {
     player.displayName = 'BrowserTest';
     for (const classId of Object.keys(runtime.CHARACTER_OPTIONS)) {
       selectCharacter(classId);
+      const equipped = getOrderedInventoryAbilities();
+      if (equipped.length !== (runtime.CHARACTER_OPTIONS[classId].abilityName ? 1 : 0) || equipped.some(a => a.key !== 'F' || a.actionKey !== 'F')) throw new Error('Only the primary F ability should be equipped');
+      if (useBattleMedicine() || startGrenadeAim() || useRobotDash() || useSprint()) throw new Error('Unequipped ability activated');
       render(); update(0.016);
+    }
+    selectCharacter('soldier');
+    inventoryAbilityOrders.set('soldier', ['Grenade', 'Battle Medicine', 'Burst Shot']);
+    updateAbilityUI(); updateInventoryAbilities();
+    if (getOrderedInventoryAbilities().length !== 1 || getInventoryAbilitySlots()[0] !== 'Burst Shot') throw new Error('Old loadout must restore only F');
+    if (getInventoryAbilities().length !== 3) throw new Error('Ability definitions must be retained');
+    if (document.querySelectorAll('.inventory-side-ability[draggable="true"]').length) throw new Error('Temporarily empty slots must not be re-equipped');
+    for (const key of ['q', 'g', 'Shift']) {
+      document.body.dispatchEvent(new KeyboardEvent('keydown', {key, bubbles:true}));
+      document.body.dispatchEvent(new KeyboardEvent('keyup', {key, bubbles:true}));
+    }
+    if (hero.slashTimer > 0 || hero.battleMedicineCooldownRemaining > 0 || grenadeAim.active) throw new Error('Unequipped hotkey activated');
+    for (const id of ['battleMedicineAbility', 'grenadeAbility', 'dashAbility', 'sprintAbility']) {
+      if (!document.getElementById(id).classList.contains('hidden')) throw new Error('Unequipped ability remains in HUD');
+    }
+    for (const classId of ['soldier', 'custom', 'archer']) {
+      selectCharacter(classId);
+      hero.slashTimer = 0;
+      document.body.dispatchEvent(new KeyboardEvent('keydown', {key:'f', bubbles:true}));
+      document.body.dispatchEvent(new KeyboardEvent('keyup', {key:'f', bubbles:true}));
+      if (hero.slashTimer <= 0 || document.getElementById('slashAbility').classList.contains('hidden')) throw new Error('F ability unavailable for ' + classId);
     }
     selectCharacter('soldier');
     activateTutorialWorld(); render(); update(0.016);
@@ -141,6 +165,7 @@ function cleanup(code) {
     if (mainMenuEl.classList.contains('hidden') || !classStepEl.classList.contains('hidden')) throw new Error('Returning player must see main menu');
     if (!savedGameSummaryEl.textContent.includes('Engineer')) throw new Error('Saved character missing');
     continueGameBtnEl.click();
+    if (getOrderedInventoryAbilities().length !== 1 || getOrderedInventoryAbilities()[0].actionKey !== 'F') throw new Error('Continue must equip only F');
     if (hero.selectedClass !== 'engineer' || player.xp !== 23 || player.money !== 450 || player.bonusHealth !== 20 || player.backpack.length !== 1) throw new Error('Continue lost progress');
   `);
   await reloadGame();
