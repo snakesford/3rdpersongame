@@ -77,7 +77,7 @@ const {ready, run} = require('./harness.cjs');
  selectCharacter('soldier');
  assert.equal(hero.adrenalineTimer, 0); assert.equal(hero.hunterMarkTimer, 0);
  assert.equal(getInventoryAbilities()[0].name, 'Burst Shot');
- assert.equal(getRifleDamage(), 16); assert.equal(getRifleMaxAmmo(), 30);
+ assert.equal(getRifleDamage(), 8); assert.equal(getRifleMaxAmmo(), 13);
  assert.equal(buildProjectileHeadshotConfig('bullet').headshotMultiplier, 2);
  assert.equal(getInventoryAbilities()[1].name, 'Battle Medicine');
  render(); update(0.016);

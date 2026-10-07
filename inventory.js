@@ -698,8 +698,8 @@ function createInventorySystem(services) {
     if (hero.hasRifle) {
       return {
         type: "rifle",
-        name: services.isEngineer() ? "Heavy Nail Gun" : services.isBountyHunter() ? "Trail Pistol" : "M4 Rifle",
-        meta: services.isEngineer() ? "Industrial bolt driver" : services.isBountyHunter() ? "Compact precision sidearm" : "Automatic rifle",
+        name: services.isEngineer() ? "Heavy Nail Gun" : services.isBountyHunter() ? "Trail Pistol" : hero.selectedClass === "soldier" ? "Pistol" : "M4 Rifle",
+        meta: services.isEngineer() ? "Industrial bolt driver" : services.isBountyHunter() ? "Compact precision sidearm" : hero.selectedClass === "soldier" ? "Sidearm" : "Automatic rifle",
         damage: `${services.getRifleDamage()} / shot`,
         ammo: hero.isReloading ? `${hero.ammo}/${hero.maxAmmo} reloading` : `${hero.ammo}/${hero.maxAmmo}`,
         reload: `${hero.reloadDuration.toFixed(1)}s`,
@@ -1001,9 +1001,9 @@ function createInventorySystem(services) {
       equipmentWeaponNameEl.textContent = "Bow";
       equipmentWeaponMetaEl.textContent = "Ranged weapon";
     } else if (equippedWeaponType === "rifle") {
-      equipmentWeaponIconEl.src = services.isEngineer() ? "./images/nail-gun.svg" : services.isBountyHunter() ? "./images/trail-pistol.svg" : "./images/rifle.png";
-      equipmentWeaponNameEl.textContent = services.isEngineer() ? "Heavy Nail Gun" : services.isBountyHunter() ? "Trail Pistol" : "M4 Rifle";
-      equipmentWeaponMetaEl.textContent = services.isEngineer() ? "Industrial bolt driver" : services.isBountyHunter() ? "Compact precision sidearm" : "Automatic rifle";
+      equipmentWeaponIconEl.src = services.isEngineer() ? "./images/nail-gun.svg" : services.isBountyHunter() ? "./images/trail-pistol.svg" : hero.selectedClass === "soldier" ? "./images/pistol.png" : "./images/rifle.png";
+      equipmentWeaponNameEl.textContent = services.isEngineer() ? "Heavy Nail Gun" : services.isBountyHunter() ? "Trail Pistol" : hero.selectedClass === "soldier" ? "Pistol" : "M4 Rifle";
+      equipmentWeaponMetaEl.textContent = services.isEngineer() ? "Industrial bolt driver" : services.isBountyHunter() ? "Compact precision sidearm" : hero.selectedClass === "soldier" ? "Sidearm" : "Automatic rifle";
     } else if (equippedWeaponType === "axe") {
       equipmentWeaponIconEl.src = "./images/sword.jpg";
       equipmentWeaponNameEl.textContent = "Axe";

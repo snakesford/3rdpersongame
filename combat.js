@@ -61,11 +61,11 @@ function createCombatSystem(services) {
   }
 
   function getRifleDamage() {
-    return (services.isEngineer() ? 12 : services.isBountyHunter() ? 20 : 16) + player.bonusDamage + player.weaponDetailDamageLevel * services.getWeaponUpgradeRules().damage.step;
+    return (services.isEngineer() ? 12 : services.isBountyHunter() ? 20 : hero.selectedClass === "soldier" ? 8 : 16) + player.bonusDamage + player.weaponDetailDamageLevel * services.getWeaponUpgradeRules().damage.step;
   }
 
   function getRifleMaxAmmo() {
-    return (services.isEngineer() ? 16 : services.isBountyHunter() ? 8 : 30) + player.weaponDetailAmmoLevel * services.getWeaponUpgradeRules().ammo.step;
+    return (services.isEngineer() ? 16 : services.isBountyHunter() ? 8 : hero.selectedClass === "soldier" ? 13 : 30) + player.weaponDetailAmmoLevel * services.getWeaponUpgradeRules().ammo.step;
   }
 
   function getRifleReloadDuration() {
@@ -77,7 +77,7 @@ function createCombatSystem(services) {
   }
 
   function getRifleFireInterval() {
-    return Math.max(0.03, (services.isEngineer() ? 0.28 : services.isBountyHunter() ? 0.3 : 0.08) - player.weaponDetailFireRateLevel * services.getWeaponUpgradeRules().fireRate.rifleStep);
+    return Math.max(0.03, (services.isEngineer() ? 0.28 : services.isBountyHunter() ? 0.3 : hero.selectedClass === "soldier" ? 1 / 8 : 0.08) - player.weaponDetailFireRateLevel * services.getWeaponUpgradeRules().fireRate.rifleStep);
   }
 
   function getClassWeaponCooldown(selected) {
