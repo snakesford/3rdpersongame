@@ -105,9 +105,13 @@ function registerPlayerInputs({
       return;
     }
 
-    if (event.key === "Tab") {
+    if (event.key === "Tab" || event.key === "Escape") {
       event.preventDefault();
-      if (!event.repeat) toggleInventoryScreen();
+      keys.delete(key);
+      if (!event.repeat) {
+        if (event.key === "Escape" && player.inventoryOpen && player.weaponDetailsOpen) closeWeaponDetails();
+        else toggleInventoryScreen();
+      }
       return;
     }
     if (player.inventoryOpen) {
@@ -262,12 +266,6 @@ function registerPlayerInputs({
       useRobotDash();
     }
 
-    if (event.key === "Escape") {
-      player.isPlacingBuilding = false;
-      cancelGrenadeAim();
-      updateBuildBarracksButton();
-      statusTextEl.textContent = getCharacterStatus();
-    }
   });
 
   window.addEventListener("keyup", (event) => {

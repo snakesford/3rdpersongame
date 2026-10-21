@@ -233,6 +233,15 @@ function cleanup(code) {
   `);
   if (errors.length) throw new Error(JSON.stringify(errors, null, 2));
   console.log('Character switching, shared world, and separate progress checks passed.');
+  await check(`
+    document.getElementById('gameCanvas').dispatchEvent(new KeyboardEvent('keydown', {key: 'Escape', bubbles: true}));
+    if (!player.inventoryOpen) throw new Error('Escape must open inventory');
+    document.getElementById('gameCanvas').dispatchEvent(new KeyboardEvent('keydown', {key: 'Escape', repeat: true, bubbles: true}));
+    if (!player.inventoryOpen) throw new Error('Held Escape must not close inventory');
+    document.getElementById('gameCanvas').dispatchEvent(new KeyboardEvent('keydown', {key: 'Escape', bubbles: true}));
+    if (player.inventoryOpen) throw new Error('Escape must close inventory');
+  `);
+  console.log('Escape inventory controls passed.');
   await send('Browser.close');
   cleanup(0);
 })().catch(error => {console.error(error); cleanup(1);});
