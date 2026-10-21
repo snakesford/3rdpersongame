@@ -76,8 +76,8 @@ function createCombatSystem(services) {
     return GRID_SIZE * 5 + player.weaponDetailRangeLevel * services.getWeaponUpgradeRules().range.step;
   }
 
-  function getRifleFireInterval() {
-    return Math.max(0.03, (services.isEngineer() ? 0.28 : services.isBountyHunter() ? 0.3 : hero.selectedClass === "soldier" ? 1 / 8 : 0.08) - player.weaponDetailFireRateLevel * services.getWeaponUpgradeRules().fireRate.rifleStep);
+  function getRifleFireInterval(soldierRoundsPerSecond = 8) {
+    return Math.max(0.03, (services.isEngineer() ? 0.28 : services.isBountyHunter() ? 0.3 : hero.selectedClass === "soldier" ? 1 / soldierRoundsPerSecond : 0.08) - player.weaponDetailFireRateLevel * services.getWeaponUpgradeRules().fireRate.rifleStep);
   }
 
   function getClassWeaponCooldown(selected) {
@@ -821,7 +821,10 @@ function createCombatSystem(services) {
 
     const angle = Math.atan2(dy, dx);
     hero.facingAngle = angle;
-    hero.rifleCooldown = getRifleFireInterval();
+    // Sample once per fired shot, so UI refreshes never change the firing cadence.
+    hero.rifleCooldown = hero.selectedClass === "soldier"
+      ? getRifleFireInterval(5 + Math.random() * 3)
+      : getRifleFireInterval();
     hero.rifleShotAnimationTimer = 0.15;
     hero.rifleShotAngle = angle;
     hero.ammo -= 1;

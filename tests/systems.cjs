@@ -28,12 +28,21 @@ const {ready, run} = require('./harness.cjs');
     assert.equal(hero.maxAmmo, 13);
     assert.equal(hero.ammo, 13);
     assert.equal(getRifleFireInterval(), 0.125);
-    assert.equal(getCurrentWeaponDetails().fireRate, "8.0 shots/s");
+    assert.equal(getCurrentWeaponDetails().fireRate, "5.0–8.0 shots/s (random)");
     travelToMainWorld(); clearWorldEntities(); runtime.enemyHero.active = false;
     hero.x = 500; hero.y = 500; hero.hp = hero.maxHp;
+    const originalRandom = Math.random;
+    try {
+      for (const sample of [0, 0.5, 0.999999]) {
+        Math.random = () => sample;
+        hero.ammo = hero.maxAmmo; hero.rifleCooldown = 0;
+        assert.equal(spawnHeroBullet(700, 500), true);
+        assert.equal(hero.rifleCooldown, 1 / (5 + sample * 3));
+      }
+    } finally { Math.random = originalRandom; }
     hero.ammo = hero.maxAmmo; hero.rifleCooldown = 0;
     assert.equal(spawnHeroBullet(700, 500), true);
-    assert.equal(hero.rifleCooldown, 0.125);
+    assert.ok(hero.rifleCooldown >= 0.125 && hero.rifleCooldown <= 0.2);
     const afterShot = hero.ammo;
     assert.equal(spawnHeroBullet(700, 500), false, 'Fire interval blocks immediate second shot');
     assert.equal(hero.ammo, afterShot);

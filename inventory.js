@@ -704,7 +704,9 @@ function createInventorySystem(services) {
         ammo: hero.isReloading ? `${hero.ammo}/${hero.maxAmmo} reloading` : `${hero.ammo}/${hero.maxAmmo}`,
         reload: `${hero.reloadDuration.toFixed(1)}s`,
         range: `${services.getRifleRange()}`,
-        fireRate: `${(1 / services.getRifleFireInterval()).toFixed(1)} shots/s`,
+        fireRate: hero.selectedClass === "soldier"
+          ? `${(1 / services.getRifleFireInterval(5)).toFixed(1)}–${(1 / services.getRifleFireInterval(8)).toFixed(1)} shots/s (random)`
+          : `${(1 / services.getRifleFireInterval()).toFixed(1)} shots/s`,
         upgrades: { damage: true, ammo: true, reload: true, range: true, fireRate: true },
       };
     }
