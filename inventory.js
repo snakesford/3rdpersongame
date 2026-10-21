@@ -933,12 +933,12 @@ function createInventorySystem(services) {
       element.textContent = String(inventoryStats[element.dataset.inventoryStat]);
     });
 
-    const portraitSrc = hero.hp < maxHealth / 2
+    const portraitSrc = hero.selectedClass !== "soldier" && selected?.portrait ? selected.portrait : hero.hp < maxHealth / 2
       ? "./images/soldier-damage.png"
       : "./images/soldier-mugshot.png";
     if (playerPortraitEl.getAttribute("src") !== portraitSrc) {
       playerPortraitEl.src = portraitSrc;
-      playerPortraitEl.alt = hero.hp < maxHealth / 2 ? "Injured soldier portrait" : "Soldier portrait";
+      playerPortraitEl.alt = `${selected?.name || "Soldier"} portrait`;
     }
 
     healthValueEl.textContent = `${currentHealth}/${Math.round(maxHealth)}`;

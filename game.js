@@ -58,6 +58,7 @@ const {
   restoreCharacterProgress,
   resetCharacterProgress,
   getSavedCharacter,
+  getPrimarySavedCharacter,
   saveCharacterProgress,
   syncWeaponDerivedStats,
   updateAbilityUI,
@@ -191,8 +192,8 @@ function selectCharacter(classId, { newGame = false } = {}) {
     return;
   }
 
-  if (newGame) resetCharacterProgress();
-  else saveCharacterProgress();
+  if (!newGame) saveCharacterProgress();
+  resetCharacterProgress();
   clearEngineerDeployables();
   hero.selectedClass = classId;
   hero.slashCooldown = selectedClass.cooldown;
@@ -236,7 +237,10 @@ function selectCharacter(classId, { newGame = false } = {}) {
   heroGrenades.length = 0;
   grenadeShockwaves.length = 0;
   player.hasSelectedCharacter = true;
-  if (!newGame) restoreCharacterProgress(classId);
+  if (!newGame && !restoreCharacterProgress(classId) && classId === "archer") {
+    player.level = 5;
+    player.money = 250;
+  }
   awardMercenaryRankRewards();
   characterSelectEl.classList.add("hidden");
   statusTextEl.textContent = classId === "soldier"
@@ -334,6 +338,25 @@ function initializeCharacterCards() {
   }
 }
 
+let selectedSlotClass = null;
+
+function chooseSlot(classId) {
+  selectedSlotClass = classId;
+  document.querySelectorAll("[data-save-slot]").forEach(slot => {
+    slot.setAttribute("aria-pressed", String(slot.dataset.saveSlot === classId));
+  });
+}
+
+document.querySelectorAll("[data-save-slot]").forEach(slot => {
+  slot.addEventListener("click", () => chooseSlot(slot.dataset.saveSlot));
+  slot.addEventListener("keydown", event => {
+    if (event.key === "Enter" || event.key === " ") {
+      event.preventDefault();
+      chooseSlot(slot.dataset.saveSlot);
+    }
+  });
+});
+
 function showStartMenu() {
   const saved = getSavedCharacter();
   nameStepEl.classList.add("hidden");
@@ -341,13 +364,20 @@ function showStartMenu() {
   mainMenuEl.classList.toggle("hidden", !saved);
   cancelNewGameBtnEl.classList.toggle("hidden", !saved);
   if (saved) {
-    const character = runtime.CHARACTER_OPTIONS[saved.classId];
+    const primary = saved.classId !== "archer" ? saved : getPrimarySavedCharacter();
+    const primaryClass = primary?.classId || "soldier";
+    document.getElementById("primaryCharacterSlot").dataset.saveSlot = primaryClass;
+    const archer = getSavedCharacter("archer");
+    document.getElementById("archerMoney").textContent = (archer?.stats?.money ?? 250).toLocaleString();
+    document.getElementById("archerLevel").textContent = archer?.stats?.level || 5;
+    chooseSlot(saved.classId);
+    const character = runtime.CHARACTER_OPTIONS[primaryClass];
     savedGameSummaryEl.textContent = `${player.displayName} · ${character.name}`;
     const portrait = document.getElementById("savedCharacterPortrait");
-    portrait.src = saved.classId === "soldier" ? "./images/soldier-mugshot.png" : (character.portrait || "./images/soldier-mugshot.png");
+    portrait.src = primaryClass === "soldier" ? "./images/soldier-mugshot.png" : (character.portrait || "./images/soldier-mugshot.png");
     portrait.alt = `${character.name} profile picture`;
-    document.getElementById("savedCharacterMoney").textContent = (saved.stats?.money ?? 0).toLocaleString();
-    document.getElementById("savedCharacterLevel").textContent = saved.stats?.level || 1;
+    document.getElementById("savedCharacterMoney").textContent = (primary?.stats?.money ?? 0).toLocaleString();
+    document.getElementById("savedCharacterLevel").textContent = primary?.stats?.level || 1;
     statusTextEl.textContent = `Welcome back, ${player.displayName}. Continue your game or start a new adventure.`;
     continueGameBtnEl.focus();
   } else {
@@ -358,7 +388,7 @@ function showStartMenu() {
 continueGameBtnEl.addEventListener("click", () => {
   if (player.hasSelectedCharacter) return;
   const saved = getSavedCharacter();
-  if (saved) selectCharacter(saved.classId);
+  if (saved) selectCharacter(selectedSlotClass || saved.classId);
   else showStartMenu();
 });
 

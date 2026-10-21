@@ -137,11 +137,28 @@ function createProgressionSystem(services) {
     return "timberlineCommandActiveCharacterV1:" + encodeURIComponent(player.displayName);
   }
 
-  function getSavedCharacter() {
+  function primaryCharacterKey() {
+    return "timberlineCommandPrimaryCharacterV1:" + encodeURIComponent(player.displayName);
+  }
+
+  function getPrimarySavedCharacter() {
+    try {
+      const remembered = localStorage.getItem(primaryCharacterKey());
+      if (remembered && remembered !== "archer") {
+        const saved = getSavedCharacter(remembered);
+        if (saved) return saved;
+      }
+    } catch (error) { console.warn("Primary character could not be read", error); }
+    // Recover existing Soldier slots before considering older legacy saves.
+    return getSavedCharacter("soldier") || Object.keys(runtime.CHARACTER_OPTIONS)
+      .filter(id => id !== "archer").map(id => getSavedCharacter(id)).find(Boolean) || null;
+  }
+
+  function getSavedCharacter(requestedClassId) {
     try {
       const active = localStorage.getItem(activeCharacterKey());
       // Older saves did not record the active character. Prefer the first valid save.
-      const candidates = active ? [active] : Object.keys(runtime.CHARACTER_OPTIONS);
+      const candidates = requestedClassId ? [requestedClassId] : active ? [active] : Object.keys(runtime.CHARACTER_OPTIONS);
       for (const classId of candidates) {
         if (!runtime.CHARACTER_OPTIONS[classId]) continue;
         try {
@@ -164,6 +181,9 @@ function createProgressionSystem(services) {
         professions: tutorialProfessionState
       }));
       localStorage.setItem(activeCharacterKey(), hero.selectedClass);
+      if (hero.selectedClass !== "archer") {
+        localStorage.setItem(primaryCharacterKey(), hero.selectedClass);
+      }
     } catch (error) { console.warn("Character progress could not be saved", error); }
   }
 
@@ -380,6 +400,7 @@ function createProgressionSystem(services) {
     SAVED_EQUIPMENT_FIELDS,
     characterSaveKey,
     getSavedCharacter,
+    getPrimarySavedCharacter,
     resetCharacterProgress,
     saveCharacterProgress,
     restoreCharacterProgress,

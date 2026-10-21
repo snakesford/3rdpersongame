@@ -193,6 +193,46 @@ function cleanup(code) {
   `);
   if (errors.length) throw new Error(JSON.stringify(errors, null, 2));
   console.log('Main menu, reload/continue, cancellation and new-game reset checks passed.');
+  await check(`
+    player.money = 91; player.bonusHealth = 20;
+    function returnToSlots() {
+      saveCharacterProgress();
+      player.hasSelectedCharacter = false;
+      characterSelectEl.classList.remove('hidden');
+      showStartMenu();
+    }
+    localStorage.setItem('timberlineCommandCharacterV1:' + encodeURIComponent(player.displayName) + ':swordsman', JSON.stringify({version: 1, classId: 'swordsman', stats: {level: 2, money: 10}}));
+    hero.x += 50;
+    const position = {x: hero.x, y: hero.y};
+    const world = {village: player.inVillageWorld, tutorial: player.inTutorialWorld, wave: player.inWaveWorld};
+    const firstBuilding = buildings[0];
+    returnToSlots();
+    document.querySelector('[data-save-slot="archer"]').click();
+    continueGameBtnEl.click();
+    if (hero.selectedClass !== 'archer' || player.level !== 5 || player.money !== 250 || !hero.hasBow || hero.hasRifle || player.bonusHealth !== 0) throw new Error('Archer slot not initialized independently');
+    if (hero.x !== position.x || hero.y !== position.y || buildings[0] !== firstBuilding || player.inVillageWorld !== world.village || player.inTutorialWorld !== world.tutorial || player.inWaveWorld !== world.wave) throw new Error('Switch changed the world or position');
+    player.money = 321; player.level = 6;
+    returnToSlots();
+    document.getElementById('primaryCharacterSlot').click();
+    continueGameBtnEl.click();
+    if (hero.selectedClass !== 'soldier' || player.money !== 91 || player.bonusHealth !== 20 || player.level !== 1) throw new Error('Original slot progress lost');
+    returnToSlots();
+    document.querySelector('[data-save-slot="archer"]').click();
+    continueGameBtnEl.click();
+    if (player.money !== 321 || player.level !== 6) throw new Error('Archer progress lost');
+  `);
+  await reloadGame();
+  await check(`
+    if (document.getElementById('archerLevel').textContent !== '6') throw new Error('Archer slot not refreshed');
+    if (document.getElementById('primaryCharacterSlot').dataset.saveSlot !== 'soldier' || document.getElementById('savedCharacterMoney').textContent !== '91') throw new Error('Legacy save replaced Soldier slot after reload');
+    localStorage.removeItem('timberlineCommandPrimaryCharacterV1:' + encodeURIComponent(player.displayName));
+    showStartMenu();
+    if (document.getElementById('primaryCharacterSlot').dataset.saveSlot !== 'soldier') throw new Error('Existing Soldier slot not recovered');
+    continueGameBtnEl.click();
+    if (hero.selectedClass !== 'archer' || player.money !== 321 || player.level !== 6) throw new Error('Archer save did not survive reload');
+  `);
+  if (errors.length) throw new Error(JSON.stringify(errors, null, 2));
+  console.log('Character switching, shared world, and separate progress checks passed.');
   await send('Browser.close');
   cleanup(0);
 })().catch(error => {console.error(error); cleanup(1);});

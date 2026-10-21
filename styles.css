@@ -1061,6 +1061,17 @@ button.hidden {
   margin-top: 24px;
 }
 
+.saved-character-slot[role="button"] {
+  cursor: pointer;
+}
+
+.saved-character-slot[aria-pressed="true"],
+.saved-character-slot:focus-visible {
+  outline: 2px solid #fff5d2;
+  outline-offset: 2px;
+  background: rgba(255, 255, 255, 0.16);
+}
+
 .saved-character-slot {
   display: flex;
   flex-wrap: wrap;

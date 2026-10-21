@@ -234,7 +234,7 @@
       </div>
       <div id="mainMenu" class="hidden">
         <div class="saved-character-slots">
-        <div class="saved-character-slot">
+        <div id="primaryCharacterSlot" class="saved-character-slot" data-save-slot="soldier" role="button" tabindex="0" aria-pressed="true">
           <img id="savedCharacterPortrait" class="saved-character-portrait" alt="Character profile picture" width="112" height="112">
           <div>
             <p id="savedGameSummary"></p>
@@ -244,13 +244,13 @@
             </dl>
           </div>
         </div>
-        <div class="saved-character-slot" aria-label="Archer preview profile">
+        <div class="saved-character-slot" data-save-slot="archer" role="button" tabindex="0" aria-pressed="false" aria-label="Select Archer">
           <img class="saved-character-portrait" src="./images/archer.png" alt="Archer profile picture" width="112" height="112">
           <div>
-            <p class="saved-character-name">Archer <span class="profile-preview-label">Preview</span></p>
+            <p class="saved-character-name">Archer</p>
             <dl class="saved-character-stats">
-              <div><dt>Money</dt><dd>250</dd></div>
-              <div><dt>Level</dt><dd>5</dd></div>
+              <div><dt>Money</dt><dd id="archerMoney">250</dd></div>
+              <div><dt>Level</dt><dd id="archerLevel">5</dd></div>
             </dl>
           </div>
         </div>
@@ -259,7 +259,7 @@
           <button id="continueGameBtn" type="button">Continue Game</button>
           <button id="newGameBtn" type="button">New Game</button>
         </div>
-        <p>New Game replaces your current game with a fresh character. XP, money, equipment and upgrades reset.</p>
+        <p>Select a character, then Continue Game. New Game resets progress for the character you create.</p>
       </div>
       <div id="classStep" class="hidden">
         <span class="start-kicker">Choose Your Hero</span>
