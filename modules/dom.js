@@ -5,9 +5,6 @@ ctx.imageSmoothingQuality = "high";
 
 const healthValueEl = document.getElementById("healthValue");
 const healthFillEl = document.getElementById("healthFill");
-const xpLevelEl = document.getElementById("xpLevel");
-const xpFillEl = document.getElementById("xpFill");
-const upgradePointsEl = document.getElementById("upgradePoints");
 const upgradeActionEls = document.querySelectorAll(".upgrade-action");
 const minimapCanvas = document.getElementById("minimapCanvas");
 const minimapCtx = minimapCanvas.getContext("2d");
@@ -174,7 +171,6 @@ export {
   traderStatusEl,
   trainSoldierBtn,
   upgradeActionEls,
-  upgradePointsEl,
   weaponDetailsAmmoEl,
   weaponDetailsBtnEl,
   weaponDetailsDamageEl,
@@ -190,8 +186,6 @@ export {
   weaponDetailsReloadEffectEl,
   weaponDetailsAmmoEffectEl,
   weaponDetailUpgradeEls,
-  xpFillEl,
-  xpLevelEl,
   buyWeaponUpgradeBtn,
   closeWeaponDetailsBtn,
 };

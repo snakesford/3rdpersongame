@@ -13,14 +13,6 @@
   <canvas id="gameCanvas" tabindex="-1"></canvas>
 
   <div class="hud">
-    <div class="xp-shell">
-      <span id="xpLevel" class="xp-level">Level 1</span>
-      <span id="upgradePoints" class="upgrade-points hidden">Upgrade Points: 0</span>
-      <div class="xp-bar">
-        <div id="xpFill" class="xp-fill"></div>
-      </div>
-    </div>
-
     <div class="hud-top">
       <div class="hud-left">
         <div class="player-vitals">
@@ -28,12 +20,15 @@
             <strong id="playerPortraitName" class="player-portrait-name">Player</strong>
             <img id="playerPortrait" class="player-mugshot" src="./images/soldier-mugshot.png" alt="Soldier portrait" width="96" height="96" draggable="false">
           </button>
-          <div class="stat-row">
+          <div class="stat-row vitals-bars">
             <div class="stat-head hidden">
               <span>Health <button class="upgrade-action hidden" data-upgrade="health" type="button" aria-label="Upgrade health">+</button></span>
               <strong id="healthValue">0</strong>
             </div>
             <div class="stat-bar"><div id="healthFill" class="stat-fill health-fill"></div></div>
+            <div id="hudXpBar" class="stat-bar" role="progressbar" aria-label="Experience toward next level" aria-valuemin="0" aria-valuemax="50" aria-valuenow="0">
+              <div id="hudXpFill" class="stat-fill xp-fill"></div>
+            </div>
           </div>
         </div>
 

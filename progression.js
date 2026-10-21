@@ -3,16 +3,11 @@ import { clamp } from "./modules/math.js";
 import {
   statusTextEl,
   upgradeActionEls,
-  upgradePointsEl,
-  xpFillEl,
-  xpLevelEl,
 } from "./modules/dom.js";
 
 // Cross-system actions are supplied by the coordinator; shared state is imported directly.
 function createProgressionSystem(services) {
   function updateUpgradeUI() {
-    upgradePointsEl.textContent = `Upgrade Points: ${player.upgradePoints}`;
-    upgradePointsEl.classList.toggle("hidden", player.upgradePoints <= 0);
     upgradeActionEls.forEach((element) => {
       element.classList.toggle("hidden", player.upgradePoints <= 0);
     });
@@ -38,8 +33,10 @@ function createProgressionSystem(services) {
     const inventoryXpProgress = document.getElementById("inventoryXpProgress");
     inventoryXpProgress.max = xpRequired;
     inventoryXpProgress.value = player.xp;
-    xpLevelEl.textContent = `Level ${player.level} • ${player.xp}/${xpRequired} XP`;
-    xpFillEl.style.width = `${Math.min(100, (player.xp / xpRequired) * 100)}%`;
+    const hudXpBar = document.getElementById("hudXpBar");
+    hudXpBar.setAttribute("aria-valuemax", String(xpRequired));
+    hudXpBar.setAttribute("aria-valuenow", String(player.xp));
+    document.getElementById("hudXpFill").style.width = `${clamp(player.xp / xpRequired, 0, 1) * 100}%`;
     updateUpgradeUI();
   }
 
