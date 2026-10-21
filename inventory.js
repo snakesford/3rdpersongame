@@ -121,6 +121,23 @@ function createInventorySystem(services) {
   }
 
   function registerInventoryControls() {
+    const equipmentSlots = document.querySelectorAll("#inventoryEquipmentPanel .equipment-slot, #inventoryEquipmentPanel .inventory-equipment-locked");
+    equipmentSlots.forEach(slot => {
+      if (slot.tagName !== "BUTTON") {
+        slot.setAttribute("role", "button");
+        slot.tabIndex = 0;
+      }
+      const selectSlot = () => {
+        equipmentSlots.forEach(other => other.classList.toggle("equipment-selected", other === slot));
+      };
+      slot.addEventListener("click", selectSlot);
+      slot.addEventListener("keydown", event => {
+        if (event.target === slot && (event.key === "Enter" || event.key === " ")) {
+          if (slot.tagName !== "BUTTON") event.preventDefault();
+          selectSlot();
+        }
+      });
+    });
     equipmentHelmetSlot.addEventListener("click", showEquippedHelmetDetails);
     equipmentHelmetSlot.addEventListener("keydown", (event) => {
       if (event.target === equipmentHelmetSlot && (event.key === "Enter" || event.key === " ")) {
