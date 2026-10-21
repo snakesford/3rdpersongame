@@ -8,6 +8,7 @@ import {
 // Cross-system actions are supplied by the coordinator; shared state is imported directly.
 function createProgressionSystem(services) {
   function updateUpgradeUI() {
+    document.getElementById("levelUpUpgradeBtn").classList.toggle("hidden", player.upgradePoints <= 0);
     upgradeActionEls.forEach((element) => {
       element.classList.toggle("hidden", player.upgradePoints <= 0);
     });
@@ -15,6 +16,11 @@ function createProgressionSystem(services) {
   }
 
   function registerUpgradeControls() {
+    document.getElementById("levelUpUpgradeBtn").addEventListener("click", () => {
+      if (!player.hasSelectedCharacter || player.upgradePoints <= 0) return;
+      services.selectInventoryTab("equipment");
+      if (!player.inventoryOpen) services.toggleInventoryScreen();
+    });
     upgradeActionEls.forEach((element) => {
       element.addEventListener("click", (event) => {
         event.preventDefault();
@@ -57,6 +63,7 @@ function createProgressionSystem(services) {
     }
 
     if (leveledUp) {
+      services.spawnTextPopup(hero.x, hero.y - 52, "Level up", "rgba(106, 168, 255, 1)", 2.5);
       statusTextEl.textContent = `Level up! You are now level ${player.level}.`;
       if (player.inventoryOpen) services.updateInventoryAbilities();
     }

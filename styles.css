@@ -218,6 +218,27 @@ canvas {
   background: linear-gradient(90deg, #6aa8ff, #9de0ff);
 }
 
+.level-up-upgrade {
+  pointer-events: auto;
+  align-self: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 2px solid #6aa8ff;
+  border-radius: 6px;
+  background: #263446;
+  color: #6aa8ff;
+  font-size: 26px;
+  line-height: 1;
+}
+
+.level-up-upgrade:hover,
+.level-up-upgrade:focus-visible {
+  background: #344b68;
+  outline: 2px solid #9de0ff;
+  outline-offset: 2px;
+}
+
 .player-mugshot {
   display: block;
   width: 96px;

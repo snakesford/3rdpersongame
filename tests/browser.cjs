@@ -242,6 +242,19 @@ function cleanup(code) {
     if (player.inventoryOpen) throw new Error('Escape must close inventory');
   `);
   console.log('Escape inventory controls passed.');
+  await check(`
+    player.upgradePoints = 0;
+    player.xp = getXpRequiredForLevel(player.level) - 1;
+    awardPlayerXp(1);
+    const upgradeButton = document.getElementById('levelUpUpgradeBtn');
+    if (upgradeButton.classList.contains('hidden') || player.upgradePoints !== 1) throw new Error('Level up must reveal upgrade button');
+    if (!damagePopups.some(p => p.amount === 'Level up' && p.color === 'rgba(106, 168, 255, 1)')) throw new Error('Blue level up message missing');
+    upgradeButton.click();
+    if (!player.inventoryOpen) throw new Error('Upgrade button must open inventory');
+    applyUpgrade('health');
+    if (!upgradeButton.classList.contains('hidden')) throw new Error('Spent upgrade point must hide button');
+  `);
+  console.log('Level up message and upgrade button checks passed.');
   await send('Browser.close');
   cleanup(0);
 })().catch(error => {console.error(error); cleanup(1);});
