@@ -330,6 +330,20 @@ function cleanup(code) {
     if (fullPickup.collected || player.backpack.length !== player.backpackCapacity) throw new Error('Full backpack must reject pickup without losing armor');
   `);
   console.log('Training body armor spawn, equip, swap, and persistence checks passed.');
+  await check(`
+    player.backpack = [{type: 'greenBodyArmor', armorValue: 80}, {type: 'rareHelmet', armorValue: 85}, {type: 'blueBodyArmor', armorValue: 100}];
+    updateInventoryUI();
+    document.getElementById('equipmentHelmetSlot').click();
+    const backpack = document.getElementById('inventoryBackpackSlots');
+    if (backpack.querySelectorAll('button').length !== 1 || !backpack.querySelector('button').getAttribute('aria-label').includes('Rare Helmet')) throw new Error('Helmet selection must filter backpack');
+    backpack.querySelector('button').click();
+    if (hero.equippedHelmetType !== 'rareHelmet') throw new Error('Filtered helmet must equip original backpack index');
+    document.getElementById('equipmentBodyArmorSlot').click();
+    if (backpack.querySelectorAll('button').length !== 2 || [...backpack.querySelectorAll('button')].some(b => !b.getAttribute('aria-label').includes('Body Armor'))) throw new Error('Body armor selection must filter backpack');
+    backpack.querySelector('button').click();
+    if (hero.equippedBodyArmorType !== 'greenBodyArmor') throw new Error('Filtered body armor must equip correctly');
+  `);
+  console.log('Equipment backpack filtering checks passed.');
   await send('Browser.close');
   cleanup(0);
 })().catch(error => {console.error(error); cleanup(1);});

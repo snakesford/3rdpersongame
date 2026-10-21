@@ -144,6 +144,7 @@ function createInventorySystem(services) {
       }
       const selectSlot = () => {
         equipmentSlots.forEach(other => other.classList.toggle("equipment-selected", other === slot));
+        updateInventoryUI();
       };
       slot.addEventListener("click", selectSlot);
       slot.addEventListener("keydown", event => {
@@ -226,13 +227,21 @@ function createInventorySystem(services) {
     inventoryListEl.textContent = "";
     const backpackSlots = document.getElementById("inventoryBackpackSlots");
     const slotCount = player.backpackCapacity;
+    const selectedSlot = document.querySelector("#inventoryEquipmentPanel .equipment-selected");
+    const helmetTypes = ["helmet", "rareHelmet", "goldHelmet", "enemyHelmet"];
+    const bodyTypes = ["greenBodyArmor", "blueBodyArmor"];
+    const filterTypes = selectedSlot?.id === "equipmentHelmetSlot" ? helmetTypes
+      : selectedSlot?.id === "equipmentBodyArmorSlot" ? bodyTypes : null;
+    const visibleItems = player.backpack.map((item, index) => ({item, index}))
+      .filter(({item}) => !filterTypes || filterTypes.includes(item.type));
+    backpackSlots.setAttribute("aria-label", filterTypes === helmetTypes ? "Backpack helmets" : filterTypes === bodyTypes ? "Backpack body armor" : "Backpack slots");
       backpackSlots.replaceChildren();
-      for (let index = 0; index < slotCount; index += 1) {
+      for (let displayIndex = 0; displayIndex < slotCount; displayIndex += 1) {
+        const {item, index} = visibleItems[displayIndex] || {};
         const slot = document.createElement("div");
         slot.className = "inventory-backpack-slot";
         slot.setAttribute("role", "listitem");
-        slot.setAttribute("aria-label", `Empty backpack slot ${index + 1}`);
-        const item = player.backpack[index];
+        slot.setAttribute("aria-label", `Empty backpack slot ${displayIndex + 1}`);
         if (item) {
           const helmets = {
             helmet: ["Helmet", "#9ca7b8", "#edf3ff"],
@@ -272,7 +281,7 @@ function createInventorySystem(services) {
             if (isBodyArmor) equipBackpackBodyArmor(index);
             else equipBackpackHelmet(index);
             if (restoreFocus) {
-              const nextButton = backpackSlots.children[index]?.querySelector("button") || backpackSlots.querySelector("button");
+              const nextButton = backpackSlots.children[displayIndex]?.querySelector("button") || backpackSlots.querySelector("button");
               (nextButton || document.getElementById("inventoryEquipmentPanel")).focus({ preventScroll: true });
             }
           });
