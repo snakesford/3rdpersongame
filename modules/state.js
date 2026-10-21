@@ -38,6 +38,8 @@ const player = {
   bonusDamage: 0,
   bonusSpeed: 0,
   bonusRegen: 0,
+  bonusHeadshotChance: 0,
+  bonusHeadshotMultiplier: 0,
   bonusAbilityDamage: 0,
   helmetBonusArmor: 0,
   tutorialResources: {

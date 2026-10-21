@@ -123,7 +123,7 @@ function createCombatSystem(services) {
     } else {
       return "—";
     }
-    return calculateHeadshotDamage(getHeroAttackDamage(selected), buildProjectileHeadshotConfig(projectileType).headshotMultiplier);
+    return getHeroAttackDamage(selected) * buildProjectileHeadshotConfig(projectileType).headshotMultiplier;
   }
 
   function getAbilityAimAngle() {
@@ -252,8 +252,8 @@ function createCombatSystem(services) {
   function buildProjectileHeadshotConfig(projectileType) {
     const config = RANGED_HEADSHOT_CONFIG[projectileType] || {};
     return {
-      headshotChance: config.headshotChance ?? 0,
-      headshotMultiplier: services.isBountyHunter() && hero.vehicleId === null && projectileType === "bullet" ? services.getSelectedClassConfig().headshotMultiplier : (config.headshotMultiplier ?? 2),
+      headshotChance: Math.min(1, (config.headshotChance ?? 0) + player.bonusHeadshotChance),
+      headshotMultiplier: (services.isBountyHunter() && hero.vehicleId === null && projectileType === "bullet" ? services.getSelectedClassConfig().headshotMultiplier : (config.headshotMultiplier ?? 2)) * (1 + player.bonusHeadshotMultiplier),
     };
   }
 

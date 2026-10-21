@@ -1494,6 +1494,17 @@ button.hidden {
 }
 
 .inventory-stat-list dd {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+}
+
+.inventory-stat-value {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
   min-width: 72px;
   margin: 0;
   padding: 9px 6px;
@@ -1524,6 +1535,10 @@ button.hidden {
   align-items: center;
   justify-content: center;
   gap: 8px;
+}
+
+.inventory-gold .inventory-stat-value {
+  flex: 1;
   padding: 12px;
   font-size: 22px;
 }
@@ -2012,3 +2027,15 @@ button.hidden {
 }
 
 .inventory-humvee-slot[data-position="left-upper"] { grid-column: 1; grid-row: 2; }
+
+.inventory-upgrade-indicator {
+  display: inline-block;
+  flex-shrink: 0;
+  padding: 0 4px;
+  border: 0;
+  background: transparent;
+  color: #fff;
+  font-size: 26px;
+  font-weight: 700;
+  vertical-align: middle;
+}

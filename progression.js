@@ -8,6 +8,10 @@ import {
 // Cross-system actions are supplied by the coordinator; shared state is imported directly.
 function createProgressionSystem(services) {
   function updateUpgradeUI() {
+    const equipmentSelected = document.getElementById("inventoryEquipmentTab").getAttribute("aria-selected") === "true";
+    document.querySelectorAll(".inventory-upgrade-indicator").forEach(indicator => {
+      indicator.classList.toggle("hidden", player.upgradePoints <= 0 || !equipmentSelected);
+    });
     document.getElementById("levelUpUpgradeBtn").classList.toggle("hidden", player.upgradePoints <= 0);
     upgradeActionEls.forEach((element) => {
       element.classList.toggle("hidden", player.upgradePoints <= 0);
@@ -16,6 +20,30 @@ function createProgressionSystem(services) {
   }
 
   function registerUpgradeControls() {
+    document.querySelectorAll("[data-stat-upgrade]").forEach(button => {
+      button.addEventListener("click", () => {
+        if (!player.hasSelectedCharacter || player.upgradePoints <= 0) return;
+        const stat = button.dataset.statUpgrade;
+        const values = {
+          speed: services.getHeroSpeed(),
+          regen: services.getHeroRegen(),
+          headshotChance: services.getHeroHeadshotChance(),
+          headshotDamage: services.getHeroHeadshotDamage(),
+        };
+        const current = values[stat];
+        if (!Number.isFinite(current) || current <= 0 || (stat === "headshotChance" && current >= 1)) return;
+        if (stat === "speed") {
+          player.bonusSpeed += current * 0.02;
+          hero.speed = services.getHeroSpeed();
+        } else if (stat === "regen") player.bonusRegen += current * 0.02;
+        else if (stat === "headshotChance") player.bonusHeadshotChance += Math.min(current * 0.02, 1 - current);
+        else if (stat === "headshotDamage") player.bonusHeadshotMultiplier += (1 + player.bonusHeadshotMultiplier) * 0.02;
+        player.upgradePoints -= 1;
+        services.updateStatsUI();
+        updateXpUI();
+        saveCharacterProgress();
+      });
+    });
     document.getElementById("levelUpUpgradeBtn").addEventListener("click", () => {
       if (!player.hasSelectedCharacter || player.upgradePoints <= 0) return;
       services.selectInventoryTab("equipment");
@@ -113,7 +141,7 @@ function createProgressionSystem(services) {
 
   const SAVED_PLAYER_FIELDS = ["level", "xp", "upgradePoints", "wood", "money", "weaponBonusStat", "weaponBonusDamage",
     "weaponDetailDamageLevel", "weaponDetailAmmoLevel", "weaponDetailReloadLevel", "weaponDetailRangeLevel",
-    "weaponDetailFireRateLevel", "bonusArmor", "bonusHealth", "bonusDamage", "bonusSpeed", "bonusRegen", "bonusAbilityDamage", "helmetBonusArmor"];
+    "weaponDetailFireRateLevel", "bonusArmor", "bonusHealth", "bonusDamage", "bonusSpeed", "bonusRegen", "bonusAbilityDamage", "helmetBonusArmor", "bonusHeadshotChance", "bonusHeadshotMultiplier"];
 
   const SAVED_EQUIPMENT_FIELDS = ["hasRifle", "hasBow", "hasAxe", "equippedArmorValue", "equippedHelmetType", "ammo"];
 

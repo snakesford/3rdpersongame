@@ -255,6 +255,53 @@ function cleanup(code) {
     if (!upgradeButton.classList.contains('hidden')) throw new Error('Spent upgrade point must hide button');
   `);
   console.log('Level up message and upgrade button checks passed.');
+  await check(`
+    player.upgradePoints = 1;
+    selectInventoryTab('equipment');
+    const indicators = [...document.querySelectorAll('.inventory-stat-list .inventory-upgrade-indicator')];
+    if (indicators.length !== 4) throw new Error('Each stats-panel item must have a plus');
+    if (indicators.some(indicator => indicator.classList.contains('hidden'))) throw new Error('Equipment must show unspent points indicator');
+    selectInventoryTab('items');
+    if (indicators.some(indicator => !indicator.classList.contains('hidden'))) throw new Error('Other tabs must hide points indicator');
+    selectInventoryTab('equipment');
+    applyUpgrade('health');
+    if (indicators.some(indicator => !indicator.classList.contains('hidden'))) throw new Error('Spent points must hide indicator');
+  `);
+  await check(`
+    player.upgradePoints = 8;
+    player.money = 100;
+    updateUpgradeUI();
+    const readers = {speed: getHeroSpeed, regen: getHeroRegen, headshotChance: getHeroHeadshotChance, headshotDamage: getHeroHeadshotDamage};
+    for (const [stat, read] of Object.entries(readers)) {
+      const initial = read();
+      const button = document.querySelector('[data-stat-upgrade="' + stat + '"]');
+      button.click(); button.click();
+      if (Math.abs(read() - initial * 1.02 ** 2) > 0.000001) throw new Error(stat + ' must compound by 2 percent');
+    }
+    if (player.upgradePoints !== 0) throw new Error('Each increase must spend one point');
+    const saved = getSavedCharacter();
+    if (saved.stats.bonusHeadshotChance !== player.bonusHeadshotChance || saved.stats.bonusHeadshotMultiplier !== player.bonusHeadshotMultiplier || saved.stats.money !== player.money) throw new Error('Stat increases must be saved');
+    const speed = getHeroSpeed();
+    document.querySelector('[data-stat-upgrade="speed"]').click();
+    if (getHeroSpeed() !== speed) throw new Error('No free upgrades without points');
+    if (document.querySelector('[data-stat-upgrade="gold"]') || player.money !== 100) throw new Error('Gold must not have an upgrade button');
+  `);
+  console.log('Two-percent stat upgrades, compounding, and persistence checks passed.');
+  await check(`
+    if (player.inventoryOpen) toggleInventoryScreen();
+    selectCharacter('soldier', {newGame: true});
+    hero.ammo = 0;
+    startReload();
+    saveCharacterProgress();
+  `);
+  await reloadGame();
+  await check(`
+    continueGameBtnEl.click();
+    if (!hero.isReloading) throw new Error('Empty saved magazine must automatically reload');
+    updatePlayerCombatTimers(hero.reloadDuration);
+    if (hero.ammo !== hero.maxAmmo || !spawnHeroBullet(hero.x + 200, hero.y)) throw new Error('Restored Soldier must fire after automatic reload');
+  `);
+  console.log('Empty-magazine continue regression check passed.');
   await send('Browser.close');
   cleanup(0);
 })().catch(error => {console.error(error); cleanup(1);});

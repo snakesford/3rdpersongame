@@ -639,6 +639,7 @@ function createInventorySystem(services) {
     inventoryTabPanelEls.forEach((panel) => {
       panel.classList.toggle("hidden", panel.dataset.inventoryPanel !== tabName);
     });
+    services.updateUpgradeUI();
     if (tabName === "abilities") updateInventoryAbilities();
     if (tabName === "humvee") {
       services.updateHumveeInventory();
@@ -923,14 +924,15 @@ function createInventorySystem(services) {
       health: `${Math.round(maxHealth)}`,
       armor: Math.round(getTotalArmor(selected)),
       damage: Math.round(services.getHeroAttackDamage(selected)),
-      speed: Math.round(services.getHeroSpeed(selected) * services.getRoadSpeedMultiplier()),
-      regen: services.getHeroRegen(selected).toFixed(1),
-      headshotChance: `${Number((services.getHeroHeadshotChance(selected) * 100).toFixed(1))}%`,
+      speed: services.getHeroSpeed(selected) * services.getRoadSpeedMultiplier(),
+      regen: services.getHeroRegen(selected),
+      headshotChance: `${Number((services.getHeroHeadshotChance(selected) * 100).toFixed(4))}%`,
       headshotDamage: services.getHeroHeadshotDamage(selected),
       gold: player.money,
     };
     inventoryStatEls.forEach((element) => {
-      element.textContent = String(inventoryStats[element.dataset.inventoryStat]);
+      const value = inventoryStats[element.dataset.inventoryStat];
+      element.textContent = typeof value === "number" ? String(Number(value.toFixed(4))) : String(value);
     });
 
     const portraitSrc = hero.selectedClass !== "soldier" && selected?.portrait ? selected.portrait : hero.hp < maxHealth / 2

@@ -285,11 +285,11 @@
             <progress id="inventoryXpProgress" value="0" max="50" aria-label="Experience toward next level"></progress>
           </div>
           <dl class="inventory-stat-list">
-            <div><dt>Speed</dt><dd data-inventory-stat="speed">0</dd></div>
-            <div><dt>Regen</dt><dd data-inventory-stat="regen">0</dd></div>
-            <div><dt>Headshot Chance</dt><dd data-inventory-stat="headshotChance">0%</dd></div>
-            <div title="Damage per headshot before the target's helmet protection."><dt>Headshot Damage</dt><dd data-inventory-stat="headshotDamage">—</dd></div>
-            <div class="inventory-gold"><dt class="hidden">Coins</dt><dd aria-label="Coins"><img class="inventory-coin" src="./images/coin.png" alt="" width="32" height="32"><span data-inventory-stat="gold">0</span></dd></div>
+            <div><dt>Speed</dt><dd><span class="inventory-stat-value" data-inventory-stat="speed">0</span><button type="button" class="inventory-upgrade-indicator hidden" data-stat-upgrade="speed" aria-label="Increase Speed by 2 percent" title="Increase Speed by 2% (1 point)">+</button></dd></div>
+            <div><dt>Regen</dt><dd><span class="inventory-stat-value" data-inventory-stat="regen">0</span><button type="button" class="inventory-upgrade-indicator hidden" data-stat-upgrade="regen" aria-label="Increase Regen by 2 percent" title="Increase Regen by 2% (1 point)">+</button></dd></div>
+            <div><dt>Headshot Chance</dt><dd><span class="inventory-stat-value" data-inventory-stat="headshotChance">0%</span><button type="button" class="inventory-upgrade-indicator hidden" data-stat-upgrade="headshotChance" aria-label="Increase Headshot Chance by 2 percent" title="Increase Headshot Chance by 2% (1 point)">+</button></dd></div>
+            <div title="Damage per headshot before the target's helmet protection."><dt>Headshot Damage</dt><dd><span class="inventory-stat-value" data-inventory-stat="headshotDamage">—</span><button type="button" class="inventory-upgrade-indicator hidden" data-stat-upgrade="headshotDamage" aria-label="Increase Headshot Damage by 2 percent" title="Increase Headshot Damage by 2% (1 point)">+</button></dd></div>
+            <div class="inventory-gold"><dt class="hidden">Coins</dt><dd aria-label="Coins"><span class="inventory-stat-value"><img class="inventory-coin" src="./images/coin.png" alt="" width="32" height="32"><span data-inventory-stat="gold">0</span></span></dd></div>
           </dl>
         </section>
         <div id="inventoryEquipmentPanel" class="equipment-panel" role="tabpanel" data-inventory-panel="equipment" aria-labelledby="inventoryEquipmentTab" tabindex="0">

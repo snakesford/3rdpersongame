@@ -241,6 +241,7 @@ function selectCharacter(classId, { newGame = false } = {}) {
     player.level = 5;
     player.money = 250;
   }
+  if (hero.hasRifle && hero.ammo <= 0) systems.startReload();
   awardMercenaryRankRewards();
   characterSelectEl.classList.add("hidden");
   statusTextEl.textContent = classId === "soldier"
