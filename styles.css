@@ -20,6 +20,11 @@
   display: none !important;
 }
 
+/* Temporarily hide the quest HUD, including after objective updates. */
+#questPanel {
+  display: none;
+}
+
 html,
 body {
   margin: 0;
