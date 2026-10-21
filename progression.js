@@ -143,7 +143,7 @@ function createProgressionSystem(services) {
     "weaponDetailDamageLevel", "weaponDetailAmmoLevel", "weaponDetailReloadLevel", "weaponDetailRangeLevel",
     "weaponDetailFireRateLevel", "bonusArmor", "bonusHealth", "bonusDamage", "bonusSpeed", "bonusRegen", "bonusAbilityDamage", "helmetBonusArmor", "bonusHeadshotChance", "bonusHeadshotMultiplier"];
 
-  const SAVED_EQUIPMENT_FIELDS = ["hasRifle", "hasBow", "hasAxe", "equippedArmorValue", "equippedHelmetType", "ammo"];
+  const SAVED_EQUIPMENT_FIELDS = ["hasRifle", "hasBow", "hasAxe", "equippedArmorValue", "equippedHelmetType", "equippedBodyArmorValue", "equippedBodyArmorType", "ammo"];
 
   function characterSaveKey(classId = hero.selectedClass) {
     return CHARACTER_SAVE_PREFIX + encodeURIComponent(player.displayName) + ":" + classId;

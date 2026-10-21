@@ -83,6 +83,21 @@ function createInventorySystem(services) {
 
   const equipmentHelmetSlot = document.getElementById("equipmentHelmetSlot");
 
+  function equipBackpackBodyArmor(index) {
+    const armor = player.backpack[index];
+    if (!armor || !["greenBodyArmor", "blueBodyArmor"].includes(armor.type)) return;
+    if (hero.equippedBodyArmorType) {
+      player.backpack[index] = { type: hero.equippedBodyArmorType, armorValue: hero.equippedBodyArmorValue, radius: 18 };
+    } else {
+      player.backpack.splice(index, 1);
+    }
+    hero.equippedBodyArmorType = armor.type;
+    hero.equippedBodyArmorValue = armor.armorValue;
+    updateStatsUI();
+    updateInventoryUI();
+    services.saveCharacterProgress();
+  }
+
   function equipBackpackHelmet(index) {
     const helmet = player.backpack[index];
     if (!Number.isInteger(index) || !helmet || !["helmet", "rareHelmet", "goldHelmet", "enemyHelmet"].includes(helmet.type)) return;
@@ -223,15 +238,19 @@ function createInventorySystem(services) {
             helmet: ["Helmet", "#9ca7b8", "#edf3ff"],
             rareHelmet: ["Rare Helmet", "#4ea0ff", "#d2efff"],
             goldHelmet: ["Gold Helmet", "#d3a63a", "#fff0b3"],
-            enemyHelmet: ["Enemy Helmet", "#78bf6f", "#ecffd8"]
+            enemyHelmet: ["Enemy Helmet", "#78bf6f", "#ecffd8"],
+            greenBodyArmor: ["Green Body Armor", "#4f9e58", "#c4ffd0"],
+            blueBodyArmor: ["Blue Body Armor", "#3f89d8", "#b8e1ff"]
           };
           const [name, fill, stroke] = helmets[item.type];
+          const isBodyArmor = ["greenBodyArmor", "blueBodyArmor"].includes(item.type);
           const icon = document.createElement("img");
-          icon.src = buildHelmetIcon(fill, stroke);
+          icon.src = isBodyArmor ? buildBodyArmorIcon(fill, stroke) : buildHelmetIcon(fill, stroke);
           icon.alt = name;
           icon.draggable = false;
-          slot.draggable = true;
+          slot.draggable = !isBodyArmor;
           slot.addEventListener("dragstart", (event) => {
+            if (isBodyArmor) { event.preventDefault(); return; }
             runtime.draggedBackpackHelmetIndex = index;
             event.dataTransfer.effectAllowed = "move";
             event.dataTransfer.setData("text/plain", String(index));
@@ -240,7 +259,7 @@ function createInventorySystem(services) {
             runtime.draggedBackpackHelmetIndex = null;
             equipmentHelmetSlot.classList.remove("helmet-drop-ready");
           });
-          slot.title = `${name} • Armor ${item.armorValue} • Click or drag to equip`;
+          slot.title = `${name} • Armor ${item.armorValue} • ${isBodyArmor ? "Click" : "Click or drag"} to equip`;
           slot.setAttribute("aria-label", `${name} • Armor ${item.armorValue}`);
           const equipButton = document.createElement("button");
           equipButton.type = "button";
@@ -250,7 +269,8 @@ function createInventorySystem(services) {
           equipButton.addEventListener("click", () => {
             if (!player.inventoryOpen || runtime.draggedBackpackHelmetIndex !== null) return;
             const restoreFocus = document.activeElement === equipButton;
-            equipBackpackHelmet(index);
+            if (isBodyArmor) equipBackpackBodyArmor(index);
+            else equipBackpackHelmet(index);
             if (restoreFocus) {
               const nextButton = backpackSlots.children[index]?.querySelector("button") || backpackSlots.querySelector("button");
               (nextButton || document.getElementById("inventoryEquipmentPanel")).focus({ preventScroll: true });
@@ -916,7 +936,7 @@ function createInventorySystem(services) {
   }
 
   function getBaseArmor(selected = services.getSelectedClassConfig()) {
-    return selected?.stats?.armor || 0;
+    return hero.equippedBodyArmorValue || selected?.stats?.armor || 0;
   }
 
   function getHelmetArmorValue() {
@@ -1070,10 +1090,11 @@ function createInventorySystem(services) {
 
     equipmentHelmetIconEl.style.opacity = equippedHelmetType ? "1" : "0.35";
 
-    if (selected && stats.armor > 0) {
-      equipmentBodyArmorIconEl.src = buildBodyArmorIcon("#87a8bf", "#eef6ff");
-      equipmentBodyArmorNameEl.textContent = "Standard Armor";
-      equipmentBodyArmorMetaEl.textContent = `Base armor ${stats.armor + player.bonusArmor}`;
+    if (getBaseArmor(selected) > 0) {
+      const bodyType = hero.equippedBodyArmorType;
+      equipmentBodyArmorIconEl.src = buildBodyArmorIcon(bodyType === "greenBodyArmor" ? "#4f9e58" : bodyType === "blueBodyArmor" ? "#3f89d8" : "#87a8bf", "#eef6ff");
+      equipmentBodyArmorNameEl.textContent = bodyType === "greenBodyArmor" ? "Green Body Armor" : bodyType === "blueBodyArmor" ? "Blue Body Armor" : "Standard Armor";
+      equipmentBodyArmorMetaEl.textContent = `Base armor ${getBaseArmor(selected) + player.bonusArmor}`;
       equipmentBodyArmorIconEl.style.opacity = "1";
     } else {
       equipmentBodyArmorIconEl.src = buildBodyArmorIcon("rgba(0,0,0,0)", "#111111");
@@ -1120,7 +1141,7 @@ function createInventorySystem(services) {
   }
 
   function isManualPickupType(type) {
-    return type === "helmet" ||
+    return type === "greenBodyArmor" || type === "blueBodyArmor" || type === "helmet" ||
       type === "rareHelmet" ||
       type === "goldHelmet" ||
       type === "enemyHelmet" ||
@@ -1140,6 +1161,20 @@ function createInventorySystem(services) {
   }
 
   function equipPickup(pickup) {
+    if (pickup.type === "greenBodyArmor" || pickup.type === "blueBodyArmor") {
+      if (player.backpack.length >= player.backpackCapacity) {
+        pickup.collected = false;
+        statusTextEl.textContent = "Backpack full. Make room before picking up body armor.";
+        return;
+      }
+      player.backpack.push({ type: pickup.type, armorValue: pickup.armorValue, radius: pickup.radius });
+      updateInventoryUI();
+      const name = pickup.type === "greenBodyArmor" ? "Green Body Armor" : "Blue Body Armor";
+      statusTextEl.textContent = `${name} added to backpack. Click it in inventory to equip.`;
+      services.spawnTextPopup(hero.x, hero.y - 24, `${name} picked up`, pickup.type === "greenBodyArmor" ? "rgba(120, 220, 140, 1)" : "rgba(120, 196, 255, 1)", 1.8);
+      services.saveCharacterProgress();
+      return;
+    }
     if (pickup.type === "tutorialScroll") {
       player.tutorialPathsUnlocked = true;
       statusTextEl.textContent = "Quest started: Tutorial Paths.";

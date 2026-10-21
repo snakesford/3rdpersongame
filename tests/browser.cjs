@@ -302,6 +302,34 @@ function cleanup(code) {
     if (hero.ammo !== hero.maxAmmo || !spawnHeroBullet(hero.x + 200, hero.y)) throw new Error('Restored Soldier must fire after automatic reload');
   `);
   console.log('Empty-magazine continue regression check passed.');
+  await check(`
+    activateTutorialWorld();
+    const green = pickups.find(p => p.type === 'greenBodyArmor');
+    const blue = pickups.find(p => p.type === 'blueBodyArmor');
+    if (!green || !blue) throw new Error('Training body armor missing');
+    render();
+    for (const armor of [green, blue]) {
+      armor.pickupDelay = 0; hero.x = armor.x; hero.y = armor.y;
+      document.getElementById('gameCanvas').dispatchEvent(new KeyboardEvent('keydown', {key: 'e', bubbles: true}));
+      if (!armor.collected || !player.backpack.some(item => item.type === armor.type) || hero.equippedBodyArmorType) throw new Error('Body armor must enter backpack with E');
+    }
+    toggleInventoryScreen();
+    for (const name of ['Green', 'Blue']) {
+      document.querySelector('[aria-label="Equip ' + name + ' Body Armor, armor ' + (name === 'Green' ? 80 : 100) + '"]').click();
+    }
+    if (!player.backpack.some(item => item.type === 'greenBodyArmor') || pickups.some(p => p.type === 'greenBodyArmor' && !p.collected)) throw new Error('Swapping must keep previous armor in backpack');
+    const saved = getSavedCharacter();
+    if (saved.equipment.equippedBodyArmorType !== 'blueBodyArmor' || saved.equipment.equippedBodyArmorValue !== 100) throw new Error('Body armor must save');
+    resetCharacterProgress();
+    restoreCharacterProgress('soldier');
+    if (hero.equippedBodyArmorType !== 'blueBodyArmor' || getBaseArmor() !== 100) throw new Error('Body armor must restore');
+    if (!player.backpack.some(item => item.type === 'greenBodyArmor')) throw new Error('Backpack armor must restore');
+    player.backpack = Array.from({length: player.backpackCapacity}, () => ({type: 'helmet', armorValue: 60}));
+    const fullPickup = {type: 'greenBodyArmor', armorValue: 80, collected: true};
+    equipPickup(fullPickup);
+    if (fullPickup.collected || player.backpack.length !== player.backpackCapacity) throw new Error('Full backpack must reject pickup without losing armor');
+  `);
+  console.log('Training body armor spawn, equip, swap, and persistence checks passed.');
   await send('Browser.close');
   cleanup(0);
 })().catch(error => {console.error(error); cleanup(1);});

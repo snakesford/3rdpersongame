@@ -495,6 +495,23 @@ function createRenderingSystem(services) {
       return;
     }
 
+    if (pickup.type === "greenBodyArmor" || pickup.type === "blueBodyArmor") {
+      const green = pickup.type === "greenBodyArmor";
+      ctx.fillStyle = green ? "#4f9e58" : "#3f89d8";
+      ctx.strokeStyle = green ? "#c4ffd0" : "#b8e1ff";
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      for (const [i, [x, y]] of [[-9, -18], [-18, -12], [-12, 0], [-12, 18], [12, 18], [12, 0], [18, -12], [9, -18], [5, -10], [-5, -10]].entries()) {
+        if (i === 0) ctx.moveTo(pickup.x + x, pickup.y + y);
+        else ctx.lineTo(pickup.x + x, pickup.y + y);
+      }
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+      drawNameplate(pickup.x, pickup.y - 34, green ? "Green Body Armor" : "Blue Body Armor", "rgba(20, 30, 40, 0.85)");
+      return;
+    }
+
     if (pickup.type === "helmet" || pickup.type === "rareHelmet" || pickup.type === "goldHelmet" || pickup.type === "enemyHelmet") {
       const fill = pickup.type === "rareHelmet"
         ? "#3f89d8"

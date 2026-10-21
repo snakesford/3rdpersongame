@@ -92,6 +92,8 @@ const hero = {
   harvestProgress: 0,
   isHarvesting: false,
   equippedArmorValue: 0,
+  equippedBodyArmorValue: 0,
+  equippedBodyArmorType: "",
   equippedHelmetType: null,
   latestPickup: null,
   hasAxe: false,

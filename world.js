@@ -267,6 +267,8 @@ function createWorldSystem(services) {
   function populateTutorialWorld() {
     services.populateTutorialNpcs();
     resetTutorialObjects();
+    services.spawnPickupDrop({ type: "greenBodyArmor", armorValue: 80 }, TUTORIAL_WORLD.spawnX + 100, TUTORIAL_WORLD.spawnY + 100);
+    services.spawnPickupDrop({ type: "blueBodyArmor", armorValue: 100 }, TUTORIAL_WORLD.spawnX + 180, TUTORIAL_WORLD.spawnY + 100);
     if (!player.tutorialPathsUnlocked) {
       pickups.push({
         id: nextId(),
