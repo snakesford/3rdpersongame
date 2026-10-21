@@ -289,6 +289,10 @@ function initializeCharacterCards() {
 
     classCardEl.append(portraitEl, nameEl);
 
+    const startingStatsEl = document.createElement("span");
+    startingStatsEl.textContent = "Money: 0 · Level 1";
+    classCardEl.appendChild(startingStatsEl);
+
     if (classId === "soldier") {
       for (const text of ["Starts with pistol", "starts with low protection armor"]) {
         const detailEl = document.createElement("span");
@@ -311,8 +315,8 @@ function initializeCharacterCards() {
       classCardEl.appendChild(abilityEl);
     }
 
-    if (selectedClass.portrait) {
-      portraitEl.src = selectedClass.portrait;
+    {
+      portraitEl.src = classId === "soldier" ? "./images/soldier-mugshot.png" : (selectedClass.portrait || "./images/soldier-mugshot.png");
       portraitEl.addEventListener("load", () => {
         portraitEl.classList.remove("hidden");
       });
@@ -337,7 +341,13 @@ function showStartMenu() {
   mainMenuEl.classList.toggle("hidden", !saved);
   cancelNewGameBtnEl.classList.toggle("hidden", !saved);
   if (saved) {
-    savedGameSummaryEl.textContent = `${player.displayName} · ${runtime.CHARACTER_OPTIONS[saved.classId].name} · Level ${saved.stats?.level || 1}`;
+    const character = runtime.CHARACTER_OPTIONS[saved.classId];
+    savedGameSummaryEl.textContent = `${player.displayName} · ${character.name}`;
+    const portrait = document.getElementById("savedCharacterPortrait");
+    portrait.src = saved.classId === "soldier" ? "./images/soldier-mugshot.png" : (character.portrait || "./images/soldier-mugshot.png");
+    portrait.alt = `${character.name} profile picture`;
+    document.getElementById("savedCharacterMoney").textContent = (saved.stats?.money ?? 0).toLocaleString();
+    document.getElementById("savedCharacterLevel").textContent = saved.stats?.level || 1;
     statusTextEl.textContent = `Welcome back, ${player.displayName}. Continue your game or start a new adventure.`;
     continueGameBtnEl.focus();
   } else {
@@ -374,8 +384,10 @@ playerNameInputEl.addEventListener("keydown", (event) => {
 
 async function initializeGame() {
   try {
-    await loadCharacterOptions();
-    await loadEnemyOptions();
+    await Promise.all([
+      loadCharacterOptions(),
+      loadEnemyOptions(),
+    ]);
     activateVillageWorld();
     initializeCharacterCards();
     updateAbilityUI();
@@ -389,6 +401,7 @@ async function initializeGame() {
     updateTrainButton();
     updateBuildBarracksButton();
     const savedPlayerName = loadSavedPlayerName();
+    characterSelectEl.classList.remove("is-loading");
     if (savedPlayerName) {
       player.displayName = savedPlayerName;
       playerPortraitNameEl.textContent = player.displayName;
@@ -401,6 +414,8 @@ async function initializeGame() {
     console.error(error);
     statusTextEl.textContent = String(error.message || error);
     classGridEl.textContent = "Start the local server with `node server.js`, then open http://127.0.0.1:4173";
+  } finally {
+    characterSelectEl.classList.remove("is-loading");
   }
 }
 

@@ -164,6 +164,9 @@ function cleanup(code) {
   await check(`
     if (mainMenuEl.classList.contains('hidden') || !classStepEl.classList.contains('hidden')) throw new Error('Returning player must see main menu');
     if (!savedGameSummaryEl.textContent.includes('Engineer')) throw new Error('Saved character missing');
+    if (document.getElementById('savedCharacterMoney').textContent !== '450') throw new Error('Character slot must show saved money');
+    if (document.getElementById('savedCharacterLevel').textContent !== String(getSavedCharacter().stats.level)) throw new Error('Character slot must show saved level');
+    if (!document.getElementById('savedCharacterPortrait').src.endsWith('/images/engineer-portrait.png')) throw new Error('Character slot must show the saved class portrait');
     continueGameBtnEl.click();
     if (getOrderedInventoryAbilities().length !== 1 || getOrderedInventoryAbilities()[0].actionKey !== 'F') throw new Error('Continue must equip only F');
     if (hero.selectedClass !== 'engineer' || player.xp !== 23 || player.money !== 450 || player.bonusHealth !== 20 || player.backpack.length !== 1) throw new Error('Continue lost progress');

@@ -221,8 +221,9 @@
     </div>
   </div>
 
-  <div id="characterSelect" class="start-screen">
+  <div id="characterSelect" class="start-screen is-loading">
     <div class="start-panel">
+      <h1 class="start-title">Timberline command</h1>
       <div id="nameStep">
         <span class="start-kicker">Enter Your Name</span>
         <h2>Name your player before choosing a hero</h2>
@@ -232,9 +233,28 @@
         </div>
       </div>
       <div id="mainMenu" class="hidden">
-        <span class="start-kicker">Welcome Back</span>
-        <h2>Continue your adventure</h2>
-        <p id="savedGameSummary"></p>
+        <div class="saved-character-slots">
+        <div class="saved-character-slot">
+          <img id="savedCharacterPortrait" class="saved-character-portrait" alt="Character profile picture" width="112" height="112">
+          <div>
+            <p id="savedGameSummary"></p>
+            <dl class="saved-character-stats">
+              <div><dt>Money</dt><dd id="savedCharacterMoney">0</dd></div>
+              <div><dt>Level</dt><dd id="savedCharacterLevel">1</dd></div>
+            </dl>
+          </div>
+        </div>
+        <div class="saved-character-slot" aria-label="Archer preview profile">
+          <img class="saved-character-portrait" src="./images/archer.png" alt="Archer profile picture" width="112" height="112">
+          <div>
+            <p class="saved-character-name">Archer <span class="profile-preview-label">Preview</span></p>
+            <dl class="saved-character-stats">
+              <div><dt>Money</dt><dd>250</dd></div>
+              <div><dt>Level</dt><dd>5</dd></div>
+            </dl>
+          </div>
+        </div>
+        </div>
         <div class="name-entry">
           <button id="continueGameBtn" type="button">Continue Game</button>
           <button id="newGameBtn" type="button">New Game</button>

@@ -992,13 +992,22 @@ button.hidden {
   display: grid;
   place-items: center;
   padding: 24px;
-  background: rgba(10, 24, 18, 0.76);
-  backdrop-filter: blur(8px);
+  background: #808080;
   z-index: 20;
 }
 
 .start-screen.hidden {
   display: none;
+}
+
+.start-screen.is-loading .start-panel {
+  visibility: hidden;
+}
+
+.start-screen,
+.start-screen * {
+  animation: none;
+  transition: none;
 }
 
 .start-panel {
@@ -1010,9 +1019,16 @@ button.hidden {
   overflow: auto;
   padding: 28px;
   border-radius: 22px;
-  background: rgba(15, 33, 24, 0.92);
-  border: 1px solid rgba(224, 236, 207, 0.18);
-  box-shadow: 0 18px 50px var(--shadow);
+  background: transparent;
+}
+
+.start-title {
+  margin: 0 0 24px;
+  color: #fff;
+  text-align: center;
+  font-size: clamp(32px, 6vw, 72px);
+  font-weight: 600;
+  line-height: 1.2;
 }
 
 .start-kicker {
@@ -1036,6 +1052,66 @@ button.hidden {
   gap: 12px;
   margin-top: 24px;
   align-items: center;
+}
+
+.saved-character-slots {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+  margin-top: 24px;
+}
+
+.saved-character-slot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 20px;
+  min-width: 0;
+  padding: 20px;
+  border: 1px solid var(--panel-border);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.saved-character-portrait {
+  width: clamp(64px, 18vw, 112px);
+  height: clamp(64px, 18vw, 112px);
+  object-fit: contain;
+  border-radius: 12px;
+  background: rgba(0, 0, 0, 0.2);
+}
+
+#savedGameSummary,
+.saved-character-name {
+  margin: 0 0 16px;
+  font-size: 22px;
+  overflow-wrap: anywhere;
+}
+
+.profile-preview-label {
+  display: block;
+  margin-top: 4px;
+  font-size: 12px;
+  color: var(--text);
+}
+
+.saved-character-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 32px;
+  margin: 0;
+}
+
+.saved-character-stats dt {
+  color: var(--muted);
+  font-size: 14px;
+}
+
+.saved-character-stats dd {
+  margin: 4px 0 0;
+  color: #fff5d2;
+  font-size: 24px;
+  font-weight: 600;
 }
 
 .name-input {
